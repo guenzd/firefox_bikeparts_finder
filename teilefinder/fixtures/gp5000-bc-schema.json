@@ -1,0 +1,153 @@
+[
+  {
+    "@type": "BreadcrumbList"
+  },
+  {
+    "@type": "FAQPage"
+  },
+  {
+    "@type": "ProductGroup",
+    "hasVariant": [
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz",
+        "https://schema.org/size": "25-622 (700x25C)",
+        "name": "schwarz | 25 mm | 28 \" | 25-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/InStock",
+          "gtin": "4019238054439",
+          "price": 55.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312742-schwarz-25-mm-28-25-622"
+        },
+        "sku": "84853-2-7366"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz",
+        "https://schema.org/size": "28-622 (700x28C)",
+        "name": "schwarz | 28 mm | 28 \" | 28-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/BackOrder",
+          "gtin": "4019238054422",
+          "price": 54.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312744-schwarz-28-mm-28-28-622"
+        },
+        "sku": "84853-2-7343"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz",
+        "https://schema.org/size": "30-622 (700x30C)",
+        "name": "schwarz | 30 mm | 28 \" | 30-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/OutOfStock",
+          "gtin": "4019238054415",
+          "price": 54.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312746-schwarz-30-mm-28-30-622"
+        },
+        "sku": "84853-2-7645"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz",
+        "https://schema.org/size": "32-622 (700x32C)",
+        "name": "schwarz | 32 mm | 28 \" | 32-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/BackOrder",
+          "gtin": "4019238054408",
+          "price": 54.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312748-schwarz-32-mm-28-32-622"
+        },
+        "sku": "84853-2-7385"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz",
+        "name": "schwarz | 35 mm | 28 \" | 35-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/InStock",
+          "gtin": "4019238326659",
+          "price": 61.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1001053969-schwarz-35-mm-28-35-622"
+        },
+        "sku": "1001053969"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz-transparent",
+        "https://schema.org/size": "25-622 (700x25C)",
+        "name": "schwarz-transparent | 25 mm | 28 \" | 25-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/InStock",
+          "gtin": "4019238055559",
+          "price": 49.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312743-schwarz-transparent-25-mm-28-25-622"
+        },
+        "sku": "84853-228-7366"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz-transparent",
+        "https://schema.org/size": "28-622 (700x28C)",
+        "name": "schwarz-transparent | 28 mm | 28 \" | 28-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/InStock",
+          "gtin": "4019238055580",
+          "price": 59.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312745-schwarz-transparent-28-mm-28-28-622"
+        },
+        "sku": "84853-228-7343"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz-transparent",
+        "https://schema.org/size": "30-622 (700x30C)",
+        "name": "schwarz-transparent | 30 mm | 28 \" | 30-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/InStock",
+          "gtin": "4019238055610",
+          "price": 56.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312747-schwarz-transparent-30-mm-28-30-622"
+        },
+        "sku": "84853-228-7645"
+      },
+      {
+        "@type": "Product",
+        "https://schema.org/color": "schwarz-transparent",
+        "https://schema.org/size": "32-622 (700x32C)",
+        "name": "schwarz-transparent | 32 mm | 28 \" | 32-622",
+        "offers": {
+          "@type": "Offer",
+          "availability": "https://schema.org/InStock",
+          "gtin": "4019238055641",
+          "price": 54.99,
+          "priceCurrency": "EUR",
+          "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/?o=1000312749-schwarz-transparent-32-mm-28-32-622"
+        },
+        "sku": "84853-228-7385"
+      }
+    ],
+    "name": "Continental Grand Prix 5000 S Tubeless Ready 28 Faltreifen",
+    "url": "https://www.bike-components.de/de/Continental/Continental-Grand-Prix-5000-S-Tubeless-Ready-28-Faltreifen-p84853/"
+  },
+  {
+    "@type": "WebSite",
+    "url": "https://www.bike-components.de"
+  }
+]

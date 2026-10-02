@@ -1,0 +1,43 @@
+{
+  "@type": "ProductGroup",
+  "brand": {
+    "@type": "Brand",
+    "name": "Continental"
+  },
+  "hasVariant": [
+    {
+      "@type": "Product",
+      "name": "schwarz | 26 mm | 26-622 | 28 \"",
+      "offers": {
+        "availability": "https://schema.org/InStock",
+        "gtin": "4019238283921",
+        "price": 72.99,
+        "priceCurrency": "EUR",
+        "url": "https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/?o=1000472572-schwarz-26-mm-26-622-28-"
+      }
+    },
+    {
+      "@type": "Product",
+      "name": "schwarz | 29 mm | 29-622 | 28 \"",
+      "offers": {
+        "availability": "https://schema.org/InStock",
+        "gtin": "4019238283907",
+        "price": 71.99,
+        "priceCurrency": "EUR",
+        "url": "https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/?o=1000472573-schwarz-29-mm-29-622-28-"
+      }
+    },
+    {
+      "@type": "Product",
+      "name": "schwarz | 32 mm | 32-622 | 28 \"",
+      "offers": {
+        "availability": "https://schema.org/InStock",
+        "gtin": "4019238326635",
+        "price": 79.99,
+        "priceCurrency": "EUR",
+        "url": "https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/?o=1001069711-schwarz-32-mm-32-622-28-"
+      }
+    }
+  ],
+  "name": "Aero 111 Tubeless Ready 28\" Faltreifen"
+}

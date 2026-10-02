@@ -6,7 +6,7 @@ const source=readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.ur
 test('Standalone search waits for manual verification and returns four shop results',async()=>{
  let listener;const messages=[],created=[],reads=new Map();const home='moz-extension://unit/home.html';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{async sendMessage(data){messages.push({tab:data.target,data});},getURL:()=>home,onMessage:{addListener(f){listener=f;}}},tabs:{async create(o){created.push(o);return {id:created.length};},async update(){},async get(){return {};},async sendMessage(tab,data){if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'116 Glieder',price:27.99,stock:'Lagernd, Lieferzeit 1-3 Tage'},{...data.fallback,variant:'126 Glieder',price:29.99,stock:'Nicht lieferbar'}]};if(data.type==='extract'){const n=(reads.get(tab)||0)+1;reads.set(tab,n);return n===1?{blocked:true,offers:[]}:{blocked:false,offers:[{name:'Shimano CN-M8100',price:27.99,url:'https://'+data.host+'/chain',stock:'Auf Lager'}]};}messages.push({tab,data});}}};
- vm.runInNewContext(source,{browser,URL,console,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
  await listener({type:'search',id:'job-1',query:'Shimano CN-M8100'},{url:home,tab:{id:99}});
  for(let i=0;i<20;i++)await new Promise(setImmediate);
  assert.equal(created.length,4);assert.equal(messages.filter(m=>m.data.type==='result').length,4);
@@ -15,7 +15,7 @@ test('Standalone search waits for manual verification and returns four shop resu
 });
 test('Websites cannot start extension search jobs',()=>{
  let listener,count=0;const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=> 'moz-extension://unit/home.html',onMessage:{addListener(f){listener=f;}}},tabs:{create(){count++;}}};
- vm.runInNewContext(source,{browser,URL,setTimeout});listener({type:'search',id:'bad',query:'chain'},{url:'https://r2-bike.com/',tab:{id:2}});assert.equal(count,0);
+ vm.runInNewContext(source,{browser,URL,setTimeout,clearTimeout});listener({type:'search',id:'bad',query:'chain'},{url:'https://r2-bike.com/',tab:{id:2}});assert.equal(count,0);
 });
 
 test('Bike-Discount dropdown reads separate prices and stock after selecting each chain length',async()=>{
@@ -50,7 +50,7 @@ test('bike-components custom dropdown reads variant-specific price and delivery 
 test('Extension reuses its own shop tab and replaces a closed tab',async()=>{
  const tabs=new Map();let created=0,updated=0;
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}}},tabs:{async create({url}){const tab={id:++created,url};tabs.set(tab.id,tab);return tab;},async get(id){if(!tabs.has(id))throw Error('Closed');return tabs.get(id);},async update(id,{url}){updated++;const tab={id,url};tabs.set(id,tab);return tab;}}};
- const ctx=vm.createContext({browser,URL,setTimeout});vm.runInContext(source,ctx);
+ const ctx=vm.createContext({browser,URL,setTimeout,clearTimeout});vm.runInContext(source,ctx);
  const first=await vm.runInContext("shopTab(99,shops[1],'https://www.bike-discount.de/de/search?search=chain')",ctx);
  const second=await vm.runInContext("shopTab(99,shops[1],'https://www.bike-discount.de/de/search?search=tyre')",ctx);
  assert.equal(first.id,second.id);assert.equal(created,1);assert.equal(updated,1);tabs.delete(first.id);
@@ -58,13 +58,13 @@ test('Extension reuses its own shop tab and replaces a closed tab',async()=>{
 });
 test('Dependent BIKE24 color and length dropdowns enumerate only valid combinations',async()=>{
  const code=readFileSync(new URL('./firefox-r2/variants.js',import.meta.url),'utf8');
- const option=value=>({value,textContent:value,disabled:false});let now=0;
- const color={id:'100',name:'100',value:'orange',labels:[],options:['orange','schwarz'].map(option),getAttribute:()=> 'Farbe',getClientRects:()=>[{}],closest:()=>null,matches:()=>true,dispatchEvent(){length.options=(this.value==='orange'?['60mm','80mm']:['40mm','60mm']).map(option);length.value='';}};
- const length={id:'200',name:'200',value:'',labels:[],options:[],getAttribute:()=> 'Länge',getClientRects:()=>[{}],closest:()=>null,matches:()=>true,dispatchEvent(){}};
- const document={querySelectorAll:()=>[color,length],querySelector(selector){if(selector.includes('price__value'))return {innerText:length.value==='80mm'?'20,59 €':'18,19 €',getAttribute:()=>null};if(selector.includes('product-availability'))return {innerText:color.value==='schwarz'&&length.value==='40mm'?'Nicht lieferbar':'Aktuell 3 auf Lager'};return null;}};
- const ctx=vm.createContext({document,location:{href:'https://www.bike24.de/p1.html'},Event:class{},Date:{now:()=>now},setTimeout(f,ms){now+=ms;setImmediate(f);},euro:s=>Number(s.replace(',','.')),stockText:s=>s,dedupe:rows=>rows});vm.runInContext(code,ctx);
+ const option=value=>({value,textContent:value,disabled:false});let now=0;const events=[],listeners=new Map();
+ const color={id:'100',name:'100',value:'orange',labels:[],options:['orange','schwarz'].map(option),getAttribute:()=> 'Farbe',getClientRects:()=>[{}],closest:()=>null,matches:()=>true,dispatchEvent(event){events.push(event.type);length.options=(this.value==='orange'?['60mm','80mm']:['40mm','60mm']).map(option);length.value='';}};
+ const length={id:'200',name:'200',value:'',labels:[],options:[],getAttribute:()=> 'Länge',getClientRects:()=>[{}],closest:()=>null,matches:()=>true,dispatchEvent(event){events.push(event.type);}};
+ const document={addEventListener(type,listener){listeners.set(type,listener);},removeEventListener(type){listeners.delete(type);},querySelectorAll:()=>[color,length],querySelector(selector){if(selector.includes('price__value'))return {innerText:length.value==='80mm'?'20,59 €':'18,19 €',getAttribute:()=>null};if(selector.includes('product-availability'))return {innerText:color.value==='schwarz'&&length.value==='40mm'?'Nicht lieferbar':'Aktuell 3 auf Lager'};return null;}};
+ const ctx=vm.createContext({document,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html'},Event:class{constructor(type){this.type=type;}},Date:{now:()=>now},setTimeout(f,ms){now+=ms;setImmediate(f);},euro:s=>Number(s.replace(',','.')),stockText:s=>s,dedupe:rows=>rows});vm.runInContext(code,ctx);
  const result=await vm.runInContext("dropdownVariants({name:'Tubolito',variant:'Ausführung im Shop prüfen'})",ctx);
- assert.equal(result.offers.length,4);assert.equal(result.offers[0].variant,'Farbe: orange · Länge: 60mm');assert.equal(result.offers[1].price,20.59);assert.equal(result.offers[2].variant,'Farbe: schwarz · Länge: 40mm');assert.equal(result.offers[2].stock,'Nicht lieferbar');assert.ok(!result.offers.some(o=>o.variant.includes('schwarz')&&o.variant.includes('80mm')));
+ assert.ok(events.length>0);assert.ok(events.every(type=>type==='change'));assert.equal(listeners.size,0);assert.equal(result.offers.length,4);assert.equal(result.offers[0].variant,'Farbe: orange · Länge: 60mm');assert.equal(result.offers[1].price,20.59);assert.equal(result.offers[2].variant,'Farbe: schwarz · Länge: 40mm');assert.equal(result.offers[2].stock,'Nicht lieferbar');assert.ok(!result.offers.some(o=>o.variant.includes('schwarz')&&o.variant.includes('80mm')));
 });
 
 test('bike-components Aero 111 is read from live cards without embedded props',()=>{
@@ -84,9 +84,138 @@ test('Aero 111 search reaches bike-components 29 mm detail result',async()=>{
  let listener;const messages=[];const home='moz-extension://unit/home.html';
  const path='https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:o.url};},async update(){},async get(){return {};},async sendMessage(tab,data){return data.type==='extract'?{offers:[{name:'Continental Aero 111 Tubeless Ready 28" Faltreifen',variant:'Ausführung im Shop prüfen',price:71.99,priceKind:'from',url:path+'?v=46026-schwarz'}]}:{ready:true,offers:[{...data.fallback,variant:'schwarz | 26 mm | 26-622 | 28 "',price:72.99,priceKind:'exact',stock:'Versand in 1-3 Werktagen'},{...data.fallback,variant:'schwarz | 29 mm | 29-622 | 28 "',price:71.99,priceKind:'exact',stock:'Versand in 1-3 Werktagen',url:path+'?o=1000472573-schwarz-29-mm-29-622-28-'}]};}}};
- vm.runInNewContext(source,{browser,URL,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:f=>setImmediate(f)});
  await listener({type:'search',id:'aero',query:'continental aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
  for(let i=0;i<30;i++)await new Promise(setImmediate);
  const result=messages.find(m=>m.type==='result'&&m.shop==='bike-components');
  assert.ok(result);assert.equal(result.offers.length,1);assert.equal(result.offers[0].priceKind,'exact');assert.equal(result.offers[0].price,71.99);assert.match(result.offers[0].variant,/29 mm/);
+});
+
+test('Unrelated results without a no-results banner finish and permit the next wishlist search',async()=>{
+ let listener,created=0;const messages=[],reads=new Map(),home='moz-extension://unit/home.html';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(data){messages.push(data);}},tabs:{async create({url}){return {id:++created,url};},async update(id,{url}){return {id,url};},async get(){return {url:'https://example.invalid/'};},async sendMessage(tab){reads.set(tab,(reads.get(tab)||0)+1);return {offers:[],suggestions:[],empty:false,ready:true};}}};
+ // Only accelerate polling; response deadline timers must remain real timers.
+ vm.runInNewContext(source+readFileSync(new URL('./firefox-r2/suggestions.js',import.meta.url),'utf8'),{browser,URL,clearTimeout,setTimeout:(f,ms)=>ms===2000?setImmediate(f):setTimeout(f,ms)});
+ for(const id of ['missing-1','next-article']){
+  await listener({type:'search',id,query:'imaginary model 123'},{url:home,tab:{id:99}});
+  for(let n=0;n<40;n++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result'&&m.id===id);
+  assert.equal(results.length,4);assert.ok(results.every(m=>m.offers.length===0));
+ }
+ assert.ok([...reads.values()].every(n=>n<=8));
+});
+
+test('An unresponsive shop message has a bounded wait',async()=>{
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}}},tabs:{sendMessage:()=>new Promise(()=>{})}};
+ const ctx=vm.createContext({browser,URL,setTimeout,clearTimeout});vm.runInContext(source,ctx);
+ await assert.rejects(vm.runInContext("boundedMessage(1,{type:'extract'},5)",ctx),/Antwort dauert zu lange/);
+});
+
+test('Removed cart commands cannot trigger browser actions',()=>{
+ let listener,actions=0;const home='moz-extension://unit/home.html';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}}},tabs:{create(){actions++;},update(){actions++;},sendMessage(){actions++;}}};
+ vm.runInNewContext(source,{browser,URL,setTimeout,clearTimeout});
+ assert.equal(listener({type:'cart',shop:'bike-components',offer:{url:'https://www.bike-components.de/product',price:20,priceKind:'exact'}},{url:home,tab:{id:99}}),undefined);
+ assert.equal(actions,0);
+});
+
+test('BIKE24 purchase guard blocks cart clicks and submission while leaving variant events alone',()=>{
+ const code=readFileSync(new URL('./firefox-r2/variants.js',import.meta.url),'utf8');
+ const listeners=new Map();const document={addEventListener(type,listener){listeners.set(type,listener);},removeEventListener(type){listeners.delete(type);}};
+ const c=vm.createContext({document});vm.runInContext(code,c);const release=vm.runInContext('guardBike24Purchase()',c);
+ let blocked=0;const event=(type,text)=>({type,target:{closest:()=>({textContent:text})},preventDefault(){blocked++;},stopImmediatePropagation(){}});
+ listeners.get('click')(event('click','In den Warenkorb'));assert.equal(blocked,1);
+ listeners.get('submit')(event('submit',''));assert.equal(blocked,2);
+ listeners.get('click')(event('click','Variante auswählen'));assert.equal(blocked,2);
+ release();assert.equal(listeners.size,0);
+});
+
+test('Delayed Aero 111 product details are retried beyond the old two attempts',async()=>{
+ let listener;const messages=[],details=new Map(),home='moz-extension://unit/home.html';
+ const path='https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/?v=46026-schwarz';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:o.url};},async update(){},async get(){return {};},async sendMessage(tab,data){if(data.type==='extract')return {offers:[{name:'Continental Aero 111',url:data.shopId==='bike-components'?path:'https://'+data.host+'/aero',variant:'Ausführung im Shop prüfen',price:71.99,priceKind:'from'}]};const n=(details.get(tab)||0)+1;details.set(tab,n);if(n<4)return {ready:false,offers:[]};return {ready:true,offers:[{...data.fallback,variant:'schwarz | 29 mm | 29-622',priceKind:'exact',stock:'Auf Lager',ean:'4019238283907'}]};}}};
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
+ await listener({type:'search',id:'aero-delayed',query:'Continental Aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
+ for(let i=0;i<60;i++)await new Promise(setImmediate);
+ const result=messages.find(m=>m.type==='result'&&m.shop==='bike-components');assert.ok(result);assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,'4019238283907');assert.equal(details.get('https://www.bike-components.de/de/s/?keywords=Continental%20Aero%20111'),4);
+});
+
+test('BIKE24 inspects listing variants before opening details and retries ambiguous results with a discovered EAN',async()=>{
+ let listener;const home='moz-extension://unit/home.html',messages=[],opened=[],reads=[];
+ const ean='4019238283907';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){opened.push(o.url);return {id:new URL(o.url).hostname};},async update(tab,o){opened.push(o.url);return {id:tab};},async get(){return {};},async sendMessage(tab,data){reads.push(data);if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'29 mm schwarz',priceKind:'exact',stock:'Auf Lager',ean}]};const base={name:'Continental Aero 111',variant:'29 mm schwarz',price:71.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/p1.html'};if(data.query===ean)return {offers:[{...base,ean}]};if(data.shopId==='bike24')return {offers:[base,{...base,url:'https://'+data.host+'/p2.html',variant:'26 mm schwarz'}]};return {offers:[{...base,variant:'Ausführung im Shop prüfen'}]};}}};
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
+ await listener({type:'search',id:'ean-narrow',query:'Continental Aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
+ for(let i=0;i<100;i++)await new Promise(setImmediate);
+ assert.ok(reads.filter(d=>d.shopId==='bike24'&&d.type==='detail').every(d=>d.metadataOnly));
+ assert.ok(opened.includes('https://www.bike24.de/suchergebnis?searchTerm='+ean));
+ assert.equal(opened.filter(url=>url.includes('searchTerm='+ean)).length,1);
+ const result=messages.find(m=>m.type==='result'&&m.shop==='BIKE24');assert.ok(result);assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,ean);
+ assert.ok(messages.some(m=>m.type==='partial-result'));
+});
+
+test('All four shops use complete listing offers without opening product detail pages',async()=>{
+ let listener;const messages=[],detailCalls=[],updates=[],home='moz-extension://unit/home.html';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(tab,data){updates.push(data.url);},async get(){return {};},async sendMessage(tab,data){if(data.type==='detail'){detailCalls.push(data);throw Error('No detail needed');}return {offers:[{name:'Tyre 29 mm schwarz',variant:'29 mm schwarz',ean:'4019238283907',price:70,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/tyre'}]};}}};
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
+ await listener({type:'search',id:'listing-all',query:'Tyre',variant:'29 mm schwarz'},{url:home,tab:{id:99}});
+ for(let i=0;i<40;i++)await new Promise(setImmediate);
+ assert.equal(detailCalls.length,0);assert.equal(updates.length,0);assert.equal(messages.filter(m=>m.type==='result').length,4);
+ assert.ok(messages.filter(m=>m.type==='result').every(m=>m.offers.length===1));
+});
+test('Listing filter skips clearly wrong widths but inspects missing color or unselected dropdowns',()=>{
+ const c=vm.createContext({browser:{browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}}}},URL,setTimeout,clearTimeout});vm.runInContext(source,c);
+ assert.equal(c.listingVariantConflict({name:'CONTINENTAL 700 x 28C',variant:'700 x 28C'},'30 mm schwarz'),true);
+ assert.equal(c.listingVariantConflict({name:'CONTINENTAL 700 x 30C BlackChili',variant:'700 x 30C'},'30 mm schwarz'),false);
+ assert.equal(c.listingOfferComplete({name:'CONTINENTAL 700 x 30C BlackChili',variant:'700 x 30C',price:54,priceKind:'exact',stock:'Auf Lager'},'30 mm schwarz'),false);
+ assert.equal(c.listingVariantConflict({name:'Aero 111',variant:'Ausführung im Shop prüfen'},'29 mm'),false);
+});
+
+test('Bike-Discount Cola caffeine dropdown confirms variant-specific bottom-page EAN',async()=>{
+ const code=readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/variants.js',import.meta.url),'utf8');
+ let now=0,expanded=false,selected='',ean='';
+ const picker={getAttribute:()=>String(expanded),click(){expanded=!expanded;},get innerText(){return selected;}};
+ const values=['mojito (mit koffein)','cola (mit koffein)','Orange'];
+ const inputs=values.map((text,i)=>{const input={id:'flavor'+i,checked:false,disabled:false};input.parentElement={querySelector:()=>({innerText:text,click(){inputs.forEach(n=>n.checked=false);input.checked=true;selected=text;ean=i===1?'4029679672666':'4029679000000';expanded=false;}})};return input;});
+ const document={querySelector(selector){return {'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':inputs[0],'.product-detail-price':{innerText:'52,99 €'},'.nele-product-availability-info':{innerText:selected?'Lagernd, Lieferzeit 1-3 Tage':''},h1:{innerText:'Powerbar Powergel Hydro 24er Box'}}[selector]||null;},querySelectorAll:()=>inputs,getElementById:id=>inputs.find(n=>n.id===id)};
+ const c=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/powerbar-powergel-hydro-24er-box'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);},currentProductEAN:()=>ean,euro:s=>Number(s.trim().replace(',','.')),stockText:s=>s});vm.runInContext(code,c);
+ const rows=await vm.runInContext("bikeDiscountVariants({name:'Powerbar Powergel Hydro 24er Box',variant:'Ausführung im Shop prüfen'},'Cola mti koffein)')",c);
+ assert.equal(rows.length,1);assert.equal(rows[0].variant,'cola (mit koffein)');assert.equal(rows[0].ean,'4029679672666');assert.equal(rows[0].price,52.99);assert.equal(rows[0].stock,'Lagernd, Lieferzeit 1-3 Tage');
+});
+
+test('Bike-Discount selection replaces the picker and inputs: read fresh DOM nodes and the new EAN',async()=>{
+ const code=readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/variants.js',import.meta.url),'utf8');
+ let now=0,selected='',ean='',expanded=false;
+ let picker={getAttribute:()=>String(expanded),click(){expanded=true;},innerText:'Bitte wählen Sie eine Variante'};
+ let input={id:'cola',checked:false,disabled:false};
+ const label={innerText:'cola (mit koffein)',click(){selected=this.innerText;ean='4029679672666';expanded=false;picker={getAttribute:()=>String(expanded),click(){expanded=true;},innerText:selected};input={id:'cola',checked:true,disabled:false,parentElement:{querySelector:()=>label}};}};
+ input.parentElement={querySelector:()=>label};
+ const document={querySelector(selector){return {'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':input,'.product-detail-price':{innerText:'52,99 €'},'.nele-product-availability-info':{innerText:selected?'Lagernd, Lieferzeit 1-3 Tage':''},h1:{innerText:'Powerbar Powergel Hydro 24er Box'}}[selector]||null;},querySelectorAll:()=>[input],getElementById:()=>input};
+ const c=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/powerbar-powergel-hydro-24er-box'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);},currentProductEAN:()=>ean,euro:s=>Number(s.trim().replace(',','.')),stockText:s=>s});vm.runInContext(code,c);
+ const rows=await vm.runInContext("bikeDiscountVariants({name:'Powerbar Powergel Hydro 24er Box'},'cola (mit koffein)')",c);
+ assert.equal(rows.length,1);assert.equal(rows[0].ean,'4029679672666');assert.equal(rows[0].price,52.99);assert.equal(rows[0].variant,'cola (mit koffein)');
+});
+
+test('Similar products keep their classification while exposing variant-specific EAN',async()=>{
+ const row={name:'Powerbar Powergel Hydro 24er Box',price:52.99,stock:'Lagerstatus nicht auslesbar',url:'https://www.bike-discount.de/de/powerbar-powergel-hydro-24er-box'};
+ const calls=[];
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}}},tabs:{async update(){},async sendMessage(id,data){calls.push(data);return {ready:true,offers:[{...row,variant:'cola (mit koffein)',ean:'4029679672666',stock:'Lagernd'}]};}}};
+ const context=vm.createContext({browser,URL,setTimeout:f=>setImmediate(f),clearTimeout});
+ vm.runInContext(source+';globalThis.inspectSuggestions=suggestionDetails;globalThis.setJob=j=>jobs.set(j.source,j);',context);
+ const job={source:99,variant:'Cola'};context.setJob(job);
+ const result=await context.inspectSuggestions({id:1},{id:'bike-discount',host:'www.bike-discount.de'},job,[row],async()=>{});
+ assert.equal(result[0].ean,'4029679672666');assert.equal(result[0].variant,'cola (mit koffein)');
+ assert.equal(calls[0].query,row.name);assert.equal(calls[0].variant,'Cola');
+});
+
+test('EAN searches reject wrong and unconfirmed single results and never fall back to names',async()=>{
+ let listener;const messages=[],requests=[],home='moz-extension://unit/home.html',ean='4029679672666';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){requests.push(o.url);return {id:new URL(o.url).hostname};},async update(id,o){requests.push(o.url);return {id};},async get(){return {};},async sendMessage(id,data){const row={name:'Wrong product',variant:'Cola',price:10,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/product'};if(data.type==='extract')return {offers:[row]};return {ready:true,offers:[{...row,ean:data.shopId==='bike-components'?ean:data.shopId==='bike24'?'4019238283907':''}]};}}};
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:f=>setImmediate(f)});
+ await listener({type:'search',id:'ean-only',query:'Powerbar Hydrogel',ean,variant:'Cola'},{url:home,tab:{id:99}});
+ for(let i=0;i<80;i++)await new Promise(setImmediate);
+ const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);
+ assert.equal(results.find(m=>m.shop==='bike-components').offers.length,1);
+ for(const result of results){assert.ok(result.offers.every(o=>o.ean===ean));assert.equal(result.suggestions?.length||0,0);}
+ assert.ok(requests.filter(url=>/search|keywords|qs=/.test(url)).every(url=>url.includes(ean)));
 });

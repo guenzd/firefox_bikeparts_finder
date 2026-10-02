@@ -49,6 +49,10 @@ def main():
     # Keep this directory stable for Firefox's temporary add-on reload action.
     unpacked = OUTPUT / 'firefox-addon'
     unpacked.mkdir(exist_ok=True)
+    source_names = {p.relative_to(SOURCE) for p in files}
+    for old in unpacked.rglob('*'):
+        if old.is_file() and old.relative_to(unpacked) not in source_names:
+            old.unlink()
     for path in files:
         target = unpacked / path.relative_to(SOURCE)
         target.parent.mkdir(parents=True, exist_ok=True)

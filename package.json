@@ -3,6 +3,10 @@
   "private": true,
   "scripts": {
     "build": "python3 scripts/build-extension.py",
-    "test": "python3 scripts/build-extension.py --test-only"
+    "test": "python3 scripts/build-extension.py --test-only",
+    "lint:extension": "web-ext lint --source-dir teilefinder/firefox-r2 --warnings-as-errors"
+  },
+  "devDependencies": {
+    "web-ext": "^10.7.0"
   }
 }

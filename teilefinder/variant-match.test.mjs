@@ -33,3 +33,19 @@ test('Product matching accepts model name separators',()=>{
  assert.equal(vm.runInContext('matches(\'Continental Aero 111 Tubeless Ready 28" Faltreifen\',\'Continental Aero-111\')',helpers),true);
  assert.equal(vm.runInContext('matches(\'DT Swiss ARC 1100\',\'Continental Aero-111\')',helpers),false);
 });
+
+test('Sealant volumes match liters and milliliters while rejecting other capacities',()=>{
+ assert.equal(match({name:"Peaty's Holeshot BioFibre 1L"},'1000 ml'),true);
+ assert.equal(match({name:"Peaty's Holeshot BioFibre",variant:'1000 ml'},'1 L'),true);
+ assert.equal(match({name:"Peaty's Holeshot BioFibre",variant:'500 ml'},'0,5 Liter'),true);
+ assert.equal(match({name:"Peaty's Holeshot BioFibre 1L",variant:'500 ml'},'1 L'),false);
+ assert.equal(match({name:"Peaty's Holeshot BioFibre 5L"},'1 L'),false);
+ assert.equal(match({name:"Peaty's Holeshot BioFibre 120ml"},'1L'),false);
+});
+
+test('Peatys brand apostrophes normalize identically in all extraction paths',()=>{
+ const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8'),c);
+ c.query="Peaty's Holeshot BioFibre";
+ for(const brand of ['PEATYS','PEATY´S','Peaty’s',"Peaty's"]){c.name=brand+' Dichtmittel Holeshot Biofibre Tubeless Sealant | 1000 ml';assert.equal(vm.runInContext('matches(name,query)',c),true);}
+ assert.equal(match({name:'PEATY´S Dichtmittel Holeshot Biofibre Tubeless Sealant | 1000 ml'},'1 L'),true);
+});

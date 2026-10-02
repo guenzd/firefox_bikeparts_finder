@@ -2,7 +2,8 @@
 
 Firefox-Erweiterung zum Vergleich von Fahrradteilen bei BIKE24, Bike-Discount, bike-components und r2-bike. Sie verwendet Shop-Tabs in der eigenen Firefox-Sitzung. Wunschliste, Varianten und Maximalpreise werden lokal gespeichert und können als Datei gesichert werden.
 
-- [Handbuch](MANUAL.md): Installation, Updates, Suche, Wunschliste und Warenkörbe
+- [Handbuch](MANUAL.md): Installation, Updates, Suche und Wunschliste
+- [Unlisted-Signierung](release/UNLISTED.md): Einreichung und signierte Installation
 - Erweiterung: `teilefinder/firefox-r2/`
 - Build-Werkzeug: `scripts/build-extension.py`
 - Frühere Website und Browser-Prototypen: `teilefinder/`

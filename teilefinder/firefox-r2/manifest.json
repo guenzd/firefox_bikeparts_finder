@@ -1,12 +1,21 @@
 {
   "manifest_version": 2,
   "name": "Teilefinder – Fahrradteile vergleichen",
-  "version": "0.5.4",
+  "version": "0.7.11",
   "description": "Sucht Fahrradteile in vier Shops in deinem Firefox. Ohne lokalen Server.",
   "browser_specific_settings": {
     "gecko": {
       "id": "r2-teilefinder@local.invalid",
-      "strict_min_version": "109.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "searchTerms",
+          "websiteActivity"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   },
   "permissions": [
@@ -26,7 +35,8 @@
     ]
   },
   "browser_action": {
-    "default_title": "Teilefinder öffnen"
+    "default_title": "Teilefinder öffnen",
+    "default_icon": "icon.svg"
   },
   "content_scripts": [
     {
@@ -43,10 +53,13 @@
         "suggestions.js",
         "variants.js",
         "wishlist.js",
-        "cart.js",
         "shop.js"
       ],
       "run_at": "document_idle"
     }
-  ]
+  ],
+  "icons": {
+    "48": "icon.svg",
+    "96": "icon.svg"
+  }
 }
