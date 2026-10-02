@@ -1,0 +1,8 @@
+{
+  "name": "teilefinder-extension-tools",
+  "private": true,
+  "scripts": {
+    "build": "python3 scripts/build-extension.py",
+    "test": "python3 scripts/build-extension.py --test-only"
+  }
+}

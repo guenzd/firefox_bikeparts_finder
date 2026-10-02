@@ -1,0 +1,52 @@
+{
+  "manifest_version": 2,
+  "name": "Teilefinder – Fahrradteile vergleichen",
+  "version": "0.5.4",
+  "description": "Sucht Fahrradteile in vier Shops in deinem Firefox. Ohne lokalen Server.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "r2-teilefinder@local.invalid",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "https://r2-bike.com/*",
+    "https://www.r2-bike.com/*",
+    "https://www.bike24.de/*",
+    "https://www.bike-discount.de/*",
+    "https://www.bike-components.de/*",
+    "storage",
+    "clipboardWrite"
+  ],
+  "background": {
+    "scripts": [
+      "variant-match.js",
+      "suggestions.js",
+      "background.js"
+    ]
+  },
+  "browser_action": {
+    "default_title": "Teilefinder öffnen"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://r2-bike.com/*",
+        "https://www.r2-bike.com/*",
+        "https://www.bike24.de/*",
+        "https://www.bike-discount.de/*",
+        "https://www.bike-components.de/*"
+      ],
+      "js": [
+        "variant-match.js",
+        "extract.js",
+        "suggestions.js",
+        "variants.js",
+        "wishlist.js",
+        "cart.js",
+        "shop.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

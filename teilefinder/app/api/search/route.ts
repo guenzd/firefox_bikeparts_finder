@@ -1,0 +1,2 @@
+import {shops,searchShop} from '@/lib/shop-search';
+export async function GET(request:Request){const q=new URL(request.url).searchParams.get('q')?.trim()||'';if(!q||q.length>160)return Response.json({error:'Bitte 1–160 Zeichen eingeben.'},{status:400});const results=await Promise.all(shops.map(s=>searchShop(s,q)));return Response.json({query:q,shops:results},{headers:{'Cache-Control':'no-store'}});}
