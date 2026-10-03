@@ -1,6 +1,6 @@
 function variantMatches(offer,requested){
  if(!requested?.trim())return true;
- const normalize=s=>String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[‐‑–—]/g,'-').replace(/\bblack\b/g,'schwarz').replace(/\bwhite\b/g,'weiss').replace(/[()\[\]]/g,' ').replace(/\bmti\b/g,'mit').replace(/(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(?:liter|litre|liters|litres|l)\b/gi,(_,n)=>String(Math.round(Number(n.replace(',','.'))*1000*1000)/1000)+'ml');
+ const normalize=s=>String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[‐‑–—]/g,'-').replace(/\bblack\b/g,'schwarz').replace(/\bwhite\b/g,'weiss').replace(/[()\[\]]/g,' ').replace(/(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(?:liter|litre|liters|litres|l)\b/gi,(_,n)=>String(Math.round(Number(n.replace(',','.'))*1000*1000)/1000)+'ml');
  // Listing link text can contain prices; prices must never count as dimensions.
  const name=String(offer.name||'').split(/\bUVP\b|\d{1,5}(?:\.\d{3})*,\d{2}\s*€/i)[0];
  const text=normalize(name+' '+(offer.variant||''));
@@ -21,7 +21,8 @@ function variantMatches(offer,requested){
   }
   if(token==='schwarz'&&/schwarz\s*[\/|\-]\s*(?:transparent|braun|tan)/.test(text)&&!wanted.includes('transparent'))return false;
   const escaped=token.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  return new RegExp('(?<![a-z0-9])'+escaped+'(?![a-z0-9])','i').test(text);
+  if(new RegExp('(?<![a-z0-9])'+escaped+'(?![a-z0-9])','i').test(text))return true;
+  return /^[a-z]{3,}$/.test(token)&&text.split(/[^a-z]+/).some(word=>word.length===token.length&&[...token].some((_,i)=>i+1<token.length&&token.slice(0,i)+token[i+1]+token[i]+token.slice(i+2)===word));
  });
 }
 

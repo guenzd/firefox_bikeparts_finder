@@ -99,8 +99,8 @@ test('r2-bike opens only its read-more control if the description EAN loads afte
  const c=vm.createContext({document:{querySelector:s=>s==='#tab-description'?description:null,querySelectorAll:()=>[]},setTimeout:f=>setImmediate(f)});
  vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);assert.equal(await c.r2DescriptionEAN(),'5060541584983');assert.equal(clicked,1);assert.equal(await c.r2DescriptionEAN(),'5060541584983');assert.equal(clicked,1);
 });
-test('User search Hydrogel 24er matches the actual Powergel Hydro 24er Box name before detail inspection',()=>{
- assert.equal(context.matches('Powerbar Powergel Hydro 24er Box','Powerbar Hydrogel 24er'),true);
+test('Different product terms are not silently rewritten into exact matches',()=>{
+ assert.equal(context.matches('Powerbar Powergel Hydro 24er Box','Powerbar Hydrogel 24er'),false);
  assert.equal(context.matches('Powerbar Powergel Hydro 67ml','Powerbar Hydrogel 24er'),false);
  assert.equal(context.matches('Powerbar Powergel Original 24er Box','Powerbar Hydrogel 24er'),false);
 });

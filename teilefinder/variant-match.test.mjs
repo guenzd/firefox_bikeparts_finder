@@ -49,3 +49,15 @@ test('Peatys brand apostrophes normalize identically in all extraction paths',()
  for(const brand of ['PEATYS','PEATY´S','Peaty’s',"Peaty's"]){c.name=brand+' Dichtmittel Holeshot Biofibre Tubeless Sealant | 1000 ml';assert.equal(vm.runInContext('matches(name,query)',c),true);}
  assert.equal(match({name:'PEATY´S Dichtmittel Holeshot Biofibre Tubeless Sealant | 1000 ml'},'1 L'),true);
 });
+
+test('Generic abbreviations, compound suggestions and typos need no product-specific dictionary',()=>{
+ const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/suggestions.js',import.meta.url),'utf8'),c);
+ assert.equal(c.matches('Acme Ultra Light Cable','Acme UL Cable'),true);
+ assert.equal(c.matches('Acme UL Cable','Acme Ultra Light Cable'),true);
+ assert.equal(c.matches('Acme Light Cable','Acme UL Cable'),false);
+ const cards=[{name:'Acme Hydro Seal Fluid 24er',url:'https://shop.test/a'},{name:'Acme Original Fluid 24er',url:'https://shop.test/b'}];
+ assert.equal(c.similarProducts(cards,'Acme Hydroseal 24er')[0].url,cards[0].url);
+ assert.equal(c.matches(cards[0].name,'Acme Hydroseal 24er'),false);
+ assert.equal(c.compoundTokenMatch('hydroseal',['hydro','seal']),true);
+ assert.equal(c.compoundTokenMatch('hydroseal',['original','seal']),false);
+});

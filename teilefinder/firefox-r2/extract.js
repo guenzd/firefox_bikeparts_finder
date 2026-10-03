@@ -1,8 +1,22 @@
 // Extraction helpers shared with Teilefinder.
 function safeUrl(value,host){try{const u=new URL(value,'https://'+host);return u.protocol==='https:' && u.hostname.replace(/^www\./,'')===host.replace(/^www\./,'') ? u.href : null;}catch{return null;}}
 function euro(value){if(typeof value==='number')return Number.isFinite(value)&&value>0?Math.round(value*100)/100:null;const text=String(value??'').replace(/\s/g,'');const n=Number(text.includes(',')?text.replace(/\./g,'').replace(',','.'):text);return Number.isFinite(n)&&n>0?Math.round(n*100)/100:null;}
-function productNameText(value){return String(value||'').toLowerCase().replace(/\bhydrogel\b/g,'hydro gel').replace(/\bpowergel\b/g,'power gel').replace(/['’‘`´ʼ]/g,'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/\btubeless\s+ready\b/g,'tr').replace(/[‐‑–—-]/g,' ').replace(/\s+/g,' ').trim();}
-function matches(name,q){const text=productNameText(name);if(/\b(?:bundle|set|\d+er\s+set)\b/.test(text)&&!/\b(?:bundle|set|\d+er\s+set)\b/.test(productNameText(q)))return false;return productNameText(q).split(/\s+/).filter(Boolean).every(t=>t.length<=2?text.split(/[^a-z0-9]+/).includes(t):text.includes(t));}
+function productNameText(value){return String(value||'').toLowerCase().replace(/['’‘`´ʼ]/g,'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[‐‑–—-]/g,' ').replace(/\s+/g,' ').trim();}
+function matches(name,q){
+ const text=productNameText(name),query=productNameText(q),words=text.split(/[^a-z0-9]+/).filter(Boolean);
+ if(/\b(?:bundle|set|\d+er\s+set)\b/.test(text)&&!/\b(?:bundle|set|\d+er\s+set)\b/.test(query))return false;
+ const requested=query.split(/\s+/).filter(Boolean);
+ const acronym=(token,tokens)=>/^[a-z]{2,4}$/.test(token)&&tokens.some((_,i)=>tokens.slice(i,i+token.length).length===token.length&&tokens.slice(i,i+token.length).every((word,j)=>/^[a-z]{3,}$/.test(word)&&word[0]===token[j]));
+ return requested.every((token,index)=>{
+  if(words.includes(token)||acronym(token,words))return true;
+  // Accept abbreviations of consecutive words without a vocabulary of product names.
+  for(let length=2;length<=4;length++)for(let start=Math.max(0,index-length+1);start<=index;start++){
+   const phrase=requested.slice(start,start+length);
+   if(phrase.length===length&&phrase.every(word=>/^[a-z]{3,}$/.test(word))&&words.includes(phrase.map(word=>word[0]).join('')))return true;
+  }
+  return token.length>2&&text.includes(token);
+ });
+}
 function stockText(text){const patterns=[/(?:Lagernd,\s*Lieferzeit\s*\d+(?:\s*[-–]\s*\d+)?\s*Tage)/i,/(?:nicht (?:mehr )?(?:lieferbar|verfügbar|auf lager)|ausverkauft|out of stock)/i,/(?:verfügbar (?:ab|in) [^\n.;]{1,65}|available (?:from|in) [^\n.;]{1,65})/i,/(?:ab lager verfügbar|sofort lieferbar|lagernd|auf lager|in stock|available from stock)/i,/(?:Versand in|Lieferzeit:?|delivery time:?|lieferbar in)\s*[^\n.;]{1,65}/i,/\b\d+(?:\s*[-–]\s*\d+)?\s*(?:Arbeitstage|Werktage|working days)\b/i];for(const re of patterns){const m=text.match(re);if(m)return m[0].trim();}return 'Lagerstatus nicht auslesbar';}
 function walk(x,fn){if(!x||typeof x!=='object')return;fn(x);for(const v of Object.values(x))walk(v,fn);}
 function productEAN(product,offer={}){return ['gtin13','gtin','gtin14','gtin12','gtin8'].map(k=>String(offer[k]||product[k]||'')).find(x=>/^\d{8,14}$/.test(x))||'';}
