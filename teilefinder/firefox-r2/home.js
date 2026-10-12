@@ -73,7 +73,7 @@ browser.runtime.onMessage.addListener(d=>{
   document.querySelector('#search-ean').value=shared.ean;shared.shops.forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:shared.ean||item.ean||''}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
- document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig.';if(done===4)document.querySelector('#stop-search').hidden=true;if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
+ document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig.';if(done===4){document.querySelector('#stop-search').hidden=true;void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
 });
 document.querySelector('#max').addEventListener('input',render);
 document.querySelector('#search-variant').addEventListener('input',render);
@@ -103,7 +103,7 @@ function renderWishlist(){
     catch{save.disabled=false;cancel.disabled=false;document.querySelector('#status').textContent='Name konnte nicht gespeichert werden.';}
    });
    form.append(name,save,cancel);nameCell.replaceChildren(form);name.focus();name.select();
-  });nameCell.append(rename);const eanLabel=el('label','EAN'),eanInput=el('input');eanInput.value=item.ean||'';eanInput.dataset.eanItem=item.id;eanInput.placeholder='Wird automatisch ergänzt';eanInput.inputMode='numeric';eanInput.pattern='[0-9]{8,14}';eanInput.maxLength=14;eanInput.disabled=checkingList;eanInput.addEventListener('change',()=>{if(eanInput.value&&!validEAN(eanInput.value)){eanInput.reportValidity();return;}item.ean=validEAN(eanInput.value);void saveList();});eanLabel.append(eanInput);eanLabel.className='wish-ean';row.append(nameCell,eanLabel);
+  });nameCell.append(rename);const history=el('button','Preisverlauf');history.type='button';history.className='history-button';history.addEventListener('click',()=>showPriceHistory(item));nameCell.append(history);const eanLabel=el('label','EAN'),eanInput=el('input');eanInput.value=item.ean||'';eanInput.dataset.eanItem=item.id;eanInput.placeholder='Wird automatisch ergänzt';eanInput.inputMode='numeric';eanInput.pattern='[0-9]{8,14}';eanInput.maxLength=14;eanInput.disabled=checkingList;eanInput.addEventListener('change',()=>{if(eanInput.value&&!validEAN(eanInput.value)){eanInput.reportValidity();return;}item.ean=validEAN(eanInput.value);void saveList();});eanLabel.append(eanInput);eanLabel.className='wish-ean';row.append(nameCell,eanLabel);
   const recheck=el('button','Erneut suchen');recheck.type='button';recheck.className='secondary recheck-button';recheck.disabled=checkingList;recheck.addEventListener('click',()=>void recheckWishlistItem(item.id));row.append(recheck);
   const priceLabel=el('label','Max. €'),input=el('input');priceLabel.className='wish-price';input.type='number';input.min='0';input.step='0.01';input.placeholder='Ohne Grenze';input.value=item.maxPrice??'';input.disabled=checkingList;
   input.addEventListener('change',()=>{item.maxPrice=input.value===''?null:Number(input.value);void saveList();renderTotal();if(wishlistDetails)render();});priceLabel.append(input);row.append(priceLabel);
@@ -159,13 +159,16 @@ function renderTotal(){
  root.append(box);
 }
 document.querySelector('#add-wish').addEventListener('click',async()=>{
+ if(checkingList||document.querySelector('#add-wish').disabled)return;
  const q=document.querySelector('#query').value.trim(),raw=document.querySelector('#max').value;
  if(!q){document.querySelector('#query').reportValidity();return;}
  if(!document.querySelector('#max').reportValidity()||!document.querySelector('#search-ean').reportValidity())return;
  const requested=document.querySelector('#search-variant').value.trim();
  const shops=q===query&&requested===searchedVariant?[...state.entries()].filter(([,s])=>s.done).map(([name,s])=>({name,...s})):[];
- wishlist.push({id:crypto.randomUUID(),query:q,ean:validEAN(document.querySelector('#search-ean').value),maxPrice:raw===''?null:Number(raw),variant:requested,shops,checkedAt:shops.length?new Date().toISOString():null});
- try{await saveList();renderWishlist();document.querySelector('#status').textContent='Artikel lokal zur Wunschliste hinzugefügt.';}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}
+ const itemId=crypto.randomUUID();
+ wishlist.push({id:itemId,query:q,ean:validEAN(document.querySelector('#search-ean').value),maxPrice:raw===''?null:Number(raw),variant:requested,shops,checkedAt:shops.length?new Date().toISOString():null});
+ document.querySelector('#add-wish').disabled=true;
+ try{await saveList();await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList;}
 });
 async function recheckWishlistItem(itemId){
  if(checkingList)return;const item=wishlist.find(row=>row.id===itemId);if(!item)return;
@@ -205,11 +208,12 @@ function copyButton(url,onUse){
 }
 
 // Downloads remain available independently of Firefox add-on storage.
-document.querySelector('#export-wishlist').addEventListener('click',()=>{
+document.querySelector('#export-wishlist').addEventListener('click',async()=>{
  if(checkingList||(!wishlist.length&&!state.size))return;
  const raw=document.querySelector('#max').value;
  const screen={wishlistDetails,query:document.querySelector('#query').value,variant:document.querySelector('#search-variant').value,ean:document.querySelector('#search-ean').value,maxPrice:raw===''?null:Number(raw),searchedQuery:query,searchedVariant,shops:[...state.entries()].map(([name,s])=>({name,...s}))};
- const blob=new Blob([wishlistFile(wishlist,screen)],{type:'application/json'}),url=URL.createObjectURL(blob);
+ let history;try{await historyWrites;history=await priceHistoryDB.all();}catch{document.querySelector('#status').textContent='Preishistorie konnte nicht exportiert werden.';return;}
+ const blob=new Blob([wishlistFile(wishlist,screen,history)],{type:'application/json'}),url=URL.createObjectURL(blob);
  const link=el('a');link.href=url;link.download='teilefinder-wunschliste-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
  document.querySelector('#status').textContent='Wunschliste als JSON-Datei zum Download bereitgestellt.';
 });
@@ -217,8 +221,9 @@ document.querySelector('#import-wishlist').addEventListener('click',()=>{if(!che
 document.querySelector('#wishlist-file').addEventListener('change',async e=>{
  const file=e.target.files?.[0];e.target.value='';if(!file||checkingList)return;
  try{
-  if(file.size>2_000_000)throw Error('Die Datei ist zu groß.');
+  if(file.size>20_000_000)throw Error('Die Datei ist zu groß.');
   const incoming=parseWishlistFile(await file.text());if(checkingList)return;
+  await priceHistoryDB.put(incoming.history||[]);
   const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
   await browser.storage.local.set({wishlist:updated});wishlist=updated;
   if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void browser.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=screen.maxPrice??'';state.clear();screen.shops.forEach(s=>state.set(s.name,s));document.querySelector('#stop-search').hidden=true;render();}
@@ -233,3 +238,18 @@ document.querySelector('#stop-search').addEventListener('click',()=>{
  if(finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,shop])=>({name,...shop})));}
  document.querySelector('#status').textContent='Suche gestoppt. Ergebnisse bleiben erhalten.';
 });
+
+let historyWrites=Promise.resolve();
+function recordPriceHistory(){
+ const rows=priceObservations([...state.entries()].map(([name,s])=>({name,...s})),id,new Date().toISOString());
+ historyWrites=historyWrites.then(()=>priceHistoryDB.put(rows)).catch(()=>{document.querySelector('#status').textContent='Preishistorie konnte nicht gespeichert werden.';});return historyWrites;
+}
+async function showPriceHistory(item){
+ if(!validEAN(item.ean)){document.querySelector('#status').textContent='Für den Preisverlauf wird eine bestätigte EAN benötigt.';return;}
+ const dialog=el('dialog');dialog.className='price-history-dialog';const heading=el('div');heading.className='shop-heading';heading.append(el('h2',item.query));const close=el('button','Schließen');close.className='secondary';close.addEventListener('click',()=>dialog.close());heading.append(close);dialog.append(heading);
+ const controls=el('div');controls.className='history-controls';const range=el('select');for(const [value,label] of [['30','30 Tage'],['90','90 Tage'],['365','1 Jahr'],['0','Gesamter Verlauf']]){const option=el('option',label);option.value=value;range.append(option);}range.value='0';range.setAttribute('aria-label','Zeitraum');controls.append(range);const content=el('div');dialog.append(controls,content);document.body.append(dialog);dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();content.textContent='Preisverlauf wird geladen…';
+ try{await historyWrites;const all=await priceHistoryDB.all(item.ean);const draw=()=>{content.replaceChildren();const cutoff=range.value==='0'?0:Date.now()-Number(range.value)*86400000;const rows=all.filter(r=>Date.parse(r.at)>=cutoff&&r.offers.length);if(!rows.length){content.append(el('p','Noch keine Preise in diesem Zeitraum. Bestätigte, lieferbare Angebote werden bei zukünftigen Suchen gespeichert.'));return;}
+ const points=rows.map(r=>({at:Date.parse(r.at),price:Math.min(...r.offers.map(o=>o.price)),row:r}));const low=Math.min(...points.map(p=>p.price)),high=Math.max(...points.map(p=>p.price)),start=points[0].at,end=points.at(-1).at;const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 640 220');svg.setAttribute('role','img');svg.setAttribute('aria-label','Günstigster lieferbarer Preis über die Zeit');const node=(tag,attrs,text)=>{const n=document.createElementNS(svg.namespaceURI,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));if(text)n.textContent=text;svg.append(n);return n;};
+ const x=p=>55+(end===start?260:(p.at-start)/(end-start)*550),y=p=>180-(high===low?65:(p.price-low)/(high-low)*135);node('line',{x1:55,y1:180,x2:605,y2:180,stroke:'#cbd5df'});node('text',{x:5,y:48,fill:'#617383','font-size':12},money(high));node('text',{x:5,y:180,fill:'#617383','font-size':12},money(low));node('polyline',{points:points.map(p=>x(p)+','+y(p)).join(' '),fill:'none',stroke:'#477934','stroke-width':2});for(const p of points){const dot=node('circle',{cx:x(p),cy:y(p),r:4,fill:'#477934'});const title=document.createElementNS(svg.namespaceURI,'title');title.textContent=new Date(p.at).toLocaleString('de-DE')+' · '+money(p.price);dot.append(title);}node('text',{x:55,y:210,fill:'#617383','font-size':12},new Date(start).toLocaleDateString('de-DE'));node('text',{x:605,y:210,'text-anchor':'end',fill:'#617383','font-size':12},new Date(end).toLocaleDateString('de-DE'));content.append(svg);
+ content.append(el('p',points.length+' Abfragen · Tiefstpreis '+money(low)+' · Aktuell '+money(points.at(-1).price)));const table=el('table');const head=el('tr');for(const label of ['Abfrage','Shop','Preis'])head.append(el('th',label));table.append(head);for(const point of points.slice(-100).reverse()){const best=point.row.offers.reduce((a,b)=>a.price<=b.price?a:b);const row=el('tr');row.append(el('td',new Date(point.at).toLocaleString('de-DE')),el('td',best.shop),el('td',money(best.price)));table.append(row);}content.append(table);};range.addEventListener('change',draw);draw();}catch{content.textContent='Preisverlauf konnte nicht geladen werden.';}
+}

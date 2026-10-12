@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';import {webcrypto} from 'node:crypto';
-const ctx=vm.createContext({crypto:webcrypto,URL});vm.runInContext(readFileSync(new URL('./firefox-r2/wishlist-file.js',import.meta.url),'utf8'),ctx);
+const ctx=vm.createContext({crypto:webcrypto,URL});vm.runInContext(readFileSync(new URL('./firefox-r2/price-history.js',import.meta.url),'utf8'),ctx);vm.runInContext(readFileSync(new URL('./firefox-r2/wishlist-file.js',import.meta.url),'utf8'),ctx);
 test('Wishlist file round trip retains query, variant and cap, discarding legacy cart markers including result state',()=>{
  ctx.items=[{query:'Continental Aero 111',variant:'29 mm',maxPrice:80,shops:[{name:'BIKE24',offers:[{name:'Continental Aero 111',variant:'29 mm',url:'https://www.bike24.de/p1838076.html',price:69.99,priceKind:'exact',stock:'Auf Lager'}]}],cart:{key:'bike-components|url|29mm',clicked:true}}];
  const rows=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);
@@ -28,4 +28,14 @@ test('Old wishlist files remain readable and newer imported results enrich exist
  ctx.text=JSON.stringify({format:'teilefinder-wishlist',version:1,items:[{query:'Tyre',variant:'29 mm',maxPrice:null}]});const old=vm.runInContext('parseWishlistFile(text)',ctx);assert.equal(old[0].shops.length,0);
  ctx.existing=[{id:'keep-id',query:'Tyre',variant:'29 mm',maxPrice:null,shops:[],checkedAt:null}];ctx.incoming=[{query:'Tyre',variant:'29 mm',maxPrice:null,shops:[{name:'BIKE24',offers:[]}],checkedAt:'2026-10-02T18:00:00Z'}];
  const rows=vm.runInContext('mergeWishlistFile(existing,incoming)',ctx);assert.equal(rows[0].id,'keep-id');assert.equal(rows[0].shops.length,1);
+});
+test('Price history export/import preserves observations and rejects untrusted URLs',()=>{
+ ctx.history=[{key:'search|8020775045428',ean:'8020775045428',at:'2026-10-12T10:00:00Z',offers:[{shop:'Bike-Discount',price:22.99,url:'https://www.bike-discount.de/de/example',stock:'Auf Lager'}]}];
+ const rows=vm.runInContext('parseWishlistFile(wishlistFile([],null,history))',ctx);assert.equal(rows.history[0].offers[0].price,22.99);
+ ctx.history[0].offers[0].url='https://example.com/';assert.throws(()=>vm.runInContext('parseWishlistFile(wishlistFile([],null,history))',ctx));
+});
+test('History records only confirmed EANs and deliverable exact prices, ignoring stale shops',()=>{
+ vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),ctx);
+ ctx.shops=[{name:'BIKE24',done:true,offers:[{ean:'8020775045428',price:22.99,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1.html'},{ean:'8020775045428',price:10,priceKind:'exact',stock:'Nicht lieferbar'},{ean:'',price:5,priceKind:'exact',stock:'Auf Lager'},{ean:'8020775045428',price:2,priceKind:'from',stock:'Auf Lager'}]},{name:'r2-bike',done:true,stale:true,offers:[{ean:'8020775045428',price:1,priceKind:'exact',stock:'Auf Lager'}]}];
+ const result=vm.runInContext("priceObservations(shops,'job','2026-10-12T10:00:00Z')",ctx);assert.equal(result.length,1);assert.equal(result[0].offers.length,1);assert.equal(result[0].offers[0].price,22.99);assert.equal(result[0].key,'job|8020775045428');
 });

@@ -80,3 +80,9 @@ Quellcode: `teilefinder/firefox-r2/`. Tests: `teilefinder/*.test.mjs` und `teile
 ## Erneute Suche und Abbruch
 
 „Suche stoppen“ beendet das Warten und lässt die bisher eingegangenen Ergebnisse bestehen. Bleibt eine erneute Shop-Abfrage leer, werden frühere Angebote mit ihrem bisherigen Stand erhalten und als aktuell nicht bestätigt markiert. Solche alten Angebote fließen nicht in den aktuellen Gesamtpreis ein.
+
+## Lokaler Preisverlauf
+
+Nach abgeschlossenen Suchen speichert die Erweiterung bestätigte, lieferbare Angebote pro EAN in IndexedDB. Über „Preisverlauf“ beim Wunschlistenartikel erscheint eine Grafik des günstigsten lieferbaren Preises mit Zeitraumauswahl und Tabelle. Maximalpreise begrenzen diese Historie nicht. Die Aufzeichnung beginnt mit zukünftigen Suchen; alte Ergebnisse werden nicht nachträglich als neue Preise erfasst.
+
+„Als Datei speichern“ exportiert auch die Historie; „Datei laden“ stellt sie wieder her. Beim Deinstallieren werden die lokalen Daten gelöscht.
