@@ -33,13 +33,25 @@ browser.runtime.onMessage.addListener(async data=>{
   if(same&&data.shopId==='bike24'&&data.metadataOnly&&data.fallback){const ean=currentProductEAN();return {ready:!!ean||document.readyState==='complete',offers:[{...data.fallback,ean}]};}
   if(same&&document.querySelector('h1')&&data.shopId==='bike24'&&data.fallback)return bike24Details(data.fallback,data.followLinked!==false,data.variant);
   if(same&&data.shopId==='bike-components'&&data.fallback){const json=[...document.querySelectorAll('script[type="application/ld+json"]')].flatMap(n=>{try{return [JSON.parse(n.textContent)];}catch{return [];}});const schema=structuredOffers(json,data.host,location.href,data.query).filter(o=>variantMatches(o,data.variant));if(schema.length)return {ready:true,offers:schema};if(!document.querySelector('h1')||!document.querySelector('.pdp-variant-button[aria-controls="options-list"]'))return {ready:false,offers:[]};const variants=await bikeComponentsVariants(data.fallback,data.variant);if(variants.offers.length)return {ready:true,...variants};if(data.variant&&!variantMatches(data.fallback,data.variant))return {ready:false,offers:[]};}
-  if(same&&document.querySelector('h1')&&data.shopId==='bike-discount'&&data.fallback){const variants=await bikeDiscountVariants(data.fallback,data.variant);if(variants.length)return {ready:true,offers:variants};return {ready:false,offers:[]};}
+  if(same&&document.querySelector('h1')&&data.shopId==='bike-discount'&&data.fallback&&document.querySelector('#productDetailConfiguratorOptions')){const variants=await bikeDiscountVariants(data.fallback,data.variant);if(variants.length)return {ready:true,offers:variants};return {ready:false,offers:[]};}
   if(same&&document.querySelector('h1')&&data.fallback&&productDropdowns().length){const variants=await dropdownVariants(data.fallback);if(variants.offers.length)return {ready:true,...variants};}
   const main=document.querySelector('[itemtype$="/Product"]')||document.querySelector('main')||document.body;
   const availability=document.querySelector('.nele-product-availability-info, .delivery-status, .delivery, .availability, .stock-status');
   const stock=stockText(availability?.innerText||main.innerText.split(/Beschreibung|Wird oft zusammen gekauft|Zuletzt angesehen/)[0]);
   const offer=data.fallback?{...data.fallback,ean:currentProductEAN(),variant:[data.fallback.variant,productColor()].filter(Boolean).join(' · '),stock}:null;
   return {ready:same&&!!document.querySelector('h1'),stock,...(offer?{offers:[offer]}:{})};
+ }
+ // A single-result shop search can redirect directly to a product page.
+ // Read its own fields before recommendation cards, which are not search results.
+ if(data.shopId==='bike-discount'&&document.querySelector('h1')&&document.querySelector('.product-detail-price')){
+  const name=document.querySelector('h1').innerText.trim(),ean=currentProductEAN();
+  const priceText=document.querySelector('.product-detail-price').innerText.trim();
+  const amount=priceText.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);
+  const configurable=!!document.querySelector('#productDetailConfiguratorOptions');
+  const stock=stockText(document.querySelector('.nele-product-availability-info')?.innerText||'');
+  const accepted=validEAN(data.query)?!ean||ean===data.query:matches(name,data.query);
+  const offers=accepted&&amount?[{name,ean,price:euro(amount[1]),priceKind:/^ab\s/i.test(priceText)?'from':'exact',variant:configurable?'Ausführung im Shop prüfen':productColor()||name,stock,url:location.href,source:'Firefox · Produktseite'}]:[];
+  return {blocked:false,offers,suggestions:[],ready:document.readyState==='complete',empty:!accepted};
  }
  const listingQuery=validEAN(data.query)?'':data.query;
  const cards=data.shopId==='bike-discount'?readBikeDiscountCards({q:listingQuery,limit:data.variant?40:8}):data.shopId==='bike-components'?bcCards(listingQuery,data.variant?40:8):readCards({host:data.host,q:listingQuery,limit:data.variant?40:8});

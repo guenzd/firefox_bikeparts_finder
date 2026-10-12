@@ -219,3 +219,38 @@ test('EAN searches reject wrong and unconfirmed single results and never fall ba
  for(const result of results){assert.ok(result.offers.every(o=>o.ean===ean));assert.equal(result.suggestions?.length||0,0);}
  assert.ok(requests.filter(url=>/search|keywords|qs=/.test(url)).every(url=>url.includes(ean)));
 });
+
+test('Bike-Discount products without a configurator use the normal detail stock reader',async()=>{
+ const code=readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/shop.js',import.meta.url),'utf8');
+ for(const status of ['Lagernd, Lieferzeit 1-3 Tage','Nicht lieferbar']){
+  let listener,variantCalls=0;
+  const document={body:{innerText:'Generic product'},querySelector(s){if(s==='h1')return {innerText:'Generic product'};if(s.includes('.nele-product-availability-info'))return {innerText:status};if(s==='main')return {innerText:status};return null;},querySelectorAll:()=>[]};
+  const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/generic-product'},URL,browser:{runtime:{onMessage:{addListener(f){listener=f;}}}},bikeDiscountVariants(){variantCalls++;return [];},productDropdowns:()=>[],currentProductEAN:()=> '1234567890128',productColor:()=>''});
+  vm.runInContext(code,ctx);
+  vm.runInContext("currentProductEAN=()=> '1234567890128'; productColor=()=>'';",ctx);
+  const result=await listener({type:'detail',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,query:'Generic product',fallback:{name:'Generic product',price:22.99,variant:'Standard'}});
+  assert.equal(result.ready,true);assert.equal(result.offers[0].stock,status);assert.equal(result.offers[0].ean,'1234567890128');assert.equal(variantCalls,0);
+ }
+});
+test('Bike-Discount configurators still require confirmed selected variant stock',async()=>{
+ let listener,calls=0;
+ const document={body:{innerText:'Generic product'},querySelector:s=>s==='h1'||s==='#productDetailConfiguratorOptions'?{}:null,querySelectorAll:()=>[]};
+ const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/generic-product'},URL,browser:{runtime:{onMessage:{addListener(f){listener=f;}}}},bikeDiscountVariants:async()=>{calls++;return [];}});
+ vm.runInContext(readFileSync(new URL('./firefox-r2/shop.js',import.meta.url),'utf8'),ctx);
+ const result=await listener({type:'detail',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,query:'Generic product',fallback:{name:'Generic product'}});
+ assert.equal(calls,1);assert.equal(result.ready,false);assert.equal(result.offers.length,0);
+});
+
+test('Bike-Discount EAN search redirects read the main product rather than recommendations',async()=>{
+ const code=readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/shop.js',import.meta.url),'utf8');
+ for(const ean of ['8020775045428','1234567890128']){
+  let listener;
+  const document={readyState:'complete',body:{innerText:'Generic product'},querySelector(s){return {h1:{innerText:'Generic product'},'.product-detail-price':{innerText:'22,99 €'},'.nele-product-availability-info':{innerText:'Lagernd, Lieferzeit 1-3 Tage'},'#description-tab-pane':{textContent:'EAN:\n'+ean}}[s]||null;},querySelectorAll(s){if(s==='button')return [];throw Error('Recommendation cards must not be read on product pages');}};
+  const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/generic-product'},URL,browser:{runtime:{onMessage:{addListener(f){listener=f;}}}},validEAN:s=>/^\d{13}$/.test(s)?s:''});
+  vm.runInContext(code,ctx);vm.runInContext("productColor=()=>''",ctx);
+  const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query:'8020775045428'});
+  assert.equal(result.ready,true);
+  assert.equal(result.offers.length,ean==='8020775045428'?1:0);
+  if(result.offers.length){assert.equal(result.offers[0].ean,ean);assert.equal(result.offers[0].stock,'Lagernd, Lieferzeit 1-3 Tage');assert.equal(result.offers[0].price,22.99);}
+ }
+});
