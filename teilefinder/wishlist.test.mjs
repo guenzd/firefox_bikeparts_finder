@@ -118,8 +118,8 @@ test('Future availability dates never contribute to the deliverable total',()=>{
 
 test('Wishlist total distinguishes unavailable matches, unknown stock, price bounds and no matches',()=>{
  const item={query:'Example',checkedAt:'2026-10-23T10:00:00Z',maxPrice:30,shops:[{name:'Shop',offers:[offer(20,'Nicht lieferbar'),offer(25,'Nachbestellung')]}]};
- assert.equal(sum([item]).rows[0].missingMessage,'Passende Angebote gefunden · derzeit nicht lieferbar');assert.equal(sum([item]).total,0);
- assert.equal(sum([{...item,shops:[{name:'Shop',offers:[offer(20,'Lagerstatus nicht auslesbar')]}]}]).rows[0].missingMessage,'Passende Angebote gefunden · Lieferbarkeit nicht bestätigt');
+ assert.equal(sum([item]).rows[0].missingMessage,'Nicht lieferbar');assert.equal(sum([item]).total,0);
+ assert.equal(sum([{...item,shops:[{name:'Shop',offers:[offer(20,'Lagerstatus nicht auslesbar')]}]}]).rows[0].missingMessage,'Lagerstatus unbekannt');
  assert.equal(sum([{...item,maxPrice:10}]).rows[0].missingMessage,'Kein passendes Angebot im Preisbereich');
  assert.equal(sum([{...item,shops:[]}]).rows[0].missingMessage,'Kein passendes Angebot');
  assert.equal(sum([{...item,shops:[{...item.shops[0],stale:true}]}]).rows[0].missingMessage,'Kein passendes Angebot');

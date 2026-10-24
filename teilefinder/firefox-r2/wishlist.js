@@ -23,7 +23,7 @@ function cheapestWishlist(items){
   const matching=(item.shops||[]).flatMap(shop=>(shop.stale?[]:shop.offers||[]).filter(o=>Number.isFinite(o.price)&&o.price>0&&o.priceKind==='exact'&&variantMatches(o,item.variant)).map(o=>({...o,shop:shop.name})));
   const inRange=matching.filter(o=>withinPriceRange(o.price,item));
   const candidates=inRange.filter(o=>deliverable(o.stock));candidates.sort((a,b)=>a.price-b.price);
-  const missingMessage=inRange.length?(inRange.some(o=>!o.stock||/nicht auslesbar|unbekannt/i.test(o.stock))?'Passende Angebote gefunden · Lieferbarkeit nicht bestätigt':'Passende Angebote gefunden · derzeit nicht lieferbar'):matching.length?'Kein passendes Angebot im Preisbereich':item.checkedAt?'Kein passendes Angebot':'Noch nicht geprüft';
+  const missingMessage=inRange.length?(inRange.some(o=>!o.stock||/nicht auslesbar|unbekannt/i.test(o.stock))?'Lagerstatus unbekannt':'Nicht lieferbar'):matching.length?'Kein passendes Angebot im Preisbereich':item.checkedAt?'Kein passendes Angebot':'Noch nicht geprüft';
   return {item,best:candidates[0]||null,missingMessage};
  });
  const total=Math.round(rows.reduce((sum,row)=>sum+(row.best?.price||0),0)*100)/100;
