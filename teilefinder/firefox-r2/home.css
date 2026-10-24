@@ -223,3 +223,20 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 }
 #check-wishlist.is-checking:hover{background-color:var(--hover)}
 @media(forced-colors:active){#check-wishlist.is-checking{background-image:none;border:1px solid ButtonBorder}}
+
+/* Fixed action columns: native links and copy buttons share one 32px row. */
+.wishlist-results th:last-child,.total-results th:last-child{width:126px}
+.result-links{width:126px;white-space:nowrap}
+.result-links>.result-link-actions{display:grid;grid-template-columns:72px 32px;align-items:center;gap:6px;width:110px;margin:0}
+.wishlist-results .result-links>.result-link-actions{margin:0}
+.result-links>.result-link-actions+.result-link-actions,.wishlist-results .result-links>.result-link-actions+.result-link-actions{margin-top:6px}
+.result-link-button{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 8px;border:1px solid var(--field-line);border-radius:7px;background:var(--secondary);color:var(--secondary-ink);font-size:12px;font-weight:500;line-height:1;text-decoration:none;white-space:nowrap}
+.result-link-button:hover{background:var(--hover);color:var(--ink)}
+.result-link-actions>.copy-button{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;min-height:32px;margin:0;padding:7px;border-radius:7px;background:var(--secondary);color:var(--secondary-ink)}
+.result-link-actions>.copy-button:hover{background:var(--hover);color:var(--ink)}
+.result-link-actions>.copy-button svg,.copy-list-button svg{display:block;width:16px;height:16px;margin:0;flex-shrink:0}
+.copy-list-button{height:32px;min-height:32px;margin:0;padding:0 10px;gap:7px;border:1px solid var(--field-line);border-radius:7px;background:var(--secondary);color:var(--secondary-ink);font-size:12px;font-weight:500;line-height:1}
+.copy-list-button:hover{background:var(--hover);color:var(--ink)}
+.shop-heading>.copy-list-button{margin-right:8px}
+
+.result-link-actions>.copy-button.copied{background:var(--success-bg);color:var(--available);border-color:var(--success-line)}

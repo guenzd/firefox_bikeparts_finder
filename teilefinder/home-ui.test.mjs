@@ -166,6 +166,7 @@ test('Displayed four-shop matches hide repeated EAN rows in totals and shop list
  const item={id:'one',query:'Example tyre',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
  const ctx=vm.createContext({el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),ctx);
+ vm.runInContext(home.slice(home.indexOf('function resultLinkActions('),home.indexOf('function render(){')),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderWishlistDetails('),home.indexOf('browser.runtime.onMessage.addListener')),ctx);
  ctx.renderTotal();assert.equal(eanRows,0);

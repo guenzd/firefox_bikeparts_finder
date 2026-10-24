@@ -12,6 +12,12 @@ function resultMessage(message){
  // Older saved results can still contain these redundant success notices.
  return ['Preise und Lagerstatus direkt auf den gespeicherten Produktseiten aktualisiert.','Produkt anhand der EAN und gewünschten Variante bestätigt.'].includes(message)?'':message||'';
 }
+function resultLinkActions(label,url){
+ const row=el('div');row.className='result-link-actions';
+ const link=el('a',label);link.className='result-link-button';link.href=url;link.target='_blank';link.rel='noopener noreferrer';
+ const copy=copyButton(url);copy.title=label==='Suchen'?'Suchlink kopieren':'Produktlink kopieren';copy.setAttribute('aria-label',copy.title);
+ row.append(link,copy);return row;
+}
 function render(){
  const savedRoot=document.querySelector('#wishlist-shop-results');savedRoot.replaceChildren();renderWishlistDetails(savedRoot);
  const root=document.querySelector('#results');root.replaceChildren();document.querySelector('#search-results-heading').hidden=wishlistDetails;
@@ -25,7 +31,7 @@ function render(){
  const rows=uniqueOffers(s.offers||[]).filter(o=>typeof o.price==='number'&&withinPriceRange(o.price,range||{minPrice:Infinity,maxPrice:0})&&variantMatches(o,requested));
  const hideEAN=allShopsHaveDisplayedOffers([...state.entries()].map(([name,shop])=>({name,...shop})),{...(range||{minPrice:Infinity,maxPrice:0}),variant:requested});
  if(rows.length){const wrap=el('div');wrap.className='table-wrap';const t=el('table'),head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Link'].forEach(v=>head.append(el('th',v)));appendTableHead(t,head);t.setAttribute('aria-label',name+' · Suchergebnisse');
- for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean)&&!hideEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td'),link=el('a','Öffnen');link.href=o.url;link.target='_blank';link.rel='noopener noreferrer';cell.append(link,copyButton(o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
+ for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean)&&!hideEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td');cell.className='result-links';cell.append(resultLinkActions('Öffnen',o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
  }else section.append(el('p',(s.offers||[]).length?'Keine Angebote innerhalb des Preisbereichs.':message));
  if(!(s.offers||[]).length&&s.suggestions?.length)appendSuggestions(section,s.suggestions,range||{minPrice:Infinity,maxPrice:0},item,s.variantAlternatives);
  if((s.offers||[]).length>rows.length)section.append(el('small',((s.offers||[]).length-rows.length)+' Angebote durch Preisfilter ausgeblendet.'));
@@ -54,12 +60,12 @@ function renderWishlistDetails(root){
 
      if(validEAN(offer.ean)&&!hideEANs.get(item.id))product.append(eanRow(offer.ean,item.id));
      price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);stock.append(el('span',offer.stock));
-     const link=el('a','Öffnen');link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';links.append(link,copyButton(offer.url));
+     links.append(resultLinkActions('Öffnen',offer.url));
     }else{price.textContent='—';stock.append(el('span',(shop.offers||[]).length?'Außerhalb des Preisbereichs':resultMessage(shop.message)||'Kein Treffer'));if(validEAN(item.ean)&&!hideEANs.get(item.id))product.append(eanRow(item.ean,item.id));}
     if(index===0){
      if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));
      if(shop.checkedAt)stock.append(el('small',new Date(shop.checkedAt).toLocaleString('de-DE')));
-     if(shop.url){const search=el('a','Suchen');search.href=shop.url;search.target='_blank';search.rel='noopener noreferrer';const line=el('div');line.append(search,copyButton(shop.url));links.append(line);}
+     if(shop.url)links.append(resultLinkActions('Suchen',shop.url));
     }
     row.append(product,price,stock,links);group.append(row);
    }
@@ -196,7 +202,7 @@ function renderTotal(){
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
 
   const ean=validEAN(best?.ean)||validEAN(item.ean);if(ean&&!allShopsHaveDisplayedOffers(item.shops||[],item))product.append(eanRow(ean,item.id));
-  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);const link=el('a','Öffnen');link.href=best.url;link.target='_blank';link.rel='noopener noreferrer';links.append(link,copyButton(best.url));}
+  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
   else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));
   row.append(product,shop,price,stock,links);table.append(row);
