@@ -1,7 +1,7 @@
 let currentTab;browser.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
 const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
 let searchDeadline;
-const state=new Map();let id='',query='',searchedVariant='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
+const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
 const saveList=()=>browser.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
 browser.storage.local.get('wishlist').then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
@@ -97,6 +97,7 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  clearTimeout(searchDeadline);searchDeadline=setTimeout(finishTimedOutSearch,105000);
  wishlistDetails=checkingList;setWishlistCollapsed(!checkingList);
  const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,message:'Shopsuche wird geöffnet…'}));document.querySelector('#stop-search').hidden=false;render();document.querySelector('#status').textContent='Suche läuft…';
+ searchedEAN=validEAN(document.querySelector('#search-ean').value);
  const useEAN=wishlist.find(item=>item.id===activeWishlistId)?.useEAN!==false;
  try{await browser.runtime.sendMessage({type:'search',query,useEAN,...(inputPriceRange(document.querySelector('#max'))||{}),ean:validEAN(document.querySelector('#search-ean').value),variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,validEAN(document.querySelector('#search-ean').value)||validEAN(query))});}catch{document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
@@ -185,12 +186,14 @@ document.querySelector('#add-wish').addEventListener('click',async()=>{
  const q=document.querySelector('#query').value.trim(),raw=document.querySelector('#max').value;
  if(!q){document.querySelector('#query').reportValidity();return;}
  if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity()||!document.querySelector('#search-ean').reportValidity())return;
- const requested=document.querySelector('#search-variant').value.trim();
+ const requested=document.querySelector('#search-variant').value.trim(),ean=validEAN(document.querySelector('#search-ean').value);
+ const sameEAN=!ean||ean===searchedEAN||[...state.values()].some(shop=>(shop.offers||[]).some(offer=>validEAN(offer.ean)===ean));
+ const reuseResults=!wishlistDetails&&q===query&&requested===searchedVariant&&sameEAN&&names.every(name=>state.get(name)?.done);
  const shops=q===query&&requested===searchedVariant?[...state.entries()].filter(([,s])=>s.done).map(([name,s])=>({name,...s})):[];
  const itemId=crypto.randomUUID();
- wishlist.push({id:itemId,query:q,ean:validEAN(document.querySelector('#search-ean').value),...parsePriceRange(raw),variant:requested,shops,checkedAt:shops.length?new Date().toISOString():null});
+ wishlist.push({id:itemId,query:q,ean,...parsePriceRange(raw),variant:requested,shops,checkedAt:shops.reduce((at,shop)=>shop.checkedAt&&(!at||shop.checkedAt>at)?shop.checkedAt:at,null)});
  document.querySelector('#add-wish').disabled=true;
- try{await saveList();await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList;}
+ try{await saveList();if(reuseResults){wishlistDetails=true;setWishlistCollapsed(false);renderWishlist();document.querySelector('#status').textContent='Artikel mit Ergebnissen übernommen.';}else await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList;}
 });
 async function recheckWishlistItem(itemId){
  if(checkingList)return;const item=wishlist.find(row=>row.id===itemId);if(!item)return;
@@ -266,7 +269,7 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
   await priceHistoryDB.put(incoming.history||[]);
   const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
   await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
-  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void browser.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));document.querySelector('#stop-search').hidden=true;render();}
+  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void browser.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));document.querySelector('#stop-search').hidden=true;render();}
   renderWishlist();
   document.querySelector('#status').textContent=added+' Artikel importiert · Ergebnisse wiederhergestellt.';
  }catch(error){document.querySelector('#status').textContent='Import fehlgeschlagen: '+(error instanceof SyntaxError?'Ungültige JSON-Datei.':error.message);}

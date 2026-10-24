@@ -96,3 +96,20 @@ test('Result text hides redundant success notices from older saved results but k
  for(const text of ['Zeitlimit überschritten','Sicherheitsprüfung: Shop-Tab öffnen','Variante nicht bestätigt','Weitere Varianten im Shop prüfen.'])assert.equal(ctx.resultMessage(text),text);
  assert.equal(ctx.resultMessage(undefined),'');
 });
+
+test('Adding a completed ad hoc search adopts all results and timestamps without another search',async()=>{
+ const nodes={};const node=selector=>nodes[selector]||(nodes[selector]={value:'',disabled:false,reportValidity:()=>true,addEventListener(type,callback){this[type]=callback;}});
+ node('#query').value='Product';node('#search-variant').value='black';node('#search-ean').value='1234567890123';node('#max').value='50';
+ const names=['A','B','C','D'],state=new Map(names.map(name=>[name,{done:true,checkedAt:'2026-10-24T12:00:00Z',offers:[{name:'Product',ean:'1234567890123',price:25,url:'https://example.org/'+name,stock:'Auf Lager'}],suggestions:[{name:'Alternative'}]}]));
+ let searches=0,saves=0,collapsed;
+ const ctx=vm.createContext({document:{querySelector:node},names,state,wishlist:[],checkingList:false,wishlistDetails:false,query:'Product',searchedVariant:'black',searchedEAN:'',validEAN:value=>/^\d{13}$/.test(value)?value:'',inputPriceRange:()=>({maxPrice:50}),parsePriceRange:()=>({maxPrice:50}),crypto:{randomUUID:()=> 'new-item'},async saveList(){saves++;},async recheckWishlistItem(){searches++;},setWishlistCollapsed(value){collapsed=value;},renderWishlist(){}});
+ vm.runInContext(home.slice(home.indexOf("document.querySelector('#add-wish').addEventListener"),home.indexOf('async function recheckWishlistItem(')),ctx);
+ await node('#add-wish').click();
+ assert.equal(searches,0);assert.equal(saves,1);assert.equal(collapsed,false);assert.equal(ctx.wishlistDetails,true);
+ assert.equal(ctx.wishlist[0].shops.length,4);assert.equal(ctx.wishlist[0].ean,'1234567890123');assert.equal(ctx.wishlist[0].checkedAt,'2026-10-24T12:00:00Z');assert.equal(ctx.wishlist[0].shops[0].offers[0].price,25);assert.equal(ctx.wishlist[0].shops[0].suggestions[0].name,'Alternative');
+ for(const change of ['name','variant','EAN','unfinished']){
+  ctx.wishlistDetails=false;node('#query').value=change==='name'?'Other':'Product';node('#search-variant').value=change==='variant'?'silver':'black';node('#search-ean').value=change==='EAN'?'9999999999999':'1234567890123';state.get('D').done=change!=='unfinished';
+  await node('#add-wish').click();
+ }
+ assert.equal(searches,4);
+});
