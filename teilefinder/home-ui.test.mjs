@@ -137,3 +137,14 @@ test('Clicking active search progress cancels once, preserves results and releas
  vm.runInContext(home.slice(home.indexOf("document.querySelector('#check-wishlist').addEventListener"),home.indexOf('function copyListButton(')),ctx);
  ctx.setSearchRunning(true);ctx.stopRequested=false;await node('#check-wishlist').click();assert.equal(cancelled,2);assert.equal(ctx.stopRequested,true);
 });
+
+test('Wishlist fields select on initial edit, allow caret positioning, commit with Enter and revert with Escape',()=>{
+ const document={activeElement:null};let selected=0,blurred=0,prevented=0;
+ const field={value:'30',setCustomValidity(value){this.validity=value;},addEventListener(type,fn){this[type]=fn;},select(){selected++;},blur(){blurred++;document.activeElement=null;}};
+ const ctx=vm.createContext({document});vm.runInContext(home.slice(home.indexOf('function enableDirectEditing('),home.indexOf('function renderWishlist(){')),ctx);
+ ctx.enableDirectEditing(field,()=> '30');
+ field.pointerdown();document.activeElement=field;field.focus();field.click();assert.ok(selected>0);
+ const before=selected;field.pointerdown();field.click();assert.equal(selected,before);
+ field.value='40';field.keydown({key:'Enter',preventDefault(){prevented++;}});assert.equal(blurred,1);assert.equal(field.value,'40');
+ field.value='wrong';field.keydown({key:'Escape',preventDefault(){prevented++;}});assert.equal(blurred,2);assert.equal(field.value,'30');assert.equal(field.validity,'');assert.equal(prevented,2);
+});

@@ -100,3 +100,5 @@ Bei der Ad-hoc-Suche schaltet der Schalter neben „EAN“ zwischen EAN- und Nam
 Bei unterschiedlichen Shop-Bezeichnungen wird zusätzlich eine exakte Modellkennung mit Marke und gemeinsamen Produktmerkmalen abgeglichen. Falls nötig, wird die Shopsuche auf Marke und Modell eingegrenzt. Zahlen im Variantenfeld können im Artikeltitel oder in der ausgewählten Ausführung stehen; eine abweichende ausgewählte Ausführung hat Vorrang. Preise und Teile von Modellnummern bestätigen keine reine Zahlenvariante.
 
 Ein Klick auf den laufenden Suchfortschritt stoppt die Suche. Während der Listenprüfung stoppt auch der Button „Prüfe …“ die gesamte Prüfung. Bereits gefundene Ergebnisse bleiben erhalten. Beide Bedienelemente sind auch per Tastatur erreichbar.
+
+Preis und Ausführung in der Wunschliste lassen sich direkt im Feld bearbeiten: Beim ersten Klick wird der Inhalt markiert. Enter übernimmt die Änderung, Escape setzt den gespeicherten Wert wieder ein. Beim Verlassen des Feldes wird ebenfalls gespeichert. „Bearbeiten“ neben dem Artikelnamen ist nur für den Namen erforderlich.

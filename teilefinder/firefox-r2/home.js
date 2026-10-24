@@ -109,6 +109,16 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search').addEventListener('submit',e=>{e.preventDefault();if(checkingList)return;if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity())return;const q=document.querySelector('#query').value.trim();if(q){activeWishlistId='';void startSearch(q);}});
+function enableDirectEditing(input,savedValue){
+ let selectOnClick=false;
+ input.addEventListener('pointerdown',()=>{selectOnClick=document.activeElement!==input;});
+ input.addEventListener('focus',()=>input.select());
+ input.addEventListener('click',()=>{if(selectOnClick)input.select();selectOnClick=false;});
+ input.addEventListener('keydown',event=>{
+  if(event.key==='Enter'){event.preventDefault();input.blur();}
+  if(event.key==='Escape'){event.preventDefault();input.value=savedValue();input.setCustomValidity('');input.blur();}
+ });
+}
 function renderWishlist(){
  const root=document.querySelector('#wishlist-items');root.replaceChildren();
  if(!wishlist.length)root.append(el('p','Noch keine Artikel gespeichert.'));
@@ -129,10 +139,10 @@ function renderWishlist(){
    form.append(name,save,cancel);nameCell.replaceChildren(form);name.focus();name.select();
   });nameCell.append(rename);const history=el('button','Preisverlauf');history.type='button';history.className='history-button';history.addEventListener('click',()=>showPriceHistory(item));nameCell.append(history);const eanLabel=el('div'),eanInput=el('input');eanInput.value=item.ean||'';eanInput.dataset.eanItem=item.id;eanInput.placeholder='Wird automatisch ergänzt';eanInput.inputMode='numeric';eanInput.pattern='[0-9]{8,14}';eanInput.maxLength=14;eanInput.disabled=checkingList;eanInput.addEventListener('change',()=>{if(eanInput.value&&!validEAN(eanInput.value)){eanInput.reportValidity();return;}item.ean=validEAN(eanInput.value);void saveList();});eanInput.id='ean-'+item.id;const eanToggle=el('input');eanToggle.type='checkbox';eanToggle.setAttribute('role','switch');eanToggle.className='ean-toggle';eanToggle.checked=item.useEAN!==false;eanToggle.disabled=checkingList;eanToggle.title='EAN für die Suche verwenden';eanToggle.setAttribute('aria-label','EAN für '+item.query+' verwenden');eanToggle.addEventListener('change',()=>{item.useEAN=eanToggle.checked;void saveList();});const eanHeading=el('div'),eanText=el('label','EAN');eanText.htmlFor=eanInput.id;eanHeading.className='ean-heading';eanHeading.append(eanText,eanToggle);eanLabel.replaceChildren(eanHeading,eanInput);eanLabel.className='wish-ean';row.append(nameCell,eanLabel);
   const recheck=el('button','↻');recheck.type='button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.className='secondary recheck-button';recheck.disabled=checkingList;recheck.addEventListener('click',()=>void recheckWishlistItem(item.id));row.append(recheck);
-  const priceLabel=el('label','Preis €'),input=el('input');priceLabel.className='wish-price';input.type='text';input.inputMode='text';input.placeholder='10 / 5-10';input.value=priceRangeText(item);input.disabled=checkingList;
+  const priceLabel=el('label','Preis €'),input=el('input');priceLabel.className='wish-price';input.type='text';input.inputMode='text';input.placeholder='10 / 5-10';input.value=priceRangeText(item);input.disabled=checkingList;enableDirectEditing(input,()=>priceRangeText(item));
   input.addEventListener('input',()=>inputPriceRange(input));
   input.addEventListener('change',()=>{const range=inputPriceRange(input);if(!range){input.reportValidity();return;}Object.assign(item,range);void saveList();renderTotal();render();});priceLabel.append(input);row.append(priceLabel);
-  const variantLabel=el('label','Ausführung'),variant=el('input');variantLabel.className='wish-variant';variant.className='variant-input';variant.placeholder='Alle Varianten';variant.value=item.variant||'';variant.disabled=checkingList;variant.addEventListener('change',()=>{item.variant=variant.value.trim();item.ean='';eanInput.value='';void saveList();renderTotal();render();});variantLabel.append(variant);row.append(variantLabel);
+  const variantLabel=el('label','Ausführung'),variant=el('input');variantLabel.className='wish-variant';variant.className='variant-input';variant.placeholder='Alle Varianten';variant.value=item.variant||'';variant.disabled=checkingList;enableDirectEditing(variant,()=>item.variant||'');variant.addEventListener('change',()=>{item.variant=variant.value.trim();item.ean='';eanInput.value='';void saveList();renderTotal();render();});variantLabel.append(variant);row.append(variantLabel);
   const remove=el('button','×');remove.type='button';remove.className='remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList;remove.addEventListener('click',()=>{wishlist=wishlist.filter(i=>i.id!==item.id);void saveList();renderWishlist();});row.append(remove);root.append(row);
  }
  document.querySelector('#check-wishlist').disabled=!wishlist.length;document.querySelector('#check-wishlist').title=checkingList?'Suche stoppen':'';document.querySelector('#add-wish').disabled=checkingList;document.querySelector('#search-submit').disabled=checkingList;
