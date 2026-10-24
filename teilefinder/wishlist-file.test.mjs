@@ -54,3 +54,8 @@ test('File snapshots retain verified EAN search provenance without marking unfin
  const shops=ctx.snapshotShops([{name:'BIKE24',queriedEAN:'4524667879565',done:true,offers:[]},{name:'Bike-Discount',queriedEAN:'4524667879565',done:false,offers:[]}]);
  assert.equal(shops[0].queriedEAN,'4524667879565');assert.equal(shops[0].done,true);assert.equal(shops[1].done,false);
 });
+
+test('Product-level EAN evidence survives saved results without becoming a SKU confirmation',()=>{
+ const shops=ctx.snapshotShops([{name:'BIKE24',offers:[{name:'Chain',price:40,ean:'4524667879565',eanEvidence:'datasheet',url:'https://www.bike24.de/p1271583.html'}]}]);
+ assert.equal(shops[0].offers[0].eanEvidence,'datasheet');
+});

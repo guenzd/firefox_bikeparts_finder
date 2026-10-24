@@ -589,3 +589,23 @@ test('An EAN present in a BIKE24 multi-GTIN datasheet is reported as ambiguous r
  for(let i=0;i<100;i++)await new Promise(setImmediate);
  const result=messages.find(m=>m.type==='result'&&m.shop==='BIKE24');assert.ok(result);assert.equal(result.offers.length,0);assert.match(result.message,/EAN 4524667879565 im Datenblatt gefunden.*Variante „116“ nicht eindeutig/);
 });
+
+test('BIKE24 combines original model, datasheet EAN and selected 116 option without claiming a SKU mapping',async()=>{
+ const ean='4524667879565';let contentListener;
+ const select={id:'length',name:'length',value:'949136',labels:[{textContent:'Länge'}],disabled:false,multiple:false,options:[{value:'949136',textContent:'116 Glieder'},{value:'long',textContent:'126 Glieder'}],matches:()=>true,getClientRects:()=>[{}],closest:()=>null,getAttribute:()=>'',dispatchEvent(){}};
+ const gtin={textContent:'GTIN:',nextElementSibling:{textContent:ean+', 4524667879572, 4550170323134'}};
+ const document={readyState:'complete',body:{innerText:''},addEventListener(){},removeEventListener(){},querySelectorAll(s){if(s==='select')return [select];if(s.includes('data-sheet'))return [gtin];return [];},querySelector(s){if(s==='#add-to-cart')return {getAttribute:()=>JSON.stringify({})};if(s==='h1')return {innerText:'Shimano XTR CN-M9100 Kette 12-fach - mit Quick Link - silver'};if(s.includes('price__value'))return {textContent:'39,99 €'};if(s.includes('product-availability'))return {textContent:'Auf Lager'};return null;}};
+ const c=vm.createContext({document,URL,Event:class{},location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1271583.html?sku=949136'},setTimeout:fastTimeout,browser:{runtime:{onMessage:{addListener(fn){contentListener=fn;}}}}});
+ for(const file of ['variant-match.js','extract.js','variants.js','shop.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),c);
+ let listener;const messages=[],home='moz-extension://unit/home.html';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(id){return {id};},async get(){return {};},async sendMessage(id,data){if(data.host!=='www.bike24.de')return {ready:true,empty:true,offers:[]};if(data.type==='detail')return contentListener(data);return {ready:true,offers:[{name:'Shimano XTR CN-M9100 Kette 12-fach',variant:'Ausführung im Shop prüfen',price:39.99,priceKind:'exact',stock:'Auf Lager',url:c.location.href}]};}}};
+ vm.runInNewContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+ await listener({type:'search',id:'chain-116',query:'Shimano Kette Dura Ace 12 fach CN-M9100',ean,variant:'116'},{url:home,tab:{id:99}});
+ for(let i=0;i<120;i++)await new Promise(setImmediate);
+ const result=messages.find(m=>m.type==='result'&&m.shop==='BIKE24');assert.ok(result);assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,ean);assert.equal(result.offers[0].eanEvidence,'datasheet');assert.ok(result.offers[0].variant.includes('116'));assert.equal(select.value,'949136');
+ const data={shopId:'bike24',query:ean,nameQuery:'Shimano CN-M9100 Kette',variant:'116'},offer=result.offers[0],base={eanCandidates:[ean],offers:[{...offer,ean:''}]};
+ for(const changed of [{eanCandidates:[]},{offers:[{...offer,ean:'4524667879572'}]},{offers:[{...offer,ean:'',selection:[]}]},{offers:[{...offer,ean:'',variant:'126 Glieder'}]}]){
+  const rejected=c.confirmBike24ProductMatch({...base,...changed},data,'Shimano XTR CN-M9100 Kette');assert.ok(rejected.offers.every(o=>!o.ean||o.ean!==ean));
+ }
+ assert.equal(c.confirmBike24ProductMatch(base,data,'Shimano CN-M8100 Kette').offers[0].ean,'');
+});

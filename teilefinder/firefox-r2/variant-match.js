@@ -57,11 +57,11 @@ function productSearchQuery(query,variant){
 function validEAN(value){const text=String(value||'').trim();return /^\d{8,14}$/.test(text)?text:'';}
 // Share only one unambiguous identifier for the requested, confirmed variant.
 function shareVariantEAN(shops,requested,known=''){
- const candidates=shops.filter(s=>!s.stale).flatMap(s=>s.offers||[]).filter(o=>o.priceKind==='exact'&&variantMatches(o,requested));
+ const candidates=shops.filter(s=>!s.stale).flatMap(s=>s.offers||[]).filter(o=>o.eanEvidence!=='datasheet'&&o.priceKind==='exact'&&variantMatches(o,requested));
  const identifiers=[...new Set(candidates.map(o=>validEAN(o.ean)).filter(Boolean))];
  // A shop may list several executions. Only an identifier shared by every
  // shop that actually extracted identifiers is unambiguous; never vote by count.
- const perShop=shops.filter(s=>!s.stale).map(s=>[...new Set((s.offers||[]).filter(o=>o.priceKind==='exact'&&variantMatches(o,requested)).map(o=>validEAN(o.ean)).filter(Boolean))]).filter(ids=>ids.length);
+ const perShop=shops.filter(s=>!s.stale).map(s=>[...new Set((s.offers||[]).filter(o=>o.eanEvidence!=='datasheet'&&o.priceKind==='exact'&&variantMatches(o,requested)).map(o=>validEAN(o.ean)).filter(Boolean))]).filter(ids=>ids.length);
  const common=perShop.length?perShop[0].filter(ean=>perShop.every(ids=>ids.includes(ean))):[];
  const ean=validEAN(known)||(common.length===1?common[0]:'');
  if(!ean||identifiers.length!==1||identifiers.some(value=>value!==ean))return {ean,shops};

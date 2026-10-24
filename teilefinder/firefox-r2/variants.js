@@ -106,7 +106,7 @@ async function dropdownVariants(fallback,requested=''){
    const match=priceText.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);
    const price=match?euro(match[1]):priceNode?.getAttribute('content')?euro(priceNode.getAttribute('content')):null;
    if(stable>=2&&price!==null&&!/^ab\s/i.test(priceText)&&!document.querySelector(bike24?'#add-to-cart [aria-busy="true"]':'[aria-busy="true"]')&&!(bike24&&/Bitte Option wählen/i.test(stockNode?.textContent||stockNode?.innerText||''))){
-    rows.push({...fallback,ean,variant:(/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · ':'')+labels.join(' · '),price,priceKind:'exact',stock,url:location.href,source:'Firefox · ausgewählte Produktvariante',selection:productDropdowns().map(select=>({id:select.id,value:select.value}))});break;
+    rows.push({...fallback,ean,eanEvidence:ean?'selected':undefined,variant:(/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · ':'')+labels.join(' · '),price,priceKind:'exact',stock,url:location.href,source:'Firefox · ausgewählte Produktvariante',selection:productDropdowns().map(select=>({id:select.id,value:select.value}))});break;
    }
    await pause(250);
   }

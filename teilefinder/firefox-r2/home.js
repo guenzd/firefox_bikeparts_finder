@@ -25,7 +25,7 @@ function render(){
  const rows=uniqueOffers(s.offers||[]).filter(o=>typeof o.price==='number'&&withinPriceRange(o.price,range||{minPrice:Infinity,maxPrice:0})&&variantMatches(o,requested));
  const hideEAN=allShopsHaveDisplayedOffers([...state.entries()].map(([name,shop])=>({name,...shop})),{...(range||{minPrice:Infinity,maxPrice:0}),variant:requested});
  if(rows.length){const wrap=el('div');wrap.className='table-wrap';const t=el('table'),head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Link'].forEach(v=>head.append(el('th',v)));appendTableHead(t,head);t.setAttribute('aria-label',name+' · Suchergebnisse');
- for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean)&&!hideEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td'),link=el('a','Öffnen');link.href=o.url;link.target='_blank';link.rel='noopener noreferrer';cell.append(link,copyButton(o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
+ for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(o.eanEvidence==='datasheet')product.append(el('small','GTIN im Datenblatt · Ausführung ausgewählt'));if(validEAN(o.ean)&&!hideEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td'),link=el('a','Öffnen');link.href=o.url;link.target='_blank';link.rel='noopener noreferrer';cell.append(link,copyButton(o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
  }else section.append(el('p',(s.offers||[]).length?'Keine Angebote innerhalb des Preisbereichs.':message));
  if(!(s.offers||[]).length&&s.suggestions?.length)appendSuggestions(section,s.suggestions,range||{minPrice:Infinity,maxPrice:0},item,s.variantAlternatives);
  if((s.offers||[]).length>rows.length)section.append(el('small',((s.offers||[]).length-rows.length)+' Angebote durch Preisfilter ausgeblendet.'));
@@ -51,6 +51,7 @@ function renderWishlistDetails(root){
     if(offer){
      if(offer.name!==item.query)product.append(el('span',offer.name));
      if(offer.variant&&offer.variant!==offer.name&&offer.variant!==item.variant)product.append(el('small',offer.variant));
+     if(offer.eanEvidence==='datasheet')product.append(el('small','GTIN im Datenblatt · Ausführung ausgewählt'));
      if(validEAN(offer.ean)&&!hideEANs.get(item.id))product.append(eanRow(offer.ean,item.id));
      price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);stock.append(el('span',offer.stock));
      const link=el('a','Öffnen');link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';links.append(link,copyButton(offer.url));
@@ -193,6 +194,7 @@ function renderTotal(){
  for(const {item,best,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));product.append(productButton);
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
+  if(best?.eanEvidence==='datasheet')product.append(el('small','GTIN im Datenblatt · Ausführung ausgewählt'));
   const ean=validEAN(best?.ean)||validEAN(item.ean);if(ean&&!allShopsHaveDisplayedOffers(item.shops||[],item))product.append(eanRow(ean,item.id));
   if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);const link=el('a','Öffnen');link.href=best.url;link.target='_blank';link.rel='noopener noreferrer';links.append(link,copyButton(best.url));}
   else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
@@ -367,7 +369,7 @@ function showWishlistPrices(itemId,trigger){
  const offers=wishlistPriceRows(entries,item),times=priceResultsTimes(offers,item.checkedAt);
  if(times.length){const updated=el('span','Stand: '+times.map(time=>new Date(time).toLocaleString('de-DE')).join(' – '));updated.className='item-prices-updated';info.append(updated);}
  for(const {shop,offer} of offers){
-   const row=el('tr'),product=el('td');product.append(el('strong',shop.name),el('small',offer.variant||offer.name));
+   const row=el('tr'),product=el('td');product.append(el('strong',shop.name),el('small',offer.variant||offer.name));if(offer.eanEvidence==='datasheet')product.append(el('small','GTIN im Datenblatt · Ausführung ausgewählt'));
    const price=el('td',(offer.priceKind==='from'?'ab ':'')+money(offer.price));price.className='price';
    const stock=el('td',offer.stock||'Lagerstatus nicht auslesbar');if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));
    const links=el('td');links.className='shop-actions-cell';if(offer.url){const actions=el('div');actions.className='shop-actions';const link=el('a','Zum Shop');link.className='shop-link-button';link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label','Zum Shop: '+shop.name+' · '+offer.name);link.addEventListener('click',event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();void browser.tabs.create({url:offer.url}).catch(()=>{document.querySelector('#status').textContent='Shoplink konnte nicht geöffnet werden.';});});const copy=copyButton(offer.url);copy.title='Produktlink kopieren';copy.setAttribute('aria-label','Produktlink von '+shop.name+' kopieren');actions.append(link,copy);links.append(actions);}

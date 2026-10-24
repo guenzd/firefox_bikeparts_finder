@@ -22,7 +22,13 @@ function bcCards(q,limit=8){
  document.querySelectorAll('[data-props]').forEach(n=>{try{walk(JSON.parse(n.getAttribute('data-props')));}catch{}});
  return [...products.values()].slice(0,limit);
 }
-browser.runtime.onMessage.addListener(async data=>{const result=await readShopPage(data);if(data?.type==='detail'&&result)return {...result,productName:document.querySelector('h1')?.innerText?.trim()||''};return result;});
+function confirmBike24ProductMatch(result,data,productName){
+ if(data.shopId!=='bike24')return result;
+ const ean=validEAN(data.query);
+ if(!ean||!data.variant?.trim()||!data.nameQuery||validEAN(data.nameQuery)||!matches(productName,data.nameQuery)||!result.eanCandidates?.includes(ean))return result;
+ return {...result,offers:(result.offers||[]).map(offer=>!validEAN(offer.ean)&&offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.selection?.length&&offer.selection.every(option=>option.value)&&variantMatches(offer,data.variant)?{...offer,ean,eanEvidence:'datasheet'}:offer)};
+}
+browser.runtime.onMessage.addListener(async data=>{const result=await readShopPage(data);if(data?.type==='detail'&&result){const productName=document.querySelector('h1')?.innerText?.trim()||'';return {...confirmBike24ProductMatch(result,data,productName),productName};}return result;});
 async function readShopPage(data){
  if(!['extract','detail'].includes(data?.type)||(['extract','detail'].includes(data.type)&&typeof data.query!=='string')||location.hostname.replace(/^www\./,'')!==data.host?.replace(/^www\./,''))return;
  const body=document.body?.innerText||'';
@@ -82,7 +88,7 @@ async function bike24Details(fallback,followLinked,requested){
   for(let i=0;i<12;i++){
    const text=document.querySelector('#add-to-cart .product-availability')?.innerText||'';
    const stock=stockText(text),price=euro((document.querySelector('#add-to-cart .price__value')?.innerText||'').replace(/€/g,''));
-   if(price!==null&&!/Bitte Option wählen/i.test(text)&&stock!=='Lagerstatus nicht auslesbar'){offers.push({...fallback,ean:currentProductEAN()||validEAN(props.ean),name:document.querySelector('h1')?.innerText.trim()||fallback.name,variant:base||fallback.variant,price,priceKind:'exact',stock,url:location.href,source:'Firefox · ausgewählte Produktvariante'});break;}
+   if(price!==null&&!/Bitte Option wählen/i.test(text)&&stock!=='Lagerstatus nicht auslesbar'){offers.push({...fallback,ean:currentProductEAN()||validEAN(props.ean),eanEvidence:undefined,name:document.querySelector('h1')?.innerText.trim()||fallback.name,variant:base||fallback.variant,price,priceKind:'exact',stock,url:location.href,source:'Firefox · ausgewählte Produktvariante'});break;}
    await pause(250);
   }
  }
