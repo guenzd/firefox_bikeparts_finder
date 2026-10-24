@@ -539,3 +539,19 @@ test('BIKE24 length selection captures each current SKU EAN and metadata-only re
  select.value='';const filtered=await listener({type:'detail',shopId:'bike24',host:'www.bike24.de',url:c.location.href,query:'Example chain',variant:'116',metadataOnly:true,fallback});
  assert.equal(filtered.ready,true);assert.equal(filtered.offers.length,1);assert.equal(filtered.offers[0].ean,eans[0]);assert.ok(filtered.offers[0].variant.includes('116'));
 });
+
+test('Multiple EAN results are narrowed by original model/name while EAN confirmation remains mandatory',async()=>{
+ for(const query of ['Example AX-120 chain','Completely different shop wording']){
+  let listener;const messages=[],home='moz-extension://unit/home.html',ean='4524667879565';
+  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(id){return {id};},async get(){return {};},async sendMessage(id,data){return {ready:true,offers:[
+   {name:'Example AX-120 chain',ean,variant:'116 links',price:40,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/chain'},
+   {name:'Example AX-120 chain bundle set',ean,variant:'116 links',price:50,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/bundle'},
+   {name:'Example BX-130 chain',ean,variant:'116 links',price:30,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/other'},
+   {name:'Example AX-120 chain',ean:'4550170323134',variant:'116 links',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/wrong-ean'}]};}}};
+  vm.runInNewContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+  await listener({type:'search',id:'ean-name',query,ean,variant:'116'},{url:home,tab:{id:99}});
+  for(let i=0;i<100;i++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);
+  for(const result of results){assert.equal(result.offers.length,query.startsWith('Example')?1:3);assert.ok(result.offers.every(o=>o.ean===ean));if(result.offers.length===1)assert.equal(new URL(result.offers[0].url).pathname,'/chain');}
+ }
+});

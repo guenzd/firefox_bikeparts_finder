@@ -43,6 +43,14 @@ browser.runtime.onMessage.addListener((data,sender)=>{
  void searchAll(job).catch(async()=>{if(!jobActive(job))return;for(const shop of shops){const result=job.results.get(shop.id)||{offers:[],suggestions:[],message:'Shopprüfung fehlgeschlagen.'};await browser.runtime.sendMessage({...result,type:'result',target:job.source,id:job.id,query:job.query,shop:shop.name,url:shop.search(job.query)}).catch(()=>{});}}).finally(()=>{if(jobActive(job))jobs.delete(job.source);});
  return Promise.resolve({accepted:true});
 });
+// Shop EAN searches can return compatibility matches and bundles too.
+// Narrow confirmed EAN offers by the original product name when it matches;
+// keep verified EAN offers if shop naming provides no reliable name match.
+function narrowEANResults(offers,nameQuery){
+ if(offers.length<2||!nameQuery||validEAN(nameQuery)||typeof matches!=='function')return offers;
+ const named=offers.filter(offer=>matches(offer.name||'',nameQuery));
+ return named.length?named:offers;
+}
 function exceedsSearchBudget(offer,job){return job.maxPrice!=null&&Number.isFinite(offer.price)&&['exact','from'].includes(offer.priceKind)&&offer.price>job.maxPrice;}
 function listingOfferComplete(offer,requested){
  return offer.priceKind==='exact'&&Number.isFinite(offer.price)&&variantMatches(offer,requested)&&offer.stock&&!/nicht auslesbar|unbekannt/i.test(offer.stock)&&!/Ausführung im Shop prüfen/i.test(offer.variant||'');
@@ -122,7 +130,7 @@ async function searchAll(job){
  }
  if(!jobActive(job))return;
  const final=shareVariantEAN([...job.results.values()],job.variant,shared.ean);
- for(const result of filterConflictingEANs(final.shops,job.useEAN?final.ean:''))await browser.runtime.sendMessage(result).catch(()=>{});
+ for(const result of filterConflictingEANs(final.shops,job.useEAN?final.ean:''))await browser.runtime.sendMessage({...result,offers:job.useEAN&&final.ean?narrowEANResults(result.offers||[],job.nameQuery):result.offers}).catch(()=>{});
 }
 async function run(job,shop,searchQuery=job.query){
  const task={...job,root:job.root||job,cancelled:false};
@@ -138,7 +146,7 @@ async function run(job,shop,searchQuery=job.query){
 }
 async function runShop(job,shop,searchQuery=job.query){
  let tab;
- const send=async data=>{if(!jobActive(job))return;const requestedEAN=validEAN(searchQuery);if(requestedEAN){data={...data,offers:(data.offers||[]).filter(o=>validEAN(o.ean)===requestedEAN),suggestions:[]};
+ const send=async data=>{if(!jobActive(job))return;const requestedEAN=validEAN(searchQuery);if(requestedEAN){data={...data,offers:narrowEANResults((data.offers||[]).filter(o=>validEAN(o.ean)===requestedEAN),job.nameQuery),suggestions:[]};
   if(data.type==='result'&&!data.offers.length&&tab&&jobActive(job)){
    const known=job.knownShops.find(s=>s.name===shop.name);
    const candidates=(Array.isArray(known?.offers)?known.offers:[]).filter(o=>{try{const u=new URL(o.url);return !exceedsSearchBudget(o,job)&&validEAN(o.ean)===requestedEAN&&u.protocol==='https:'&&u.hostname.replace(/^www\./,'')===shop.host.replace(/^www\./,'');}catch{return false;}}).slice(0,3);
@@ -169,7 +177,8 @@ async function runShop(job,shop,searchQuery=job.query){
    const signature=JSON.stringify([last.offers,last.suggestions]);stable=signature===previous?stable+1:0;previous=signature;
    if(last.offers.length&&stable>=1){
     job.counts.set(shop.id,last.offers.length);
-    const rows=last.offers.sort((a,b)=>Number(variantMatches(b,job.variant))-Number(variantMatches(a,job.variant)));const variants=new Map();let limited=false;
+    const nameMatch=offer=>validEAN(searchQuery)&&job.nameQuery&&typeof matches==='function'&&matches(offer.name||'',job.nameQuery);
+    const rows=last.offers.sort((a,b)=>Number(nameMatch(b))-Number(nameMatch(a))||Number(variantMatches(b,job.variant))-Number(variantMatches(a,job.variant)));const variants=new Map();let limited=false;
     // Read missing delivery information on the actual product pages in the same Firefox session.
     const eanCandidate=['bike24','r2-bike'].includes(shop.id)?rows.find(row=>!exceedsSearchBudget(row,job)&&listingOfferComplete(row,job.variant)&&!validEAN(row.ean)):null;
     const inspect=rows.filter(row=>!exceedsSearchBudget(row,job)&&!listingVariantConflict(row,job.variant)&&(row===eanCandidate||!listingOfferComplete(row,job.variant)||(validEAN(searchQuery)&&validEAN(row.ean)!==searchQuery)));
