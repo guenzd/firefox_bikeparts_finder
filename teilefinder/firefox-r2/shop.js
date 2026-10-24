@@ -55,7 +55,7 @@ async function readShopPage(data){
   const stock=bikeDiscountStock();
   const accepted=validEAN(data.query)?!ean||ean===data.query:matches(name,data.query);
   const offers=accepted&&amount?[{name,ean,price:euro(amount[1]),priceKind:/^ab\s/i.test(priceText)?'from':'exact',variant:configurable?'Ausführung im Shop prüfen':productColor()||name,stock,url:location.href,source:'Firefox · Produktseite'}]:[];
-  return {blocked:false,offers,suggestions:[],ready:document.readyState==='complete',empty:!accepted};
+  return {blocked:false,offers,suggestions:[],ready:document.readyState==='complete',empty:!accepted,message:!accepted&&validEAN(data.query)&&ean?'Gefundenes Produkt hat EAN '+ean+' statt der gesuchten EAN '+data.query+'.':''};
  }
  const listingQuery=validEAN(data.query)?'':data.query;
  const cards=data.shopId==='bike-discount'?readBikeDiscountCards({q:listingQuery,limit:data.variant?40:8}):data.shopId==='bike-components'?bcCards(listingQuery,data.variant?40:8):readCards({host:data.host,q:listingQuery,limit:data.variant?40:8});

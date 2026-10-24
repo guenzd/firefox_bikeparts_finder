@@ -182,8 +182,12 @@ async function runShop(job,shop,searchQuery=job.query){
       try{const d=await boundedMessage(tab.id,{type:'detail',query:searchQuery,host:shop.host,url:row.url,shopId:shop.id,fallback:row,variant:job.variant,metadataOnly:['bike24','r2-bike'].includes(shop.id)&&listingOfferComplete(row,job.variant),followLinked:shop.id!=='bike24'||!rows.some(o=>listingOfferComplete(o,job.variant))},20000);if(d.blocked)break;if(d.ready){if(shop.id==='bike24'&&d.linkedVariants?.length){const extra=await bike24Linked(tab,shop,job,row,d,searchQuery);d.offers=extra.offers;d.limited ||= extra.limited;}limited ||= !!d.limited;if(d.offers?.length)variants.set(row,d.offers);else row.stock=d.stock;break;}}catch{}
      }
     }
-    const expanded=uniqueOffers(rows.flatMap(row=>variants.get(row)||[row])),matching=expanded.filter(o=>variantMatches(o,job.variant)&&(!validEAN(searchQuery)||validEAN(o.ean)===searchQuery));
-    if(validEAN(searchQuery)&&!matching.length){await send({type:'result',offers:[],message:'Kein Treffer mit bestätigter EAN '+searchQuery+'.'});return;}
+    const expanded=uniqueOffers(rows.flatMap(row=>variants.get(row)||[row])),identity=expanded.filter(o=>!validEAN(searchQuery)||validEAN(o.ean)===searchQuery),matching=identity.filter(o=>variantMatches(o,job.variant));
+    if(validEAN(searchQuery)&&!matching.length){
+     const otherEANs=[...new Set(expanded.map(o=>validEAN(o.ean)).filter(ean=>ean&&ean!==searchQuery))];
+     const message=identity.length?'EAN '+searchQuery+' gefunden. Gewünschte Variante „'+job.variant+'“ nicht bestätigt.':otherEANs.length?'Kein Treffer mit EAN '+searchQuery+'. Gefundene Produkte haben abweichende EAN: '+otherEANs.join(', ')+'.':'EAN '+searchQuery+' in den gefundenen Produkten nicht bestätigt.';
+     await send({type:'result',offers:[],message});return;
+    }
     if(job.variant&&!matching.length){await send({type:'result',offers:[],suggestions:expanded.slice(0,12),variantAlternatives:true,message:'Variante „'+job.variant+'“ nicht bestätigt.'});return;}
     await send({type:'result',offers:matching,message:limited?'Weitere Varianten im Shop prüfen.':''});return;
    }
@@ -192,7 +196,7 @@ async function runShop(job,shop,searchQuery=job.query){
     const confirmed=suggestions.filter(o=>o.identityConfirmed);
     await send({type:'result',offers:confirmed,suggestions:confirmed.length?[]:suggestions,message:confirmed.length?'':'Kein genauer Treffer.'});return;
    }
-   if(stable>=2&&(last.empty||(emptyReads>=4&&last.ready)||emptyReads>=8)){const broader=validEAN(searchQuery)?null:broaderQuery(searchQuery);if(!broadened&&broader){broadened=true;emptyReads=0;previous='';stable=0;await send({type:'status',message:'Keine genauen Treffer. Ähnliche Produkte werden gesucht…'});await browser.tabs.update(tab.id,{url:shop.search(broader)});continue;}await send({type:'result',offers:[],message:'Keine passenden Angebote gefunden.'});return;}
+   if(stable>=2&&(last.empty||(emptyReads>=4&&last.ready)||emptyReads>=8)){const broader=validEAN(searchQuery)?null:broaderQuery(searchQuery);if(!broadened&&broader){broadened=true;emptyReads=0;previous='';stable=0;await send({type:'status',message:'Keine genauen Treffer. Ähnliche Produkte werden gesucht…'});await browser.tabs.update(tab.id,{url:shop.search(broader)});continue;}await send({type:'result',offers:[],message:last.message||'Keine passenden Angebote gefunden.'});return;}
   }
   if(jobActive(job))await send({type:'result',offers:last?.offers||[],message:last?.blocked?'Der Shop verlangt weiterhin eine Sicherheitsprüfung. Bitte dort abschließen und erneut suchen.':'Keine Angebote ausgelesen. Bitte Suchbegriff und sichtbare Shop-Ergebnisse prüfen.'});
  }catch{if(jobActive(job))await send({type:'result',offers:[],message:'Shop-Tab wurde geschlossen oder konnte nicht gelesen werden. Bitte erneut suchen.'});}

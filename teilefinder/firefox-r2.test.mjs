@@ -252,6 +252,7 @@ test('Bike-Discount EAN search redirects read the main product rather than recom
   const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query:'8020775045428'});
   assert.equal(result.ready,true);
   assert.equal(result.offers.length,ean==='8020775045428'?1:0);
+  if(ean!=='8020775045428')assert.match(result.message,/EAN 1234567890128 statt der gesuchten EAN 8020775045428/);
   if(result.offers.length){assert.equal(result.offers[0].ean,ean);assert.equal(result.offers[0].stock,'Lagernd, Lieferzeit 1-3 Tage');assert.equal(result.offers[0].price,22.99);}
  }
 });
@@ -476,4 +477,29 @@ test('Generic model search finds differently named shop products and selects onl
  const results=messages.filter(row=>row.type==='result');assert.equal(results.length,4);
  for(const result of results){assert.equal(result.offers.length,1,result.shop);assert.equal(result.offers[0].variant,'silber | 116 Glieder');assert.equal(result.offers[0].ean,'4524667879565');}
  assert.equal(updates.filter(url=>url.includes(encodeURIComponent('Shimano CN-M9100'))).length,2);
+});
+
+test('EAN result messages distinguish variant rejection, different identifiers and unconfirmed identifiers',async()=>{
+ for(const [detailEAN,variant,expected] of [['1234567890128','123 Glieder',/EAN 1234567890128 gefunden.*Variante „113“ nicht bestätigt/],['1234567890129','113 Glieder',/abweichende EAN: 1234567890129/],['','113 Glieder',/in den gefundenen Produkten nicht bestätigt/]]){
+  let listener;const messages=[],home='moz-extension://unit/home.html';
+  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(id){return {id};},async get(){return {};},async sendMessage(id,data){
+   const row={name:'Example chain',variant:'Ausführung im Shop prüfen',price:59.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/product'};
+   return data.type==='extract'?{ready:true,offers:[row]}:{ready:true,offers:[{...row,ean:detailEAN,variant}]};
+  }}};
+  vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+  await listener({type:'search',id:'reason',query:'Example chain',ean:'1234567890128',variant:'113',maxPrice:60},{url:home,tab:{id:99}});
+  for(let i=0;i<80;i++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);
+  for(const result of results){assert.equal(result.offers.length,0);assert.match(result.message,expected);assert.equal(result.suggestions?.length||0,0);}
+ }
+});
+
+test('An EAN search redirect preserves its specific mismatch explanation in the final result',async()=>{
+ let listener;const messages=[],home='moz-extension://unit/home.html';
+ const reason='Gefundenes Produkt hat EAN 1234567890129 statt der gesuchten EAN 1234567890128.';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async get(){return {};},async sendMessage(){return {ready:true,empty:true,offers:[],message:reason};}}};
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+ await listener({type:'search',id:'redirect-reason',query:'Example chain',ean:'1234567890128'},{url:home,tab:{id:99}});
+ for(let i=0;i<80;i++)await new Promise(setImmediate);
+ const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);assert.ok(results.every(m=>m.message===reason&&m.offers.length===0));
 });
