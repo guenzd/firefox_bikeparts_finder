@@ -13,6 +13,13 @@ function priceObservations(shops,searchId,at){
  for(const shop of shops){if(shop.stale||!shop.done)continue;for(const offer of shop.offers||[]){const ean=validEAN(offer.ean);if(!ean||offer.priceKind!=='exact'||!Number.isFinite(offer.price)||offer.price<=0||!deliverable(offer.stock))continue;const rows=byEAN.get(ean)||[];rows.push({shop:shop.name,price:offer.price,url:cleanShopUrl(offer.url),stock:offer.stock});byEAN.set(ean,rows);}}
  return [...byEAN].map(([ean,offers])=>({key:searchId+'|'+ean,ean,at,offers:offers.sort((a,b)=>a.price-b.price)}));
 }
+// Keep the endpoints of each unchanged-price run in the selected time window.
+// Stored observations remain complete for exports and future views.
+function priceHistoryPoints(rows){
+ const points=rows.filter(row=>row.offers.length).map(row=>({at:Date.parse(row.at),price:Math.min(...row.offers.map(offer=>offer.price)),row})).sort((a,b)=>a.at-b.at);
+ const cents=point=>Math.round(point.price*100);
+ return points.filter((point,index)=>index===0||index===points.length-1||cents(point)!==cents(points[index-1])||cents(point)!==cents(points[index+1]));
+}
 const priceHistoryDB=(()=>{
  let pending;
  const open=()=>pending||(pending=new Promise((resolve,reject)=>{const request=indexedDB.open('teilefinder-price-history',1);request.onupgradeneeded=()=>{const store=request.result.createObjectStore('observations',{keyPath:'key'});store.createIndex('ean','ean');};request.onsuccess=()=>resolve(request.result);request.onerror=()=>{pending=null;reject(request.error);};}));
