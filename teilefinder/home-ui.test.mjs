@@ -212,7 +212,7 @@ test('Shop prices show a muted best-price comparison only for unequal current ex
  vm.runInContext(home.slice(home.indexOf('function renderWishlistDetails('),home.indexOf('browser.runtime.onMessage.addListener')),ctx);
  ctx.renderWishlistDetails(root);
  const all=node=>[node,...node.children.flatMap(all)],nodes=all(root),comparisons=nodes.filter(node=>node.className==='price-comparison');
- assert.equal(comparisons.length,2);assert.ok(comparisons.every(node=>node.children[0].text==='Bestpreis 20'));
- assert.equal(comparisons[0].children[1].text,'+5');assert.equal(comparisons[1].children[1].text,'−2');
+ assert.equal(comparisons.length,2);assert.ok(comparisons.every(node=>node.children.length===1&&node.title==='Bestpreis 20 bei BIKE24'));
+ assert.equal(comparisons[0].children[0].text,'+5');assert.equal(comparisons[1].children[0].text,'−2');
  assert.ok(!nodes.some(node=>typeof node.text==='string'&&/^\d+ Artikel$/.test(node.text)));
 });

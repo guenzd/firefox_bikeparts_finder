@@ -63,8 +63,8 @@ function renderWishlistDetails(root){
      price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);
      const best=bestOffers.get(item.id),difference=best?Math.round((offer.price-best.price)*100)/100:0;
      if(best&&difference!==0&&!shop.stale&&offer.priceKind==='exact'){
-      const comparison=el('small');comparison.className='price-comparison';comparison.title='Günstigstes lieferbares Angebot: '+best.shop;
-      comparison.append(el('span','Bestpreis '+money(best.price)),el('span',(difference>0?'+':'−')+money(Math.abs(difference))));
+      const comparison=el('small');comparison.className='price-comparison';comparison.title='Bestpreis '+money(best.price)+' bei '+best.shop;
+      comparison.append(el('span',(difference>0?'+':'−')+money(Math.abs(difference))));
       comparison.setAttribute('aria-label','Bestpreis '+money(best.price)+' · dieses Angebot '+money(Math.abs(difference))+(difference>0?' teurer':' günstiger'));price.append(comparison);
      }
      const availability=el('span',offer.stock);availability.className=deliverable(offer.stock)?'stock-available':(!offer.stock||/nicht auslesbar|unbekannt/i.test(offer.stock)?'stock-unknown':'stock-unavailable');stock.append(availability);
