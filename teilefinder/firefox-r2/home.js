@@ -24,7 +24,7 @@ function render(){
  if(wishlistDetails)return;
  for(const name of names){
  const entries=wishlistDetails?wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state):[{item:null,shop:state.get(name)}].filter(e=>e.shop);
- if(!entries.length)continue;const a=el('article'),heading=el('div');heading.className='shop-heading';heading.append(el('h3',name));const search=wishlistDetails?null:entries[0].shop;if(search?.url){const link=el('a','Im Shop suchen');link.href=search.url;link.target='_blank';link.rel='noopener noreferrer';const links=el('span');links.className='shop-links';links.append(link,copyButton(search.url));heading.append(links);}a.append(heading);
+ if(!entries.length)continue;const a=el('article'),heading=el('div');a.className='shop-results';heading.className='shop-heading';heading.append(el('h3',name));const search=wishlistDetails?null:entries[0].shop;if(search?.url){const link=el('a','Im Shop suchen');link.href=search.url;link.target='_blank';link.rel='noopener noreferrer';const links=el('span');links.className='shop-links';links.append(link,copyButton(search.url));heading.append(links);}a.append(heading);
  for(const {item,shop:s} of entries){
  const section=el('section'),message=resultMessage(s.message);if(item){section.append(el('h4',item.query),el('small',item.variant||'Alle Varianten'));if(s.url){const link=el('a','Im Shop suchen');link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';section.append(link,copyButton(s.url));}}
  const range=item||inputPriceRange(document.querySelector('#max')),requested=item?item.variant:document.querySelector('#search-variant').value;
@@ -45,23 +45,22 @@ function renderWishlistDetails(root){
  for(const name of names){
   const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
-  const article=el('article'),heading=el('div');heading.className='shop-heading';heading.append(el('h3',name),el('small',entries.length+' Artikel'),copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
+  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';heading.append(el('h3',name),el('small',entries.length+' Artikel'),copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';table.setAttribute('aria-label',name+' · Wunschliste');
-  const head=el('tr');['Wunschlistenartikel / Treffer','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
+  const head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
   for(const {item,shop} of entries){
    const offers=uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant));
    const group=el('tbody');
    for(const [index,offer] of (offers.length?offers:[null]).entries()){
     const row=el('tr'),product=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';
-    if(index===0){product.append(el('strong',item.query));if(item.variant)product.append(el('small',item.variant));}
     if(offer){
-     if(offer.name!==item.query)product.append(el('span',offer.name));
-     if(offer.variant&&offer.variant!==offer.name&&offer.variant!==item.variant)product.append(el('small',offer.variant));
+     product.append(el('strong',offer.name));
+     if(offer.variant&&offer.variant!==offer.name&&!variantMatches({name:offer.name,variant:''},offer.variant))product.append(el('small',offer.variant));
 
      if(validEAN(offer.ean)&&!hideEANs.get(item.id))product.append(eanRow(offer.ean,item.id));
-     price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);stock.append(el('span',offer.stock));
+     price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);const availability=el('span',offer.stock);availability.className=deliverable(offer.stock)?'stock-available':(!offer.stock||/nicht auslesbar|unbekannt/i.test(offer.stock)?'stock-unknown':'stock-unavailable');stock.append(availability);
      links.append(resultLinkActions('Öffnen',offer.url));
-    }else{price.textContent='—';stock.append(el('span',(shop.offers||[]).length?'Außerhalb des Preisbereichs':resultMessage(shop.message)||'Kein Treffer'));if(validEAN(item.ean)&&!hideEANs.get(item.id))product.append(eanRow(item.ean,item.id));}
+    }else{product.append(el('strong',item.query));if(item.variant)product.append(el('small',item.variant));price.textContent='—';stock.append(el('span',(shop.offers||[]).length?'Außerhalb des Preisbereichs':resultMessage(shop.message)||'Kein Treffer'));if(validEAN(item.ean)&&!hideEANs.get(item.id))product.append(eanRow(item.ean,item.id));}
     if(index===0){
      if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));
      if(shop.checkedAt)stock.append(el('small',new Date(shop.checkedAt).toLocaleString('de-DE')));

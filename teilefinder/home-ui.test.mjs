@@ -163,7 +163,7 @@ test('EAN button updates the search and wishlist and copies the same identifier,
 test('Displayed four-shop matches hide repeated EAN rows in totals and shop lists, and variants have no prefix',()=>{
  const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},setAttribute(){},addEventListener(){}});
  const root=make('div'),names=['BIKE24','Bike-Discount','bike-components','r2-bike'],ean='4524667879565';let eanRows=0;
- const item={id:'one',query:'Example tyre',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
+ const item={id:'one',query:'Different wishlist wording',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
  const ctx=vm.createContext({el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),ctx);
  vm.runInContext(home.slice(home.indexOf('function resultLinkActions('),home.indexOf('function render(){')),ctx);
@@ -173,6 +173,7 @@ test('Displayed four-shop matches hide repeated EAN rows in totals and shop list
  const details=make('div');ctx.renderWishlistDetails(details);assert.equal(eanRows,0);
  const texts=node=>[node.text,...node.children.flatMap(texts)].filter(Boolean);
  assert.ok(texts(details).includes('30 mm'));assert.ok(!texts(details).some(text=>String(text).startsWith('Gewünscht:')));
+ assert.ok(!texts(details).includes(item.query));assert.equal(texts(details).filter(text=>text==='Example tyre').length,4);
  // Restored and reused results need no live job flags or repeated per-shop EAN.
  item.shops.forEach((shop,i)=>{shop.done=false;if(i)shop.offers[0].ean='';});
  ctx.renderTotal();ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);

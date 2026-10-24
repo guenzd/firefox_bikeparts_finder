@@ -240,3 +240,13 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .shop-heading>.copy-list-button{margin-right:8px}
 
 .result-link-actions>.copy-button.copied{background:var(--success-bg);color:var(--available);border-color:var(--success-line)}
+
+/* Quiet accents for shop sections; product rows retain one title and execution. */
+.shop-results>.shop-heading{border-left:3px solid color-mix(in srgb,var(--link) 45%,var(--line));padding-left:9px;min-height:32px}
+.shop-results>.shop-heading>h3{color:var(--link)}
+.wishlist-results tbody:hover{background:color-mix(in srgb,var(--link) 3%,var(--surface))}
+.wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{font-size:inherit}
+.wishlist-results .stock-unavailable{color:#886540}
+.wishlist-results .stock-unknown{color:var(--muted)}
+@media(prefers-color-scheme:dark){.wishlist-results .stock-unavailable{color:#c4ad86}}
+@media(forced-colors:active){.shop-results>.shop-heading{border-left-color:CanvasText}.shop-results>.shop-heading>h3,.wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{color:CanvasText}}
