@@ -93,6 +93,32 @@ function bike24SkuEAN(allowURLSKU=true){
  for(const node of document.querySelectorAll('script[type="application/ld+json"]')){try{scan(JSON.parse(node.textContent));}catch{}}
  return identifiers.size===1?[...identifiers][0]:'';
 }
+function bike24DataSheetEANs(){
+ const identifiers=new Set();
+ for(const label of document.querySelectorAll('.product-detail-data-sheet__row td, .product-detail-data-sheet__row th, .product-detail-data-sheet dt')){
+  if(!/^(?:GTIN|EAN|UPC)\s*:?$/i.test((label.textContent||'').trim()))continue;
+  for(const match of (label.nextElementSibling?.textContent||'').matchAll(/(?<!\d)\d{8,14}(?!\d)/g))identifiers.add(match[0]);
+ }
+ return [...identifiers];
+}
+async function openBike24DataSheet(){
+ const labels=()=>[...document.querySelectorAll('.product-detail-data-sheet__row td, .product-detail-data-sheet__row th, .product-detail-data-sheet dt')].filter(node=>/^(?:GTIN|EAN|UPC)\s*:?$/i.test((node.textContent||'').trim()));
+ const loaded=()=>labels().some(node=>/(?<!\d)\d{8,14}(?!\d)/.test(node.nextElementSibling?.textContent||''));
+ if(loaded())return true;
+ const tab=[...document.querySelectorAll('[role="tab"], button, a[href^="#"], summary')].find(node=>{
+  const text=(node.getAttribute?.('aria-label')||node.innerText||node.textContent||'').replace(/\s+/g,' ').trim();
+  if(!/^(?:Datenblatt|Data sheet|Technical data)$/i.test(text)||node.disabled||!node.getClientRects?.().length)return false;
+  if(node.closest?.('#add-to-cart, form')||node.getAttribute?.('type')==='submit')return false;
+  const href=node.getAttribute?.('href');return !href||href.startsWith('#');
+ });
+ if(!tab)return false;
+ if(tab.getAttribute?.('aria-selected')!=='true'&&tab.getAttribute?.('aria-expanded')!=='true'&&!(tab.tagName==='SUMMARY'&&tab.parentElement?.open))tab.click();
+ for(let attempt=0;attempt<10;attempt++){
+  if(loaded())return true;
+  await new Promise(resolve=>setTimeout(resolve,200));
+ }
+ return false;
+}
 function currentProductEAN({allowURLSKU=true}={}){
  const mapped=bike24SkuEAN(allowURLSKU);if(mapped)return mapped;
  const description=document.querySelector('#tab-description')||document.querySelector('#description-tab-pane');

@@ -112,3 +112,5 @@ Bei aktivierter EAN-Suche werden Angebote mit ausdrücklich abweichender EAN aus
 BIKE24: Bei Dropdown-Ausführungen wird die EAN nach der Auswahl gemeinsam mit Preis und Lagerstatus gelesen. Eine mehrdeutige GTIN-Liste löst bei vorhandenen Optionen eine vollständige Variantenprüfung aus. Explizite SKU/EAN-Zuordnungen aus den Produktdaten werden bevorzugt; die Reihenfolge einer GTIN-Liste wird nicht als Zuordnung verwendet. Eine nach dem Optionswechsel unveränderte SKU in der URL bestätigt nicht die neue Ausführung.
 
 Liefert eine EAN-Suche mehrere bestätigte Angebote, grenzt der ursprüngliche Produktname mit exakter Modellkennung die Auswahl zusätzlich ein. Passende Namen werden bei der Detailprüfung bevorzugt. Wenn kein Name zuverlässig übereinstimmt, bleiben die bestätigten EAN-Treffer erhalten; ein Namensmatch ersetzt keine EAN-Bestätigung.
+
+Bei BIKE24 öffnet die Detailprüfung „Datenblatt“ und wartet auf nachgeladene GTIN-Werte. Ist die gesuchte EAN dort in einer Liste enthalten, aber keiner ausgewählten Ausführung eindeutig zuzuordnen, wird diese Mehrdeutigkeit ausdrücklich angezeigt. Die bloße Listenposition gilt nicht als Zuordnung.

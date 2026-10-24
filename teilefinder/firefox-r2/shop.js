@@ -31,7 +31,7 @@ async function readShopPage(data){
  if(data.type==='detail'){
   const same=new URL(location.href).pathname===new URL(data.url).pathname;
   if(same&&data.shopId==='r2-bike'&&data.fallback){const ean=await r2DescriptionEAN();if(data.metadataOnly)return {ready:!!ean||document.readyState==='complete',offers:[{...data.fallback,ean}]};}
-  if(same&&data.shopId==='bike24'&&data.metadataOnly&&data.fallback){const ean=currentProductEAN();if(productDropdowns().length&&(!ean||data.variant?.trim()))return bike24Details(data.fallback,false,data.variant);return {ready:!!ean||document.readyState==='complete',offers:[{...data.fallback,ean}]};}
+  if(same&&data.shopId==='bike24'&&data.metadataOnly&&data.fallback){const sheetReady=await openBike24DataSheet();const ean=currentProductEAN();if(productDropdowns().length&&(!ean||data.variant?.trim()))return bike24Details(data.fallback,false,data.variant);return {ready:!!ean||sheetReady,eanCandidates:bike24DataSheetEANs(),offers:[{...data.fallback,ean}]};}
   if(same&&document.querySelector('h1')&&data.shopId==='bike24'&&data.fallback)return bike24Details(data.fallback,data.followLinked!==false,data.variant);
   if(same&&data.shopId==='bike-components'&&data.fallback){const json=[...document.querySelectorAll('script[type="application/ld+json"]')].flatMap(n=>{try{return [JSON.parse(n.textContent)];}catch{return [];}});const schema=structuredOffers(json,data.host,location.href,data.query).filter(o=>variantMatches(o,data.variant));if(schema.length)return {ready:true,offers:schema};if(!document.querySelector('h1')||!document.querySelector('.pdp-variant-button[aria-controls="options-list"]'))return {ready:false,offers:[]};const variants=await bikeComponentsVariants(data.fallback,data.variant);if(variants.offers.length)return {ready:true,...variants};if(data.variant&&!variantMatches(data.fallback,data.variant))return {ready:false,offers:[]};}
   if(same&&document.querySelector('h1')&&data.shopId==='bike-discount'&&data.fallback&&document.querySelector('#productDetailConfiguratorOptions')){const variants=await bikeDiscountVariants(data.fallback,data.variant);if(variants.length)return {ready:true,offers:variants};return {ready:false,offers:[]};}
@@ -68,6 +68,7 @@ async function readShopPage(data){
 }
 
 async function bike24Details(fallback,followLinked,requested){
+ await openBike24DataSheet();
  const cart=document.querySelector('#add-to-cart');if(!cart)return {ready:false};
  let props;try{props=JSON.parse(cart.getAttribute('data-props'));}catch{return {ready:false};}
  const clean=s=>String(s||'').replace(/\s*-\s*\d+[.,]\d{2}\s*(?:EUR|€).*$/i,'').trim();
@@ -85,5 +86,5 @@ async function bike24Details(fallback,followLinked,requested){
    await pause(250);
   }
  }
- return {ready:offers.length>0,offers,linkedVariants,limited:variants.limited,stock:offers[0]?.stock||'Lagerstatus nicht auslesbar'};
+ return {ready:offers.length>0,offers,eanCandidates:bike24DataSheetEANs(),linkedVariants,limited:variants.limited,stock:offers[0]?.stock||'Lagerstatus nicht auslesbar'};
 }

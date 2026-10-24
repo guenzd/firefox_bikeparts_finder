@@ -178,7 +178,7 @@ async function runShop(job,shop,searchQuery=job.query){
    if(last.offers.length&&stable>=1){
     job.counts.set(shop.id,last.offers.length);
     const nameMatch=offer=>validEAN(searchQuery)&&job.nameQuery&&typeof matches==='function'&&matches(offer.name||'',job.nameQuery);
-    const rows=last.offers.sort((a,b)=>Number(nameMatch(b))-Number(nameMatch(a))||Number(variantMatches(b,job.variant))-Number(variantMatches(a,job.variant)));const variants=new Map();let limited=false;
+    const rows=last.offers.sort((a,b)=>Number(nameMatch(b))-Number(nameMatch(a))||Number(variantMatches(b,job.variant))-Number(variantMatches(a,job.variant)));const variants=new Map(),dataSheetEANs=new Set();let limited=false;
     // Read missing delivery information on the actual product pages in the same Firefox session.
     const eanCandidate=['bike24','r2-bike'].includes(shop.id)?rows.find(row=>!exceedsSearchBudget(row,job)&&listingOfferComplete(row,job.variant)&&!validEAN(row.ean)):null;
     const inspect=rows.filter(row=>!exceedsSearchBudget(row,job)&&!listingVariantConflict(row,job.variant)&&(row===eanCandidate||!listingOfferComplete(row,job.variant)||(validEAN(searchQuery)&&validEAN(row.ean)!==searchQuery)));
@@ -188,13 +188,13 @@ async function runShop(job,shop,searchQuery=job.query){
      await browser.tabs.update(tab.id,{url:row.url});
      for(let attempt=0;attempt<8;attempt++){
       await pause(750);if(!jobActive(job))return;
-      try{const d=await boundedMessage(tab.id,{type:'detail',query:searchQuery,host:shop.host,url:row.url,shopId:shop.id,fallback:row,variant:job.variant,metadataOnly:['bike24','r2-bike'].includes(shop.id)&&listingOfferComplete(row,job.variant),followLinked:shop.id!=='bike24'||!rows.some(o=>listingOfferComplete(o,job.variant))},20000);if(d.blocked)break;if(d.ready){if(shop.id==='bike24'&&d.linkedVariants?.length){const extra=await bike24Linked(tab,shop,job,row,d,searchQuery);d.offers=extra.offers;d.limited ||= extra.limited;}limited ||= !!d.limited;if(d.offers?.length)variants.set(row,d.offers);else row.stock=d.stock;break;}}catch{}
+      try{const d=await boundedMessage(tab.id,{type:'detail',query:searchQuery,host:shop.host,url:row.url,shopId:shop.id,fallback:row,variant:job.variant,metadataOnly:['bike24','r2-bike'].includes(shop.id)&&listingOfferComplete(row,job.variant),followLinked:shop.id!=='bike24'||!rows.some(o=>listingOfferComplete(o,job.variant))},20000);if(d.blocked)break;if(d.ready){for(const ean of d.eanCandidates||[])if(validEAN(ean))dataSheetEANs.add(ean);if(shop.id==='bike24'&&d.linkedVariants?.length){const extra=await bike24Linked(tab,shop,job,row,d,searchQuery);d.offers=extra.offers;d.limited ||= extra.limited;}limited ||= !!d.limited;if(d.offers?.length)variants.set(row,d.offers);else row.stock=d.stock;break;}}catch{}
      }
     }
     const expanded=uniqueOffers(rows.flatMap(row=>variants.get(row)||[row])),identity=expanded.filter(o=>!validEAN(searchQuery)||validEAN(o.ean)===searchQuery),matching=identity.filter(o=>variantMatches(o,job.variant));
     if(validEAN(searchQuery)&&!matching.length){
      const otherEANs=[...new Set(expanded.map(o=>validEAN(o.ean)).filter(ean=>ean&&ean!==searchQuery))];
-     const message=identity.length?'EAN '+searchQuery+' gefunden. Gewünschte Variante „'+job.variant+'“ nicht bestätigt.':otherEANs.length?'Kein Treffer mit EAN '+searchQuery+'. Gefundene Produkte haben abweichende EAN: '+otherEANs.join(', ')+'.':'EAN '+searchQuery+' in den gefundenen Produkten nicht bestätigt.';
+     const message=!identity.length&&dataSheetEANs.has(searchQuery)?'EAN '+searchQuery+' im Datenblatt gefunden. Zuordnung zur '+(job.variant?'gewünschten Variante „'+job.variant+'“':'ausgewählten Variante')+' nicht eindeutig.':identity.length?'EAN '+searchQuery+' gefunden. Gewünschte Variante „'+job.variant+'“ nicht bestätigt.':otherEANs.length?'Kein Treffer mit EAN '+searchQuery+'. Gefundene Produkte haben abweichende EAN: '+otherEANs.join(', ')+'.':'EAN '+searchQuery+' in den gefundenen Produkten nicht bestätigt.';
      await send({type:'result',offers:[],message});return;
     }
     if(job.variant&&!matching.length){await send({type:'result',offers:[],suggestions:expanded.slice(0,12),variantAlternatives:true,message:'Variante „'+job.variant+'“ nicht bestätigt.'});return;}

@@ -555,3 +555,37 @@ test('Multiple EAN results are narrowed by original model/name while EAN confirm
   for(const result of results){assert.equal(result.offers.length,query.startsWith('Example')?1:3);assert.ok(result.offers.every(o=>o.ean===ean));if(result.offers.length===1)assert.equal(new URL(result.offers[0].url).pathname,'/chain');}
  }
 });
+
+test('BIKE24 metadata opens Datenblatt and waits for its lazily rendered GTIN',async()=>{
+ let listener,clicked=0,ticks=0;const ean='4524667879565';
+ const button={textContent:'Datenblatt',tagName:'BUTTON',disabled:false,getClientRects:()=>[{}],getAttribute:()=>null,closest:()=>null,click(){clicked++;}};
+ const label={textContent:'GTIN:',get nextElementSibling(){return {textContent:clicked&&ticks>=2?ean:''};}};
+ const document={readyState:'complete',body:{innerText:''},querySelector:()=>null,querySelectorAll(s){if(s.includes('data-sheet'))return [label];if(s.startsWith('[role="tab"]'))return [button];return [];}};
+ const c=vm.createContext({document,URL,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html'},setTimeout(fn){ticks++;setImmediate(fn);},browser:{runtime:{onMessage:{addListener(fn){listener=fn;}}}},productDropdowns:()=>[]});
+ for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),c);
+ const result=await listener({type:'detail',shopId:'bike24',host:'www.bike24.de',url:c.location.href,query:ean,metadataOnly:true,fallback:{name:'Example chain'}});
+ assert.equal(clicked,1);assert.ok(ticks>=2);assert.equal(result.ready,true);assert.equal(result.offers[0].ean,ean);
+ await c.openBike24DataSheet();assert.equal(clicked,1);
+});
+
+test('BIKE24 Datenblatt reader never clicks purchase-form or submit controls and does not select an arbitrary GTIN',async()=>{
+ let clicked=0;
+ const forbidden={textContent:'Datenblatt',getClientRects:()=>[{}],getAttribute:()=>null,closest:()=>({}),click(){clicked++;}};
+ const document={querySelector:()=>null,querySelectorAll:s=>s.startsWith('[role="tab"]')?[forbidden]:[]};
+ const c=vm.createContext({document,setTimeout:fastTimeout});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8'),c);
+ assert.equal(await c.openBike24DataSheet(),false);assert.equal(clicked,0);
+ forbidden.closest=()=>null;forbidden.getAttribute=name=>name==='type'?'submit':null;
+ assert.equal(await c.openBike24DataSheet(),false);assert.equal(clicked,0);
+ const label={textContent:'GTIN:',nextElementSibling:{textContent:'4524667879565, 4524667879572, 4550170323134'}};
+ document.querySelectorAll=s=>s.includes('data-sheet')?[label]:[];
+ assert.equal(await c.openBike24DataSheet(),true);assert.equal(c.currentProductEAN(),'');
+});
+
+test('An EAN present in a BIKE24 multi-GTIN datasheet is reported as ambiguous rather than missing',async()=>{
+ let listener;const home='moz-extension://unit/home.html',messages=[],ean='4524667879565';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(id){return {id};},async get(){return {};},async sendMessage(id,data){const row={name:'Example chain',variant:'116 Glieder',price:40,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/chain'};return data.type==='detail'?{ready:true,eanCandidates:[ean,'4524667879572'],offers:[row]}:{ready:true,offers:[row]};}}};
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+ await listener({type:'search',id:'ambiguous-sheet',query:'Example chain',ean,variant:'116'},{url:home,tab:{id:99}});
+ for(let i=0;i<100;i++)await new Promise(setImmediate);
+ const result=messages.find(m=>m.type==='result'&&m.shop==='BIKE24');assert.ok(result);assert.equal(result.offers.length,0);assert.match(result.message,/EAN 4524667879565 im Datenblatt gefunden.*Variante „116“ nicht eindeutig/);
+});

@@ -91,6 +91,7 @@ async function dropdownVariants(fallback,requested=''){
    return;
   }
   if(!labels.length)return;
+  if(bike24&&typeof openBike24DataSheet==='function')await openBike24DataSheet();
   attempted++;
   let previous='',stable=0;
   for(let i=0;i<20;i++){
