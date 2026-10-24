@@ -16,7 +16,7 @@ function render(){
  const section=el('section');if(item){section.append(el('h4',item.query),el('small',item.variant||'Alle Varianten'));if(s.url){const link=el('a','Im Shop suchen ↗');link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';section.append(link,copyButton(s.url));}}
  const range=item||inputPriceRange(document.querySelector('#max')),requested=item?item.variant:document.querySelector('#search-variant').value;
  const rows=uniqueOffers(s.offers||[]).filter(o=>typeof o.price==='number'&&withinPriceRange(o.price,range||{minPrice:Infinity,maxPrice:0})&&variantMatches(o,requested));
- heading.append(copyListButton(s.stale?[]:rows));
+ heading.append(copyListButton(s.stale?[]:rows,name));
  if(rows.length){const wrap=el('div');wrap.className='table-wrap';const t=el('table'),head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Link'].forEach(v=>head.append(el('th',v)));t.append(head);
  for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name),el('small',o.variant));if(validEAN(o.ean))product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td'),link=el('a','Öffnen ↗');link.href=o.url;link.target='_blank';link.rel='noopener noreferrer';cell.append(link,copyButton(o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
  }else section.append(el('p',(s.offers||[]).length?'Keine Angebote innerhalb des Preisbereichs.':s.message));
@@ -31,7 +31,7 @@ function renderWishlistDetails(root){
  for(const name of names){
   const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
-  const article=el('article'),heading=el('div');heading.className='shop-heading';heading.append(el('h3',name),el('small',entries.length+' Artikel'),copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant)))));article.append(heading);
+  const article=el('article'),heading=el('div');heading.className='shop-heading';heading.append(el('h3',name),el('small',entries.length+' Artikel'),copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';
   const head=el('tr');['Wunschlistenartikel / Treffer','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));table.append(head);
   for(const {item,shop} of entries){
@@ -205,15 +205,16 @@ document.querySelector('#check-wishlist').addEventListener('click',async()=>{
  }catch{document.querySelector('#status').textContent='Wunschlistenprüfung konnte nicht abgeschlossen werden.';}finally{checkingList=false;finishSearch=null;document.querySelector('#check-wishlist').textContent='Wunschliste prüfen';renderWishlist();render();}
 });
 
-function copyListButton(offers){
+function copyListButton(offers,shopName=''){
  const rows=[...new Map(offers.filter(o=>o.url&&deliverable(o.stock)).map(o=>{
-  const row={name:String(o.name||'').replace(/\s+/g,' ').trim(),url:cleanShopUrl(o.url)};return [row.name+' '+row.url,row];
+  const row={name:String(o.name||'').replace(/\s+/g,' ').trim(),url:cleanShopUrl(o.url),shop:shopName||o.shop||''};return [row.shop+' '+row.name+' '+row.url,row];
  })).values()];
  const button=copyButton('',async()=>{
   try{
-   const text=rows.map(o=>o.name+' '+o.url).join('\n');
+   const groups=new Map();for(const row of rows){if(!groups.has(row.shop))groups.set(row.shop,[]);groups.get(row.shop).push(row);}
+   const text=[...groups].map(([shop,offers])=>(shop?shop+'\n':'')+offers.map(o=>o.name+' '+o.url).join('\n')).join('\n\n');
    const escape=value=>value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
-   const html=rows.map(o=>'<a href="'+escape(o.url)+'">'+escape(o.name)+'</a>').join('<br>');
+   const html=[...groups].map(([shop,offers])=>'<div>'+(shop?'<strong>'+escape(shop)+'</strong><br>':'')+offers.map(o=>'<a href="'+escape(o.url)+'">'+escape(o.name)+'</a>').join('<br>')+'</div>').join('<br>');
    if(typeof ClipboardItem==='function'&&navigator.clipboard.write){
     await navigator.clipboard.write([new ClipboardItem({'text/plain':new Blob([text],{type:'text/plain'}),'text/html':new Blob([html],{type:'text/html'})})]);
    }else await navigator.clipboard.writeText(text);
