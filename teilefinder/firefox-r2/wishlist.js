@@ -20,9 +20,10 @@ function deliverable(stock){
 }
 function confirmedEANAcrossShops(shops,variant=''){
  const required=['BIKE24','Bike-Discount','bike-components','r2-bike'];
- const ean=validEAN(shops.find(shop=>shop.name===required[0])?.queriedEAN);if(!ean)return '';
+ const first=shops.find(shop=>shop.name===required[0]);
+ const ean=validEAN((first?.offers||[]).find(offer=>offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.price>0&&variantMatches(offer,variant))?.ean);if(!ean)return '';
  return required.every(name=>{
-  const shop=shops.find(shop=>shop.name===name);if(!shop?.done||shop.stale||validEAN(shop.queriedEAN)!==ean)return false;
+  const shop=shops.find(shop=>shop.name===name);if(!shop?.done||shop.stale)return false;
   const offers=(shop.offers||[]).filter(offer=>offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.price>0&&variantMatches(offer,variant));
   return offers.length>0&&offers.every(offer=>validEAN(offer.ean)===ean);
  })?ean:'';

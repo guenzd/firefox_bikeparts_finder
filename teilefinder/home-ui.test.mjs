@@ -159,3 +159,19 @@ test('EAN button updates the search and wishlist and copies the same identifier,
  assert.equal(copied,'4524667879565');assert.equal(fields['#search-ean'].value,copied);assert.equal(wishlist[0].ean,copied);assert.equal(savedField.value,copied);assert.equal(focused,true);assert.equal(saves,1);
  fail=true;await ctx.eanRow('4550170323134','item').children.at(-1).click();assert.equal(fields['#search-ean'].value,'4550170323134');assert.equal(wishlist[0].ean,'4550170323134');assert.match(fields['#status'].textContent,/Kopieren fehlgeschlagen/);
 });
+
+test('Complete cross-shop EAN consensus hides repeated rows in totals and shop lists, and variants have no prefix',()=>{
+ const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},setAttribute(){},addEventListener(){}});
+ const root=make('div'),names=['BIKE24','Bike-Discount','bike-components','r2-bike'],ean='4524667879565';let eanRows=0;
+ const item={id:'one',query:'Example tyre',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
+ const ctx=vm.createContext({el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
+ for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),ctx);
+ vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
+ vm.runInContext(home.slice(home.indexOf('function renderWishlistDetails('),home.indexOf('browser.runtime.onMessage.addListener')),ctx);
+ ctx.renderTotal();assert.equal(eanRows,0);
+ const details=make('div');ctx.renderWishlistDetails(details);assert.equal(eanRows,0);
+ const texts=node=>[node.text,...node.children.flatMap(texts)].filter(Boolean);
+ assert.ok(texts(details).includes('30 mm'));assert.ok(!texts(details).some(text=>String(text).startsWith('Gewünscht:')));
+ item.shops[0].stale=true;ctx.renderTotal();assert.ok(eanRows>0);
+ eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
+});
