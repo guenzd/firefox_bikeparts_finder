@@ -71,7 +71,7 @@ async function dropdownVariants(fallback,requested=''){
  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
  const rows=[];let attempted=0;
  const options=select=>[...select.options].filter(o=>!o.disabled&&o.value&&!/bitte|wählen|waehlen|choose|select|auswahl/i.test(o.textContent)).map(o=>({value:o.value,text:o.textContent.trim()}));
- async function visit(depth,labels){
+ async function visit(depth,labels,skuState={allowURLSKU:true,url:location.href}){
   if(attempted>=24)return;
   const selects=productDropdowns();
   if(depth<selects.length){
@@ -80,11 +80,13 @@ async function dropdownVariants(fallback,requested=''){
     if(attempted>=24)break;
     const select=productDropdowns()[depth];
     if(!select||![...select.options].some(o=>o.value===choice.value&&!o.disabled))continue;
+    const beforeURL=location.href,beforeSelection=JSON.stringify(productDropdowns().map(select=>[select.id,select.value]));
     selectProductOption(select,choice,bike24);
     await pause(700);
     const refreshed=productDropdowns()[depth];if(!refreshed||refreshed.value!==choice.value)continue;
     const label=[...(select.labels||[])].map(l=>l.textContent.trim()).join(' ')||select.getAttribute?.('aria-label')||'';
-    await visit(depth+1,[...labels,(label?label+': ':'')+choice.text.replace(/\s*-\s*zzgl\..*$/i,'')]);
+    const changed=beforeSelection!==JSON.stringify(productDropdowns().map(select=>[select.id,select.value]));
+    await visit(depth+1,[...labels,(label?label+': ':'')+choice.text.replace(/\s*-\s*zzgl\..*$/i,'')],{allowURLSKU:location.href!==beforeURL||(!changed&&skuState.allowURLSKU),url:beforeURL});
    }
    return;
   }
@@ -96,11 +98,14 @@ async function dropdownVariants(fallback,requested=''){
    const priceText=(priceNode?.innerText||priceNode?.textContent||'').trim()||priceNode?.getAttribute('content')||'';
    const stockNode=document.querySelector('#add-to-cart .product-availability, .nele-product-availability-info, .delivery-status, .availability, .delivery-time, .delivery');
    const stock=stockText(stockNode?.innerText||stockNode?.textContent||'');
-   const signature=JSON.stringify([priceText,stock]);stable=signature===previous?stable+1:0;previous=signature;
+   const selection=productDropdowns().map(select=>[select.id,select.value]);
+   const allowURLSKU=skuState.allowURLSKU||location.href!==skuState.url;
+   const ean=typeof currentProductEAN==='function'?currentProductEAN({allowURLSKU}):'';
+   const signature=JSON.stringify([priceText,stock,ean,selection]);stable=signature===previous?stable+1:0;previous=signature;
    const match=priceText.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);
    const price=match?euro(match[1]):priceNode?.getAttribute('content')?euro(priceNode.getAttribute('content')):null;
    if(stable>=2&&price!==null&&!/^ab\s/i.test(priceText)&&!document.querySelector(bike24?'#add-to-cart [aria-busy="true"]':'[aria-busy="true"]')&&!(bike24&&/Bitte Option wählen/i.test(stockNode?.textContent||stockNode?.innerText||''))){
-    rows.push({...fallback,variant:(/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · ':'')+labels.join(' · '),price,priceKind:'exact',stock,url:location.href,source:'Firefox · ausgewählte Produktvariante',selection:productDropdowns().map(select=>({id:select.id,value:select.value}))});break;
+    rows.push({...fallback,ean,variant:(/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · ':'')+labels.join(' · '),price,priceKind:'exact',stock,url:location.href,source:'Firefox · ausgewählte Produktvariante',selection:productDropdowns().map(select=>({id:select.id,value:select.value}))});break;
    }
    await pause(250);
   }

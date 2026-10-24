@@ -73,7 +73,28 @@ function structuredOffers(json,host,fallbackUrl,q){
  };
  json.forEach(x=>visit(x,null));return dedupe(rows);
 }
-function currentProductEAN(){
+// Resolve only explicit SKU records; a datasheet GTIN list has no implied order.
+function bike24SkuEAN(allowURLSKU=true){
+ if(typeof location==='undefined'||location.hostname?.replace(/^www\./,'')!=='bike24.de')return '';
+ const cart=document.querySelector('#add-to-cart');
+ const declared=[...document.querySelectorAll('#add-to-cart input[name="sku"], #add-to-cart input[name="skuId"], #add-to-cart option:checked[data-sku], #add-to-cart [role="radio"][aria-checked="true"][data-sku]')].map(node=>String(node.getAttribute?.('data-sku')||node.value||'').trim()).filter(Boolean);
+ const selected=[...new Set(declared)];if(selected.length>1)return '';
+ let sku=selected[0]||'';
+ if(!sku&&allowURLSKU){try{sku=new URL(location.href).searchParams.get('sku')||'';}catch{}}
+ if(!sku)return '';
+ const identifiers=new Set();
+ const scan=(value,key='')=>{
+  if(!value||typeof value!=='object')return;
+  const matches=String(value.sku??value.skuId??value.id??'')===sku||key===sku;
+  if(matches)for(const [field,ean] of Object.entries(value))if(/^(?:ean|gtin(?:8|12|13|14)?)$/i.test(field)&&/^\d{8,14}$/.test(String(ean)))identifiers.add(String(ean));
+  for(const [field,child] of Object.entries(value))scan(child,field);
+ };
+ try{scan(JSON.parse(cart?.getAttribute('data-props')||'null'));}catch{}
+ for(const node of document.querySelectorAll('script[type="application/ld+json"]')){try{scan(JSON.parse(node.textContent));}catch{}}
+ return identifiers.size===1?[...identifiers][0]:'';
+}
+function currentProductEAN({allowURLSKU=true}={}){
+ const mapped=bike24SkuEAN(allowURLSKU);if(mapped)return mapped;
  const description=document.querySelector('#tab-description')||document.querySelector('#description-tab-pane');
  const described=[...new Set([...(description?.textContent||'').matchAll(/\b(?:EAN|GTIN|UPC)\s*:?\s*(\d{8,14})(?!\d)/gi)].map(m=>m[1]))];
  if(described.length===1)return described[0];

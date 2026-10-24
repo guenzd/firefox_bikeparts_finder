@@ -521,3 +521,21 @@ test('Discovered EAN removes a different r2 execution even when EAN refinement f
   else assert.ok(!queries.some(q=>q.includes(good)));
  }
 });
+
+test('BIKE24 length selection captures each current SKU EAN and metadata-only reads fall back to option inspection',async()=>{
+ const ids=['short','long'],eans=['4524667879565','4524667879572'];let listener,exposeSelectedSKU=true;
+ const select={id:'length',name:'length',value:'',labels:[{textContent:'Length'}],disabled:false,multiple:false,options:ids.map((id,i)=>({value:id,textContent:(i?126:116)+' Glieder'})),matches:()=>true,getClientRects:()=>[{}],closest:()=>null,getAttribute:()=>'',dispatchEvent(){}};
+ const cart={getAttribute:()=>JSON.stringify({skus:ids.map((sku,i)=>({sku,ean:eans[i]}))})};
+ const gtin={textContent:'GTIN:',nextElementSibling:{textContent:eans.join(', ')}};
+ const document={readyState:'complete',body:{innerText:''},addEventListener(){},removeEventListener(){},querySelectorAll(s){if(s==='select')return [select];if(s.startsWith('#add-to-cart input'))return exposeSelectedSKU&&select.value?[{value:select.value}]:[];if(s.includes('data-sheet'))return [gtin];return [];},querySelector(s){if(s==='#add-to-cart')return cart;if(s==='h1')return {innerText:'Example chain'};if(s.includes('price__value'))return {textContent:'39,99 €'};if(s.includes('product-availability'))return {textContent:'Auf Lager'};return null;}};
+ const c=vm.createContext({document,URL,Event:class{},location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html?sku=unrelated'},setTimeout:fastTimeout,browser:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
+ for(const file of ['variant-match.js','extract.js','variants.js','shop.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),c);
+ const fallback={name:'Example chain',ean:'9999999999999',price:39.99,priceKind:'exact',stock:'Auf Lager',url:c.location.href};
+ const result=await c.bike24Details(fallback,false,'');assert.equal(result.offers.length,2);assert.deepEqual(Array.from(result.offers,o=>o.ean),eans);
+ assert.ok(result.offers[0].variant.includes('116'));assert.ok(result.offers[1].variant.includes('126'));
+ exposeSelectedSKU=false;select.value='';c.location.href='https://www.bike24.de/p1.html?sku=short';
+ const staleURL=await c.bike24Details(fallback,false,'');assert.equal(staleURL.offers.length,2);assert.ok(staleURL.offers.every(offer=>offer.ean===''));
+ exposeSelectedSKU=true;c.location.href=fallback.url;
+ select.value='';const filtered=await listener({type:'detail',shopId:'bike24',host:'www.bike24.de',url:c.location.href,query:'Example chain',variant:'116',metadataOnly:true,fallback});
+ assert.equal(filtered.ready,true);assert.equal(filtered.offers.length,1);assert.equal(filtered.offers[0].ean,eans[0]);assert.ok(filtered.offers[0].variant.includes('116'));
+});

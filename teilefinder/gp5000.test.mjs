@@ -143,3 +143,15 @@ test('Bike-Discount restock notice means unavailable and ignores notices outside
  delete nodes['.nele-product-availability-info'];assert.equal(c.bikeDiscountStock(),'Lagerstatus nicht auslesbar');
  assert.equal(c.stockText('Benachrichtigen Sie mich,\n sobald der Artikel lieferbar ist.'),'Nicht lieferbar');
 });
+
+test('BIKE24 SKU EAN mapping is explicit, independent of GTIN order, and rejects conflicting records',()=>{
+ let records=[{sku:'949136',gtin13:'4524667879565'},{sku:'other',gtin13:'4550170323134'}];
+ const label={textContent:'GTIN:',nextElementSibling:{textContent:'4550170323134, 4524667879572, 4524667879565'}};
+ const document={querySelector:s=>s==='#add-to-cart'?{getAttribute:()=>JSON.stringify({skus:records})}:null,querySelectorAll:s=>s.includes('data-sheet')?[label]:[]};
+ const c=vm.createContext({document,URL,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html?sku=949136'}});
+ vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);
+ assert.equal(c.currentProductEAN(),'4524667879565');
+ assert.equal(c.currentProductEAN({allowURLSKU:false}),'');
+ records.push({sku:'949136',gtin13:'4550170323134'});assert.equal(c.currentProductEAN(),'');
+ records=[];assert.equal(c.currentProductEAN(),'');
+});
