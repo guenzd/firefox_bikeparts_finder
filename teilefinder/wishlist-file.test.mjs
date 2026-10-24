@@ -49,3 +49,8 @@ test('Price ranges survive file round trips and invalid lower bounds are rejecte
  let result=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(result[0].minPrice,5);assert.equal(result[0].maxPrice,10);
  ctx.items[0].minPrice=11;assert.throws(()=>vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx));
 });
+
+test('File snapshots retain verified EAN search provenance without marking unfinished searches complete',()=>{
+ const shops=ctx.snapshotShops([{name:'BIKE24',queriedEAN:'4524667879565',done:true,offers:[]},{name:'Bike-Discount',queriedEAN:'4524667879565',done:false,offers:[]}]);
+ assert.equal(shops[0].queriedEAN,'4524667879565');assert.equal(shops[0].done,true);assert.equal(shops[1].done,false);
+});

@@ -125,3 +125,11 @@ test('Wishlist total distinguishes unavailable matches, unknown stock, price bou
  assert.equal(sum([{...item,shops:[{...item.shops[0],stale:true}]}]).rows[0].missingMessage,'Kein passendes Angebot');
  assert.equal(sum([{query:'New'}]).rows[0].missingMessage,'Noch nicht geprüft');
 });
+
+test('Repeated EANs can be hidden only after all four shops completed exact EAN searches for the requested variant',()=>{
+ const ean='4524667879565',names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
+ const shops=names.map(name=>({name,done:true,queriedEAN:ean,offers:[{ean,name:'Chain',variant:'116 Glieder',price:40,priceKind:'exact',stock:'Auf Lager'}]}));
+ assert.equal(ctx.confirmedEANAcrossShops(shops,'116'),ean);
+ for(const patch of [{done:false},{stale:true},{queriedEAN:''},{queriedEAN:'4550170323134'},{offers:[]},{offers:[{...shops[0].offers[0],ean:'4550170323134'}]},{offers:[{...shops[0].offers[0],variant:'126 Glieder'}]}])assert.equal(ctx.confirmedEANAcrossShops([{...shops[0],...patch},...shops.slice(1)],'116'),'');
+ assert.equal(ctx.confirmedEANAcrossShops(shops.slice(1),'116'),'');
+});

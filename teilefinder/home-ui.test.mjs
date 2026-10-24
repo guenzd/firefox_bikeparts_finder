@@ -148,3 +148,14 @@ test('Wishlist fields select on initial edit, allow caret positioning, commit wi
  field.value='40';field.keydown({key:'Enter',preventDefault(){prevented++;}});assert.equal(blurred,1);assert.equal(field.value,'40');
  field.value='wrong';field.keydown({key:'Escape',preventDefault(){prevented++;}});assert.equal(blurred,2);assert.equal(field.value,'30');assert.equal(field.validity,'');assert.equal(prevented,2);
 });
+
+test('EAN button updates the search and wishlist and copies the same identifier, retaining adoption on clipboard failure',async()=>{
+ let copied,focused=false,saves=0,fail=false;const fields={'#search-ean':{focus(){focused=true;}},'#status':{}};
+ const el=(tag,text)=>({tag,text,children:[],append(...children){this.children.push(...children);},setAttribute(){}});
+ const wishlist=[{id:'item',ean:''}],savedField={dataset:{eanItem:'item'},value:''};
+ const ctx=vm.createContext({el,activeWishlistId:'item',wishlist,document:{createTextNode:value=>value,querySelector:selector=>fields[selector],querySelectorAll:()=>[savedField]},navigator:{clipboard:{async writeText(value){if(fail)throw Error('Denied');copied=value;}}},async saveList(){saves++;},copyButton:(_value,callback)=>({click:callback,setAttribute(){}})});
+ vm.runInContext(home.slice(home.indexOf('function eanRow('),home.indexOf('function renderTotal(')),ctx);
+ const row=ctx.eanRow('4524667879565','item');await row.children.at(-1).click();
+ assert.equal(copied,'4524667879565');assert.equal(fields['#search-ean'].value,copied);assert.equal(wishlist[0].ean,copied);assert.equal(savedField.value,copied);assert.equal(focused,true);assert.equal(saves,1);
+ fail=true;await ctx.eanRow('4550170323134','item').children.at(-1).click();assert.equal(fields['#search-ean'].value,'4550170323134');assert.equal(wishlist[0].ean,'4550170323134');assert.match(fields['#status'].textContent,/Kopieren fehlgeschlagen/);
+});

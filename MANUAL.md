@@ -40,7 +40,7 @@ Fehlen passende Treffer, schließt die Suche auch ohne ausdrückliches „keine 
 
 Sobald eine eindeutige EAN gefunden wurde, wird sie ins Suchfeld und beim passenden Wunschlistenartikel übernommen. Sie wird auch in bestätigten Angeboten derselben Variante ergänzt. Bei mehreren unterschiedlichen EANs bleibt die automatische Auswahl aus.
 
-Neben jeder EAN in den Ergebnissen steht ein Symbol mit zwei überlappenden Quadraten. Es übernimmt die Kennung direkt ins EAN-Suchfeld und gegebenenfalls in den zugehörigen Wunschlistenartikel. Anschließend „Suchen“ klicken. Das gleiche Symbol neben Shoplinks kopiert dagegen den Link in die Zwischenablage.
+Neben jeder EAN in den Ergebnissen steht ein Symbol mit zwei überlappenden Quadraten. Es übernimmt die Kennung direkt ins EAN-Suchfeld und gegebenenfalls in den zugehörigen Wunschlistenartikel und kopiert sie zusätzlich in die Zwischenablage. Anschließend „Suchen“ klicken. Das gleiche Symbol neben Shoplinks kopiert dagegen den Link in die Zwischenablage.
 
 Ist das EAN-Häkchen aktiviert, wird eine vorhandene EAN von Anfang an als Suchbegriff verwendet. Ohne Häkchen wird nach dem Namen gesucht; eine gespeicherte EAN kann dann dennoch ein auf der Produktseite geprüftes ähnliches Angebot bestätigen, wenn EAN und gewünschte Variante übereinstimmen. Wird sie erst während der Suche gefunden, werden Shops mit mehreren Treffern einmal mit der EAN nachgesucht. Eine erfolglose EAN-Nachsuche entfernt keine zuvor gefundenen Angebote.
 
@@ -102,3 +102,5 @@ Bei unterschiedlichen Shop-Bezeichnungen wird zusätzlich eine exakte Modellkenn
 Ein Klick auf den laufenden Suchfortschritt stoppt die Suche. Während der Listenprüfung stoppt auch der Button „Prüfe …“ die gesamte Prüfung. Bereits gefundene Ergebnisse bleiben erhalten. Beide Bedienelemente sind auch per Tastatur erreichbar.
 
 Preis und Ausführung in der Wunschliste lassen sich direkt im Feld bearbeiten: Beim ersten Klick wird der Inhalt markiert. Enter übernimmt die Änderung, Escape setzt den gespeicherten Wert wieder ein. Beim Verlassen des Feldes wird ebenfalls gespeichert. „Bearbeiten“ neben dem Artikelnamen ist nur für den Namen erforderlich.
+
+Wird derselbe Artikel in allen vier Shops durch eine abgeschlossene EAN-Suche mit bestätigter Variante gefunden, werden die wiederholten EAN-Zeilen in den einzelnen Shop-Ergebnissen ausgeblendet. Die zentrale EAN bleibt erhalten. Fehlende, veraltete oder nur über den Namen gefundene Ergebnisse führen nicht zur Ausblendung.

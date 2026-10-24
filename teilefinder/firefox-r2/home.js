@@ -22,8 +22,9 @@ function render(){
  const section=el('section'),message=resultMessage(s.message);if(item){section.append(el('h4',item.query),el('small',item.variant||'Alle Varianten'));if(s.url){const link=el('a','Im Shop suchen');link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';section.append(link,copyButton(s.url));}}
  const range=item||inputPriceRange(document.querySelector('#max')),requested=item?item.variant:document.querySelector('#search-variant').value;
  const rows=uniqueOffers(s.offers||[]).filter(o=>typeof o.price==='number'&&withinPriceRange(o.price,range||{minPrice:Infinity,maxPrice:0})&&variantMatches(o,requested));
+ const stableEAN=confirmedEANAcrossShops([...state.entries()].map(([name,shop])=>({name,...shop})),requested);
  if(rows.length){const wrap=el('div');wrap.className='table-wrap';const t=el('table'),head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Link'].forEach(v=>head.append(el('th',v)));appendTableHead(t,head);t.setAttribute('aria-label',name+' · Suchergebnisse');
- for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean))product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td'),link=el('a','Öffnen');link.href=o.url;link.target='_blank';link.rel='noopener noreferrer';cell.append(link,copyButton(o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
+ for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean)&&o.ean!==stableEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td'),link=el('a','Öffnen');link.href=o.url;link.target='_blank';link.rel='noopener noreferrer';cell.append(link,copyButton(o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
  }else section.append(el('p',(s.offers||[]).length?'Keine Angebote innerhalb des Preisbereichs.':message));
  if(!(s.offers||[]).length&&s.suggestions?.length)appendSuggestions(section,s.suggestions,range||{minPrice:Infinity,maxPrice:0},item,s.variantAlternatives);
  if((s.offers||[]).length>rows.length)section.append(el('small',((s.offers||[]).length-rows.length)+' Angebote durch Preisfilter ausgeblendet.'));
@@ -33,6 +34,7 @@ function render(){
  }
 }
 function renderWishlistDetails(root){
+ const stableEANs=new Map(wishlist.map(item=>[item.id,confirmedEANAcrossShops(names.map(name=>({name,...((checkingList&&item.id===activeWishlistId?state.get(name):null)||(item.shops||[]).find(shop=>shop.name===name)||{})})),item.variant)]));
  for(const name of names){
   const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
@@ -48,10 +50,10 @@ function renderWishlistDetails(root){
     if(offer){
      if(offer.name!==item.query)product.append(el('span',offer.name));
      if(offer.variant&&offer.variant!==offer.name&&offer.variant!==item.variant)product.append(el('small',offer.variant));
-     if(validEAN(offer.ean))product.append(eanRow(offer.ean,item.id));
+     if(validEAN(offer.ean)&&offer.ean!==stableEANs.get(item.id))product.append(eanRow(offer.ean,item.id));
      price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);stock.append(el('span',offer.stock));
      const link=el('a','Öffnen');link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';links.append(link,copyButton(offer.url));
-    }else{price.textContent='—';stock.append(el('span',(shop.offers||[]).length?'Außerhalb des Preisbereichs':resultMessage(shop.message)||'Kein Treffer'));if(validEAN(item.ean))product.append(eanRow(item.ean,item.id));}
+    }else{price.textContent='—';stock.append(el('span',(shop.offers||[]).length?'Außerhalb des Preisbereichs':resultMessage(shop.message)||'Kein Treffer'));if(validEAN(item.ean)&&item.ean!==stableEANs.get(item.id))product.append(eanRow(item.ean,item.id));}
     if(index===0){
      if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));
      if(shop.checkedAt)stock.append(el('small',new Date(shop.checkedAt).toLocaleString('de-DE')));
@@ -73,7 +75,7 @@ browser.runtime.onMessage.addListener(d=>{
   const suggestions=(d.suggestions||[]).filter(o=>{try{return new URL(o.url).protocol==='https:'&&new URL(o.url).hostname.replace(/^www\./,'')===new URL(d.url).hostname.replace(/^www\./,'')&&typeof o.name==='string';}catch{return false;}});
   const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||validEAN(o.ean)===requestedEAN);
   const kept=!offers.length&&previousOffers.length;
-  state.set(d.shop,{offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),done:d.type==='result'});
+  state.set(d.shop,{queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),done:d.type==='result'});
  }
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
@@ -169,10 +171,11 @@ function eanRow(value,itemId=activeWishlistId){
  const row=el('small');row.className='ean-row';row.append(document.createTextNode('EAN: '+value));
  const button=copyButton(value,async()=>{
   document.querySelector('#search-ean').value=value;
+  let copied=false;try{await navigator.clipboard.writeText(value);copied=true;}catch{}
   const item=wishlist.find(item=>item.id===itemId);
   if(item){item.ean=value;await saveList();for(const input of document.querySelectorAll('[data-ean-item]'))if(input.dataset.eanItem===itemId)input.value=value;}
-  document.querySelector('#search-ean').focus();document.querySelector('#status').textContent='EAN '+value+' übernommen. Mit „Suchen“ verwenden.';
- });button.title='EAN ins Suchfeld übernehmen';button.setAttribute('aria-label','EAN '+value+' ins Suchfeld übernehmen');row.append(button);return row;
+  document.querySelector('#search-ean').focus();document.querySelector('#status').textContent=copied?'EAN übernommen und kopiert.':'EAN übernommen. Kopieren fehlgeschlagen.';
+ });button.title='EAN übernehmen und kopieren';button.setAttribute('aria-label','EAN '+value+' übernehmen und kopieren');row.append(button);return row;
 }
 function renderTotal(){
  const root=document.querySelector('#wishlist-total');root.replaceChildren();if(!wishlist.length)return;
