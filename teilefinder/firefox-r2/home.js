@@ -23,7 +23,7 @@ function render(){
  const section=el('section'),message=resultMessage(s.message);if(item){section.append(el('h4',item.query),el('small',item.variant||'Alle Varianten'));if(s.url){const link=el('a','Im Shop suchen');link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';section.append(link,copyButton(s.url));}}
  const range=item||inputPriceRange(document.querySelector('#max')),requested=item?item.variant:document.querySelector('#search-variant').value;
  const rows=uniqueOffers(s.offers||[]).filter(o=>typeof o.price==='number'&&withinPriceRange(o.price,range||{minPrice:Infinity,maxPrice:0})&&variantMatches(o,requested));
- const stableEAN=confirmedEANAcrossShops([...state.entries()].map(([name,shop])=>({name,...shop})),requested);
+ const stableEAN=confirmedEANAcrossShops([...state.entries()].map(([name,shop])=>({name,...shop})),requested,document.querySelector('#search-ean').value);
  if(rows.length){const wrap=el('div');wrap.className='table-wrap';const t=el('table'),head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Link'].forEach(v=>head.append(el('th',v)));appendTableHead(t,head);t.setAttribute('aria-label',name+' · Suchergebnisse');
  for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean)&&o.ean!==stableEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td'),link=el('a','Öffnen');link.href=o.url;link.target='_blank';link.rel='noopener noreferrer';cell.append(link,copyButton(o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
  }else section.append(el('p',(s.offers||[]).length?'Keine Angebote innerhalb des Preisbereichs.':message));
@@ -35,7 +35,7 @@ function render(){
  }
 }
 function renderWishlistDetails(root){
- const stableEANs=new Map(wishlist.map(item=>[item.id,confirmedEANAcrossShops(names.map(name=>({name,...((checkingList&&item.id===activeWishlistId?state.get(name):null)||(item.shops||[]).find(shop=>shop.name===name)||{})})),item.variant)]));
+ const stableEANs=new Map(wishlist.map(item=>[item.id,confirmedEANAcrossShops(names.map(name=>({name,...((checkingList&&item.id===activeWishlistId?state.get(name):null)||(item.shops||[]).find(shop=>shop.name===name)||{})})),item.variant,item.ean)]));
  for(const name of names){
   const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
@@ -193,7 +193,7 @@ function renderTotal(){
  for(const {item,best,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));product.append(productButton);
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
-  const ean=validEAN(best?.ean)||validEAN(item.ean);if(ean&&ean!==confirmedEANAcrossShops(item.shops||[],item.variant))product.append(eanRow(ean,item.id));
+  const ean=validEAN(best?.ean)||validEAN(item.ean);if(ean&&ean!==confirmedEANAcrossShops(item.shops||[],item.variant,item.ean))product.append(eanRow(ean,item.id));
   if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);const link=el('a','Öffnen');link.href=best.url;link.target='_blank';link.rel='noopener noreferrer';links.append(link,copyButton(best.url));}
   else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));

@@ -18,15 +18,18 @@ function deliverable(stock){
  if(/\bWochen?\b|nicht|ausverkauft|out of stock|sold out|vorbestell|nachbestell|(?:verfügbar|lieferbar|erhältlich)\s+(?:ab|in)|available (?:from|in)|unbekannt|nicht auslesbar/i.test(s))return false;
  return /auf lager|lagernd|ab lager|sofort lieferbar|in stock|available from stock|(?:Versand in|Lieferzeit:?|lieferbar in)\s*\d+(?:\s*[-–]\s*\d+)?\s*(?:Werk|Arbeits)?tage[n]?|\b\d+(?:\s*[-–]\s*\d+)?\s*(?:Arbeits|Werk)tage[n]?/i.test(s);
 }
-function confirmedEANAcrossShops(shops,variant=''){
+// Display-only redundancy check: finding a matching offer in every shop is
+// independent of the live job's done flag and of EAN extraction in every shop.
+function confirmedEANAcrossShops(shops,variant='',knownEAN=''){
  const required=['BIKE24','Bike-Discount','bike-components','r2-bike'];
- const first=shops.find(shop=>shop.name===required[0]);
- const ean=validEAN((first?.offers||[]).find(offer=>offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.price>0&&variantMatches(offer,variant))?.ean);if(!ean)return '';
- return required.every(name=>{
-  const shop=shops.find(shop=>shop.name===name);if(!shop?.done||shop.stale)return false;
-  const offers=(shop.offers||[]).filter(offer=>offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.price>0&&variantMatches(offer,variant));
-  return offers.length>0&&offers.every(offer=>validEAN(offer.ean)===ean);
- })?ean:'';
+ const matching=required.map(name=>{
+  const shop=shops.find(shop=>shop.name===name);if(!shop||shop.stale)return [];
+  return (shop.offers||[]).filter(offer=>Number.isFinite(offer.price)&&offer.price>0&&variantMatches(offer,variant));
+ });
+ if(matching.some(offers=>!offers.length))return '';
+ const identifiers=[...new Set(matching.flat().map(offer=>validEAN(offer.ean)).filter(Boolean))];
+ const ean=validEAN(knownEAN)||(identifiers.length===1?identifiers[0]:'');
+ return ean&&identifiers.every(identifier=>identifier===ean)?ean:'';
 }
 
 function cheapestWishlist(items){

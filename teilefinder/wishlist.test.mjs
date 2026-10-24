@@ -126,14 +126,19 @@ test('Wishlist total distinguishes unavailable matches, unknown stock, price bou
  assert.equal(sum([{query:'New'}]).rows[0].missingMessage,'Noch nicht geprüft');
 });
 
-test('Repeated EANs are hidden for completed matching results in all four shops regardless of search term',()=>{
+test('Repeated EAN display depends on matching offers in all four shops, not live completion flags',()=>{
  const ean='4524667879565',names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
  const shops=names.map(name=>({name,done:true,queriedEAN:ean,offers:[{ean,name:'Chain',variant:'116 Glieder',price:40,priceKind:'exact',stock:'Auf Lager'}]}));
  assert.equal(ctx.confirmedEANAcrossShops(shops,'116'),ean);
  const named=shops.map(({queriedEAN,...shop})=>shop);
  assert.equal(ctx.confirmedEANAcrossShops(named,'116'),ean);
  assert.equal(ctx.confirmedEANAcrossShops(shops.map(shop=>({...shop,queriedEAN:''})),'116'),ean);
- assert.equal(ctx.confirmedEANAcrossShops([{...shops[0],offers:[{...shops[0].offers[0],ean:''}]},...shops.slice(1)],'116'),'');
- for(const patch of [{done:false},{stale:true},{offers:[]},{offers:[{...shops[0].offers[0],ean:'4550170323134'}]},{offers:[{...shops[0].offers[0],variant:'126 Glieder'}]}])assert.equal(ctx.confirmedEANAcrossShops([{...shops[0],...patch},...shops.slice(1)],'116'),'');
+ assert.equal(ctx.confirmedEANAcrossShops([{...shops[0],offers:[{...shops[0].offers[0],ean:''}]},...shops.slice(1)],'116'),ean);
+ for(const patch of [{stale:true},{offers:[]},{offers:[{...shops[0].offers[0],ean:'4550170323134'}]},{offers:[{...shops[0].offers[0],variant:'126 Glieder'}]}])assert.equal(ctx.confirmedEANAcrossShops([{...shops[0],...patch},...shops.slice(1)],'116'),'');
  assert.equal(ctx.confirmedEANAcrossShops(shops.slice(1),'116'),'');
+ const restored=shops.map(({done,queriedEAN,...shop},i)=>({...shop,offers:shop.offers.map(offer=>({...offer,ean:i? '':ean}))}));
+ assert.equal(ctx.confirmedEANAcrossShops(restored,'116',ean),ean);
+ assert.equal(ctx.confirmedEANAcrossShops(restored.map(shop=>({...shop,done:false})),'116',ean),ean);
+ assert.equal(ctx.confirmedEANAcrossShops(restored.map(shop=>({...shop,offers:shop.offers.map(offer=>({...offer,ean:''}))})),'116',ean),ean);
+ assert.equal(ctx.confirmedEANAcrossShops(restored,'116','4550170323134'),'');
 });

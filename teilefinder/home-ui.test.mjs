@@ -172,6 +172,12 @@ test('Complete cross-shop EAN consensus hides repeated rows in totals and shop l
  const details=make('div');ctx.renderWishlistDetails(details);assert.equal(eanRows,0);
  const texts=node=>[node.text,...node.children.flatMap(texts)].filter(Boolean);
  assert.ok(texts(details).includes('30 mm'));assert.ok(!texts(details).some(text=>String(text).startsWith('Gewünscht:')));
+ // Restored and reused results need no live job flags or repeated per-shop EAN.
+ item.shops.forEach((shop,i)=>{shop.done=false;if(i)shop.offers[0].ean='';});
+ ctx.renderTotal();ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
+ item.shops[1].offers[0].ean='4550170323134';ctx.renderTotal();assert.ok(eanRows>0);
+ eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
+ item.shops[1].offers[0].ean='';eanRows=0;
  item.shops[0].stale=true;ctx.renderTotal();assert.ok(eanRows>0);
  eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
 });
