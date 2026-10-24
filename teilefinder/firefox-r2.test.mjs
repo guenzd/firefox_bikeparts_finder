@@ -2,11 +2,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
+const fastTimeout=(fn,ms)=>ms>=10000?setTimeout(fn,ms):setImmediate(fn);
 const source=readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/background.js',import.meta.url),'utf8');
 test('Standalone search waits for manual verification and returns four shop results',async()=>{
  let listener;const messages=[],created=[],reads=new Map();const home='moz-extension://unit/home.html';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{async sendMessage(data){messages.push({tab:data.target,data});},getURL:()=>home,onMessage:{addListener(f){listener=f;}}},tabs:{async create(o){created.push(o);return {id:created.length};},async update(){},async get(){return {};},async sendMessage(tab,data){if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'116 Glieder',price:27.99,stock:'Lagernd, Lieferzeit 1-3 Tage'},{...data.fallback,variant:'126 Glieder',price:29.99,stock:'Nicht lieferbar'}]};if(data.type==='extract'){const n=(reads.get(tab)||0)+1;reads.set(tab,n);return n===1?{blocked:true,offers:[]}:{blocked:false,offers:[{name:'Shimano CN-M8100',price:27.99,url:'https://'+data.host+'/chain',stock:'Auf Lager'}]};}messages.push({tab,data});}}};
- vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'job-1',query:'Shimano CN-M8100'},{url:home,tab:{id:99}});
  for(let i=0;i<20;i++)await new Promise(setImmediate);
  assert.equal(created.length,4);assert.equal(messages.filter(m=>m.data.type==='result').length,4);
@@ -84,7 +85,7 @@ test('Aero 111 search reaches bike-components 29 mm detail result',async()=>{
  let listener;const messages=[];const home='moz-extension://unit/home.html';
  const path='https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:o.url};},async update(){},async get(){return {};},async sendMessage(tab,data){return data.type==='extract'?{offers:[{name:'Continental Aero 111 Tubeless Ready 28" Faltreifen',variant:'Ausführung im Shop prüfen',price:71.99,priceKind:'from',url:path+'?v=46026-schwarz'}]}:{ready:true,offers:[{...data.fallback,variant:'schwarz | 26 mm | 26-622 | 28 "',price:72.99,priceKind:'exact',stock:'Versand in 1-3 Werktagen'},{...data.fallback,variant:'schwarz | 29 mm | 29-622 | 28 "',price:71.99,priceKind:'exact',stock:'Versand in 1-3 Werktagen',url:path+'?o=1000472573-schwarz-29-mm-29-622-28-'}]};}}};
- vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'aero',query:'continental aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
  for(let i=0;i<30;i++)await new Promise(setImmediate);
  const result=messages.find(m=>m.type==='result'&&m.shop==='bike-components');
@@ -134,7 +135,7 @@ test('Delayed Aero 111 product details are retried beyond the old two attempts',
  let listener;const messages=[],details=new Map(),home='moz-extension://unit/home.html';
  const path='https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/?v=46026-schwarz';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:o.url};},async update(){},async get(){return {};},async sendMessage(tab,data){if(data.type==='extract')return {offers:[{name:'Continental Aero 111',url:data.shopId==='bike-components'?path:'https://'+data.host+'/aero',variant:'Ausführung im Shop prüfen',price:71.99,priceKind:'from'}]};const n=(details.get(tab)||0)+1;details.set(tab,n);if(n<4)return {ready:false,offers:[]};return {ready:true,offers:[{...data.fallback,variant:'schwarz | 29 mm | 29-622',priceKind:'exact',stock:'Auf Lager',ean:'4019238283907'}]};}}};
- vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'aero-delayed',query:'Continental Aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
  for(let i=0;i<60;i++)await new Promise(setImmediate);
  const result=messages.find(m=>m.type==='result'&&m.shop==='bike-components');assert.ok(result);assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,'4019238283907');assert.equal(details.get('https://www.bike-components.de/de/s/?keywords=Continental%20Aero%20111'),4);
@@ -144,7 +145,7 @@ test('BIKE24 inspects listing variants before opening details and retries ambigu
  let listener;const home='moz-extension://unit/home.html',messages=[],opened=[],reads=[];
  const ean='4019238283907';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){opened.push(o.url);return {id:new URL(o.url).hostname};},async update(tab,o){opened.push(o.url);return {id:tab};},async get(){return {};},async sendMessage(tab,data){reads.push(data);if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'29 mm schwarz',priceKind:'exact',stock:'Auf Lager',ean}]};const base={name:'Continental Aero 111',variant:'29 mm schwarz',price:71.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/p1.html'};if(data.query===ean)return {offers:[{...base,ean}]};if(data.shopId==='bike24')return {offers:[base,{...base,url:'https://'+data.host+'/p2.html',variant:'26 mm schwarz'}]};return {offers:[{...base,variant:'Ausführung im Shop prüfen'}]};}}};
- vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'ean-narrow',query:'Continental Aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
  for(let i=0;i<100;i++)await new Promise(setImmediate);
  assert.ok(reads.filter(d=>d.shopId==='bike24'&&d.type==='detail').every(d=>d.metadataOnly));
@@ -157,7 +158,7 @@ test('BIKE24 inspects listing variants before opening details and retries ambigu
 test('All four shops use complete listing offers without opening product detail pages',async()=>{
  let listener;const messages=[],detailCalls=[],updates=[],home='moz-extension://unit/home.html';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(tab,data){updates.push(data.url);},async get(){return {};},async sendMessage(tab,data){if(data.type==='detail'){detailCalls.push(data);throw Error('No detail needed');}return {offers:[{name:'Tyre 29 mm schwarz',variant:'29 mm schwarz',ean:'4019238283907',price:70,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/tyre'}]};}}};
- vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,console,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'listing-all',query:'Tyre',variant:'29 mm schwarz'},{url:home,tab:{id:99}});
  for(let i=0;i<40;i++)await new Promise(setImmediate);
  assert.equal(detailCalls.length,0);assert.equal(updates.length,0);assert.equal(messages.filter(m=>m.type==='result').length,4);
@@ -200,7 +201,7 @@ test('Similar products keep their classification while exposing variant-specific
  const row={name:'Powerbar Powergel Hydro 24er Box',price:52.99,stock:'Lagerstatus nicht auslesbar',url:'https://www.bike-discount.de/de/powerbar-powergel-hydro-24er-box'};
  const calls=[];
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}}},tabs:{async update(){},async sendMessage(id,data){calls.push(data);return {ready:true,offers:[{...row,variant:'cola (mit koffein)',ean:'4029679672666',stock:'Lagernd'}]};}}};
- const context=vm.createContext({browser,URL,setTimeout:f=>setImmediate(f),clearTimeout});
+ const context=vm.createContext({browser,URL,setTimeout:fastTimeout,clearTimeout});
  vm.runInContext(source+';globalThis.inspectSuggestions=suggestionDetails;globalThis.setJob=j=>jobs.set(j.source,j);',context);
  const job={source:99,variant:'Cola'};context.setJob(job);
  const result=await context.inspectSuggestions({id:1},{id:'bike-discount',host:'www.bike-discount.de'},job,[row],async()=>{});
@@ -211,7 +212,7 @@ test('Similar products keep their classification while exposing variant-specific
 test('EAN searches reject wrong and unconfirmed single results and never fall back to names',async()=>{
  let listener;const messages=[],requests=[],home='moz-extension://unit/home.html',ean='4029679672666';
  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){requests.push(o.url);return {id:new URL(o.url).hostname};},async update(id,o){requests.push(o.url);return {id};},async get(){return {};},async sendMessage(id,data){const row={name:'Wrong product',variant:'Cola',price:10,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/product'};if(data.type==='extract')return {offers:[row]};return {ready:true,offers:[{...row,ean:data.shopId==='bike-components'?ean:data.shopId==='bike24'?'4019238283907':''}]};}}};
- vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:f=>setImmediate(f)});
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'ean-only',query:'Powerbar Hydrogel',ean,variant:'Cola'},{url:home,tab:{id:99}});
  for(let i=0;i<80;i++)await new Promise(setImmediate);
  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);
@@ -253,4 +254,165 @@ test('Bike-Discount EAN search redirects read the main product rather than recom
   assert.equal(result.offers.length,ean==='8020775045428'?1:0);
   if(result.offers.length){assert.equal(result.offers[0].ean,ean);assert.equal(result.offers[0].stock,'Lagernd, Lieferzeit 1-3 Tage');assert.equal(result.offers[0].price,22.99);}
  }
+});
+
+test('BIKE24 chip presentation retains hidden native option selectors without admitting quantity',()=>{
+ const make=(id,testid)=>({id,name:id,disabled:false,multiple:false,labels:[],getClientRects:()=>[],matches:()=>!!testid,getAttribute:()=>'',closest:()=>null});
+ const flavour=make('216619',true),quantity=make('quantity',false);
+ const ctx=vm.createContext({location:{hostname:'www.bike24.de'},document:{querySelectorAll:()=>[flavour,quantity]}});
+ vm.runInContext(readFileSync(new URL('./firefox-r2/variants.js',import.meta.url),'utf8'),ctx);
+ const picks=vm.runInContext('productDropdowns()',ctx);assert.equal(picks.length,1);assert.equal(picks[0],flavour);
+ ctx.location.hostname='r2-bike.com';assert.equal(vm.runInContext('productDropdowns().length',ctx),0);
+});
+
+test('An EAN absent from shop search rechecks a known URL and requires fresh EAN confirmation',async()=>{
+ for(const confirmed of [true,false]){
+  let listener;const messages=[],urls=[],home='moz-extension://unit/home.html',ean='1234567890128';
+  const offer={name:'Example',ean,variant:'Vanille',price:10,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1.html'};
+  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(d){messages.push(d);}},tabs:{async create(o){urls.push(o.url);return {id:new URL(o.url).hostname};},async update(id,o){urls.push(o.url);return {id};},async get(){return {};},async sendMessage(id,d){if(d.type==='extract')return {offers:[],empty:true,ready:true};return {ready:true,offers:[{...offer,ean:confirmed?ean:'9876543210123',price:12}]};}}};
+  vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+  await listener({type:'search',id:'known',query:'Example',ean,variant:'Vanille',knownShops:[{name:'BIKE24',offers:[offer]}]},{url:home,tab:{id:99}});
+  for(let i=0;i<90;i++)await new Promise(setImmediate);
+  const result=messages.find(m=>m.type==='result'&&m.shop==='BIKE24');assert.ok(result);assert.equal(result.offers.length,confirmed?1:0);if(confirmed)assert.equal(result.offers[0].price,12);
+  assert.ok(urls.includes(offer.url));assert.ok(urls.filter(u=>/search|keywords|qs=/.test(u)).every(u=>u.includes(ean)));
+ }
+});
+
+test('Disabling EAN searches names and suppresses automatic discovered-EAN refinement',async()=>{
+ let listener;const searches=[],home='moz-extension://unit/home.html',ean='1234567890128';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(){}},tabs:{async create(o){searches.push(o.url);return {id:new URL(o.url).hostname};},async update(id,o){searches.push(o.url);return {id};},async get(){return {};},async sendMessage(id,d){return {offers:[1,2].map(n=>({name:'Example product',ean,variant:'Vanille',price:n+10,priceKind:'exact',stock:'Auf Lager',url:'https://'+d.host+'/p'+n})),ready:true};}}};
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+ await listener({type:'search',id:'no-ean',query:'Example product',ean,useEAN:false,variant:'Vanille'},{url:home,tab:{id:99}});
+ for(let i=0;i<50;i++)await new Promise(setImmediate);
+ assert.equal(searches.length,4);assert.ok(searches.every(u=>!u.includes(ean)&&u.includes('Example%20product')));
+});
+
+
+test('Hidden BIKE24 selectors use visible semantic flavour chips rather than unrelated controls',()=>{
+ const events=[];
+ const select={value:'',labels:[],getClientRects:()=>[],getAttribute:()=> 'Flavour',dispatchEvent:e=>events.push(e.type)};
+ const chip={disabled:false,getClientRects:()=>[{}],getAttribute:()=> 'Vanilla',click(){select.value='v';events.push('chip');}};
+ const group={getAttribute:()=> 'Flavour',getClientRects:()=>[{}],querySelectorAll:()=>[chip]};
+ const ctx=vm.createContext({document:{querySelectorAll:()=>[group]},Event:class{constructor(type){this.type=type;}}});
+ vm.runInContext(readFileSync(new URL('./firefox-r2/variants.js',import.meta.url),'utf8'),ctx);
+ ctx.selectProductOption(select,{value:'v',text:'Vanilla'},true);assert.equal(select.value,'v');assert.deepEqual(events,['chip']);
+ events.length=0;ctx.selectProductOption(select,{value:'c',text:'Chocolate'},true);assert.equal(select.value,'c');assert.deepEqual(events,['change']);
+});
+
+
+test('BIKE24 detail reader confirms flavour through hidden select chips with pack size, price and stock',async()=>{
+ const option={value:'flavour-v',textContent:'Vanilla',disabled:false};
+ const select={id:'option1',name:'option1',value:'',labels:[],disabled:false,multiple:false,options:[option],matches:()=>true,getClientRects:()=>[],closest:()=>null,getAttribute:()=> 'Flavour',dispatchEvent(){throw Error('Hidden select events do not update this chip interface');}};
+ const chip={disabled:false,getClientRects:()=>[{}],getAttribute:()=> 'Vanilla',click(){select.value=option.value;}};
+ const group={getAttribute:()=> 'Flavour',getClientRects:()=>[{}],querySelectorAll:()=>[chip]};
+ const cart={getAttribute:()=>JSON.stringify({productVariantList:{currentVariantId:1,variantList:[{id:1,url:'https://www.bike24.de/p1.html',variant:'12x60ml'}]}})};
+ let hydrated=false;
+ const document={addEventListener(){},removeEventListener(){},querySelectorAll:s=>s==='select'&&hydrated?[select]:s==='[role="radiogroup"]'&&hydrated?[group]:[],querySelector(s){
+  if(s==='#add-to-cart')return cart;
+  if(s==='h1')return {innerText:'Example pack 12x60ml'};
+  if(s.includes('price__value'))return {innerText:'',textContent:'19,99 €',getAttribute:()=>null};
+  if(s.includes('product-availability'))return {innerText:'',textContent:select.value?'Auf Lager':'Bitte Option wählen'};
+  return null;
+ }};
+ const ctx=vm.createContext({document,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html'},URL,browser:{runtime:{onMessage:{addListener(){}}}},setTimeout:fastTimeout});
+ for(const file of ['variant-match.js','extract.js','variants.js','shop.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),ctx);
+ const early=await ctx.bike24Details({name:'Example pack',url:ctx.location.href},false,'Vanille');assert.equal(early.ready,false);assert.equal(early.offers.length,0);
+ hydrated=true;
+ const result=await ctx.bike24Details({name:'Example pack',url:ctx.location.href},false,'Vanille');
+ assert.equal(result.offers.length,1);assert.equal(result.offers[0].variant,'12x60ml · Flavour: Vanilla');assert.equal(result.offers[0].price,19.99);assert.equal(result.offers[0].stock,'Auf Lager');assert.equal(ctx.variantMatches(result.offers[0],'Vanille'),true);
+});
+
+
+test('Name search confirms inspected similar products using saved EAN while keeping variant and identity strict',async()=>{
+ for(const [detailEAN,variant,expected] of [['1234567890128','vanilla',1],['9999999999999','vanilla',0],['1234567890128','Chocolate',0],['','vanilla',0]]){
+  let listener;const messages=[],searches=[],home='moz-extension://unit/home.html';
+  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(d){messages.push(d);}},tabs:{async create(o){searches.push(o.url);return {id:new URL(o.url).hostname};},async update(id,o){return {id};},async get(){return {};},async sendMessage(id,d){
+   const offer={name:'Example different wording',url:'https://'+d.host+'/product',price:37.99,priceKind:'exact',stock:'Auf Lager'};
+   return d.type==='detail'?{ready:true,offers:[{...offer,ean:detailEAN,variant}]}:{ready:true,offers:[],suggestions:[offer]};
+  }}};
+  vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+  await listener({type:'search',id:'identity',query:'Example original title',ean:'1234567890128',useEAN:false,variant:'Vanille'},{url:home,tab:{id:99}});
+  for(let i=0;i<60;i++)await new Promise(setImmediate);
+  const results=messages.filter(d=>d.type==='result');assert.ok(results.length>=4);
+  assert.ok(results.every(d=>d.offers.length===expected));assert.ok(searches.every(u=>!u.includes('1234567890128')));
+ }
+});
+
+
+test('Prices above the cap skip all detail and suggestion inspection across shops',async()=>{
+ let listener;const details=[],messages=[],home='moz-extension://unit/home.html';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(d){messages.push(d);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(id){return {id};},async get(){return {};},async sendMessage(id,d){
+  if(d.type==='detail'){details.push(d);return {ready:true,offers:[]};}
+  const offer={name:'Example product',url:'https://'+d.host+'/product',price:101,priceKind:'from',stock:'Lagerstatus nicht auslesbar'};
+  return {ready:true,offers:d.host.includes('bike24')?[offer]:[],suggestions:d.host.includes('bike24')?[]:[offer]};
+ }}};
+ vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+ await listener({type:'search',id:'budget',query:'Example product',maxPrice:50},{url:home,tab:{id:99}});
+ for(let i=0;i<60;i++)await new Promise(setImmediate);
+ assert.equal(details.length,0);assert.ok(messages.filter(d=>d.type==='result').length>=4);
+});
+
+
+test('Bike-Discount confirms UPC-labelled 12-digit identifiers and rejects different products',async()=>{
+ for(const identifier of ['763477000385','763477000386']){
+  let listener;
+  const document={readyState:'complete',body:{innerText:'Example tool'},querySelector(s){return {h1:{innerText:'Example tool'},'.product-detail-price':{innerText:'19,99 €'},'.nele-product-availability-info':{innerText:'Lagernd, Lieferzeit 1-3 Tage'},'#description-tab-pane':{textContent:'Hersteller Artikelnr.: MODEL-1\nUPC: '+identifier}}[s]||null;},querySelectorAll(s){if(s==='button')return [];return [];}};
+  const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/example-tool'},URL,browser:{runtime:{onMessage:{addListener(f){listener=f;}}}}});
+  for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),ctx);
+  vm.runInContext("productColor=()=>''",ctx);
+  const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query:'763477000385'});
+  assert.equal(result.offers.length,identifier==='763477000385'?1:0);if(result.offers.length)assert.equal(result.offers[0].ean,identifier);
+ }
+});
+
+test('Persistent product URL cache bypasses searches after restart and falls back on a mismatching EAN',async()=>{
+ const data={},home='moz-extension://unit/home.html',ean='1234567890128';
+ const initial={name:'Example item',ean,variant:'silver',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike-discount.de/de/example'};
+ const createSession=(wrong=false)=>{
+  let listener;const urls=[],reads=[],messages=[];
+  const browser={storage:{local:{async get(){return structuredClone(data);},async set(update){Object.assign(data,structuredClone(update));}}},browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(d){messages.push(d);}},tabs:{async create(o){urls.push(o.url);return {id:new URL(o.url).hostname,url:o.url};},async update(id,o){urls.push(o.url);return {id,url:o.url};},async get(){return {};},async sendMessage(id,d){reads.push(d);const url='https://'+d.host+'/de/example';return d.type==='detail'?{ready:true,productName:'Example item',offers:[{...initial,url,price:25,stock:'Nicht lieferbar',ean:wrong?'9999999999999':ean}]}:{ready:true,offers:[{...initial,url,price:30}]};}}};
+  const ctx=vm.createContext({browser,URL,clearTimeout,setTimeout:fastTimeout});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+source,ctx);
+  return {urls,reads,messages,async search(){await listener({type:'search',id:'cache-job',query:'Example item',ean,variant:'silver'},{url:home,tab:{id:99}});for(let i=0;i<150;i++)await new Promise(setImmediate);}};
+ };
+ const first=createSession();await first.search();assert.ok(first.reads.some(d=>d.type==='extract'));assert.ok(data.productUrlCache['ean:'+ean]['Bike-Discount'].length);
+ const second=createSession();await second.search();assert.ok(second.urls.length);assert.ok(second.urls.every(url=>!url.includes('search')&&!url.includes('keywords')&&!url.includes('?qs=')));assert.ok(second.reads.every(d=>d.type==='detail'&&d.direct&&d.fallback.price===null&&d.fallback.ean===''));
+ assert.ok(second.messages.filter(d=>d.type==='result').every(d=>d.offers[0].price===25&&d.offers[0].stock==='Nicht lieferbar'));
+ const third=createSession(true);await third.search();assert.ok(third.reads.some(d=>d.type==='extract'));assert.ok(third.urls.some(url=>url.includes('search')));assert.ok(third.messages.filter(d=>d.type==='result').every(d=>d.offers.every(o=>o.ean===ean)));
+});
+
+test('Direct product reads cannot reuse old prices and variants from the cached fallback',async()=>{
+ let listener;const nodes={h1:{innerText:'Example fresh product'},'.product-detail-buy':{innerText:'Lagernd, Lieferzeit 1-3 Tage'},'.product-detail-price':{innerText:'12,99 €'},'#description-tab-pane':{textContent:'UPC: 763477000385'}};
+ const document={readyState:'complete',body:{innerText:'Example fresh product'},querySelector(selector){return nodes[selector]||(selector.includes('#buy_form .price')?nodes['.product-detail-price']:null);},querySelectorAll:()=>[]};
+ const ctx=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/example',hostname:'www.bike-discount.de'},URL,browser:{runtime:{onMessage:{addListener(f){listener=f;}}}},productDropdowns:()=>[]});
+ for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),ctx);
+ const request={type:'detail',direct:true,query:'763477000385',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,fallback:{name:'OLD product',variant:'OLD variant',price:99,ean:'9999999999999'}};
+ const fresh=await listener(request);assert.equal(fresh.ready,true);assert.equal(fresh.offers[0].price,12.99);assert.equal(fresh.offers[0].ean,'763477000385');assert.equal(fresh.productName,'Example fresh product');assert.ok(!fresh.offers[0].variant.includes('OLD'));
+ delete nodes['.product-detail-price'];const missing=await listener(request);assert.equal(missing.ready,false);assert.equal(missing.offers[0].price,null);
+});
+
+
+test('r2-bike uses the rendered fragment-search route for identifiers and product names without rewriting the query',()=>{
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}}}};
+ const ctx=vm.createContext({browser,URL});vm.runInContext(source,ctx);
+ for(const query of ['8055136020431',"Brand's brake pad DB-410",'Part + size / black']){
+  ctx.query=query;const url=vm.runInContext("shops.find(s=>s.id==='r2-bike').search(query)",ctx);
+  assert.equal(new URL(url).pathname,'/suchergebnisse');assert.equal(new URL(url).search,'');
+  assert.equal(new URLSearchParams(new URL(url).hash.slice('#search?'.length)).get('query'),query);
+ }
+});
+
+test('A hung sixth article in an eleven-item batch times out, preserves completed shops and allows item seven onward',async()=>{
+ let listener,lateTab;const messages=[],timers=new Map(),tabs=new Map();let sequence=0;
+ const home='moz-extension://unit/home.html';
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(d){messages.push(d);}},tabs:{async create(o){const id=++sequence;tabs.set(id,{id,url:o.url});return tabs.get(id);},async get(id){return tabs.get(id);},async update(id,o){if(o.url.startsWith('https://r2-bike.com/')&&o.url.includes('Article%206'))return new Promise(resolve=>{lateTab=()=>resolve({id,url:o.url});});tabs.set(id,{id,url:o.url});return tabs.get(id);},async sendMessage(id,d){return {ready:true,offers:[{name:d.query,url:'https://'+d.host+'/product',price:20,priceKind:'exact',stock:'Auf Lager',variant:''}]};}}};
+ const ctx=vm.createContext({browser,URL,setTimeout(fn,ms){if(ms>=10000){const token=++sequence;timers.set(token,{fn,ms});return token;}return setImmediate(fn);},clearTimeout(token){if(typeof token==='number')timers.delete(token);else clearImmediate(token);}});
+ vm.runInContext(source,ctx);
+ for(let n=1;n<=11;n++){
+  await listener({type:'search',id:'article-'+n,query:'Article '+n},{url:home,tab:{id:99}});
+  for(let tick=0;tick<70;tick++)await new Promise(setImmediate);
+  if(n===6){assert.equal(messages.filter(m=>m.id==='article-6'&&m.type==='result').length,0);const deadline=[...timers.values()].find(t=>t.ms===60000);assert.ok(deadline);deadline.fn();for(let tick=0;tick<30;tick++)await new Promise(setImmediate);}
+  const final=messages.filter(m=>m.id==='article-'+n&&m.type==='result');assert.equal(final.length,4,'article '+n);
+  if(n===6){assert.equal(final.filter(m=>m.offers.length).length,3);assert.match(final.find(m=>m.shop==='r2-bike').message,/Zeitlimit/);}
+ }
+ const count=messages.length;lateTab();for(let tick=0;tick<20;tick++)await new Promise(setImmediate);assert.equal(messages.length,count);assert.equal(timers.size,0);
 });

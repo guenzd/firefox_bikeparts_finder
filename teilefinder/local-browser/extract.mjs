@@ -2,7 +2,7 @@ export const SHOPS = [
   { id:'bike24', name:'BIKE24', host:'www.bike24.de', search:q=>'https://www.bike24.de/suchergebnis?searchTerm='+encodeURIComponent(q) },
   { id:'bike-discount', name:'Bike-Discount', host:'www.bike-discount.de', search:q=>'https://www.bike-discount.de/de/search?search='+encodeURIComponent(q) },
   { id:'bike-components', name:'bike-components', host:'www.bike-components.de', search:q=>'https://www.bike-components.de/de/s/?keywords='+encodeURIComponent(q) },
-  { id:'r2-bike', name:'r2-bike', host:'r2-bike.com', search:q=>'https://r2-bike.com/?qs='+encodeURIComponent(q) },
+  { id:'r2-bike', name:'r2-bike', host:'r2-bike.com', search:q=>'https://r2-bike.com/suchergebnisse#search?query='+encodeURIComponent(q) },
 ];
 export function safeUrl(value,host){try{const u=new URL(value,'https://'+host);return u.protocol==='https:' && u.hostname.replace(/^www\./,'')===host.replace(/^www\./,'') ? u.href : null;}catch{return null;}}
 export function euro(value){if(typeof value==='number')return Number.isFinite(value)&&value>0?Math.round(value*100)/100:null;const text=String(value??'').replace(/\s/g,'');const n=Number(text.includes(',')?text.replace(/\./g,'').replace(',','.'):text);return Number.isFinite(n)&&n>0?Math.round(n*100)/100:null;}

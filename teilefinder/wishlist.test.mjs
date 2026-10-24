@@ -62,3 +62,66 @@ test('Shop details include every wishlist item and update only the actively sear
  const empty=vm.runInContext("wishlistShopEntries(items,'r2-bike')",ctx);
  assert.equal(empty.length,3);assert.ok(empty.every(r=>r.shop.message==='Noch nicht geprüft.'));
 });
+
+test('Price input parses maxima, inclusive ranges and decimal commas and rejects malformed ranges',()=>{
+ for(const [input,min,max] of [['10',null,10],['5-10',5,10],['5,50 – 10,25',5.5,10.25],['',null,null],['0-0',0,0]]){
+  ctx.priceInput=input;const range=vm.runInContext('parsePriceRange(priceInput)',ctx);assert.equal(range.minPrice,min);assert.equal(range.maxPrice,max);
+ }
+ for(const input of ['10-5','-5','5-','5-10-15','abc','1.234']){ctx.priceInput=input;assert.throws(()=>vm.runInContext('parsePriceRange(priceInput)',ctx));}
+ const result=sum([{query:'Example',variant:'',minPrice:5,maxPrice:10,shops:[{name:'A',offers:[offer(4.99,'Auf Lager'),offer(5,'Auf Lager'),offer(10,'Auf Lager'),offer(10.01,'Auf Lager')]}]}]);assert.equal(result.total,5);
+ ctx.range={minPrice:5,maxPrice:10};assert.equal(vm.runInContext('withinPriceRange(10,range)',ctx),true);assert.equal(vm.runInContext('withinPriceRange(4.99,range)',ctx),false);
+});
+
+
+test('Price bounds narrow similar suggestions without mutating saved candidates',()=>{
+ const suggestions=[{price:4.99},{price:5},{price:7},{price:10},{price:10.01},{price:null},{name:'unknown'}];
+ const original=JSON.stringify(suggestions);
+ assert.deepEqual(Array.from(ctx.priceFilteredSuggestions(suggestions,{minPrice:5,maxPrice:10}),o=>o.price),[5,7,10]);
+ assert.deepEqual(Array.from(ctx.priceFilteredSuggestions(suggestions,{maxPrice:5}),o=>o.price),[4.99,5]);
+ assert.equal(ctx.priceFilteredSuggestions(suggestions,{}).length,7);
+ assert.equal(ctx.priceFilteredSuggestions(suggestions,{minPrice:20,maxPrice:30}).length,0);
+ assert.equal(JSON.stringify(suggestions),original);
+});
+
+
+test('Direct EAN searches reuse wishlist product URLs without including different identifiers or mutating data',()=>{
+ const url='https://www.bike-discount.de/de/example',ean='8020775045428';
+ const item={ean,shops:[{name:'Bike-Discount',offers:[{url,ean,name:'Example',price:20},{url:url+'-other',ean:'9999999999999',price:10}]}]};
+ const before=JSON.stringify(item);
+ const result=ctx.knownSearchShops([], [item],ean);
+ assert.equal(result.length,1);assert.equal(result[0].offers.length,1);assert.equal(result[0].offers[0].url,url);
+ assert.equal(ctx.knownSearchShops([], [item],'').length,0);assert.equal(JSON.stringify(item),before);
+ const merged=ctx.knownSearchShops([{name:'Bike-Discount',offers:[item.shops[0].offers[0]]}],[item],ean);
+ assert.equal(merged[0].offers.length,1);
+});
+
+
+test('Week-based r2-bike delivery estimates never count as immediately deliverable',()=>{
+ for(const stock of ['in ca. 1 - 2 Wochen','Lieferzeit: 1-2 Wochen','in 1 Woche · Versand ab Lager'])assert.equal(ctx.deliverable(stock),false);
+ assert.equal(ctx.deliverable('ab Lager verfügbar'),true);
+});
+
+
+test('Article popup filters variants and price bounds then sorts all shops together without empty rows',()=>{
+ const item={variant:'30 mm',minPrice:20,maxPrice:50};
+ const entries=[{shop:{name:'A',offers:[offer(45,'Auf Lager','30 mm'),offer(19,'Auf Lager','30 mm'),offer(35,'Auf Lager','28 mm')]}},{shop:{name:'B',offers:[offer(20,'Nicht lieferbar','30 mm'),offer(51,'Auf Lager','30 mm')]}},{shop:{name:'C',offers:[]}}];
+ const rows=ctx.wishlistPriceRows(entries,item);assert.deepEqual(Array.from(rows,r=>r.offer.price),[20,45]);assert.equal(rows[0].shop.name,'B');assert.equal(rows[0].offer.stock,'Nicht lieferbar');
+ assert.equal(ctx.wishlistPriceRows(entries,{...item,maxPrice:20}).length,1);assert.equal(ctx.wishlistPriceRows(entries,{...item,minPrice:46}).length,0);
+});
+
+
+test('Future availability dates never contribute to the deliverable total',()=>{
+ for(const stock of ['verfügbar ab 4.11.','Verfügbar ab 04.11.2026','lieferbar ab 4.11.','erhältlich ab dem 4.11.','verfügbar\u00a0ab\u00a04.11.'])assert.equal(ctx.deliverable(stock),false);
+ assert.equal(sum([{query:'Example',shops:[{name:'bike-components',offers:[offer(12,'verfügbar ab 4.11.')]}]}]).missing,1);
+});
+
+
+test('Wishlist total distinguishes unavailable matches, unknown stock, price bounds and no matches',()=>{
+ const item={query:'Example',checkedAt:'2026-10-23T10:00:00Z',maxPrice:30,shops:[{name:'Shop',offers:[offer(20,'Nicht lieferbar'),offer(25,'Nachbestellung')]}]};
+ assert.equal(sum([item]).rows[0].missingMessage,'Passende Angebote gefunden · derzeit nicht lieferbar');assert.equal(sum([item]).total,0);
+ assert.equal(sum([{...item,shops:[{name:'Shop',offers:[offer(20,'Lagerstatus nicht auslesbar')]}]}]).rows[0].missingMessage,'Passende Angebote gefunden · Lieferbarkeit nicht bestätigt');
+ assert.equal(sum([{...item,maxPrice:10}]).rows[0].missingMessage,'Kein passendes Angebot im Preisbereich');
+ assert.equal(sum([{...item,shops:[]}]).rows[0].missingMessage,'Kein passendes Angebot');
+ assert.equal(sum([{...item,shops:[{...item.shops[0],stale:true}]}]).rows[0].missingMessage,'Kein passendes Angebot');
+ assert.equal(sum([{query:'New'}]).rows[0].missingMessage,'Noch nicht geprüft');
+});

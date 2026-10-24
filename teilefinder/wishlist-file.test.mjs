@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';import {webcrypto} from 'node:crypto';
-const ctx=vm.createContext({crypto:webcrypto,URL});vm.runInContext(readFileSync(new URL('./firefox-r2/price-history.js',import.meta.url),'utf8'),ctx);vm.runInContext(readFileSync(new URL('./firefox-r2/wishlist-file.js',import.meta.url),'utf8'),ctx);
+const ctx=vm.createContext({crypto:webcrypto,URL});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8'),ctx);vm.runInContext(readFileSync(new URL('./firefox-r2/price-history.js',import.meta.url),'utf8'),ctx);vm.runInContext(readFileSync(new URL('./firefox-r2/wishlist-file.js',import.meta.url),'utf8'),ctx);
 test('Wishlist file round trip retains query, variant and cap, discarding legacy cart markers including result state',()=>{
  ctx.items=[{query:'Continental Aero 111',variant:'29 mm',maxPrice:80,shops:[{name:'BIKE24',offers:[{name:'Continental Aero 111',variant:'29 mm',url:'https://www.bike24.de/p1838076.html',price:69.99,priceKind:'exact',stock:'Auf Lager'}]}],cart:{key:'bike-components|url|29mm',clicked:true}}];
  const rows=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);
@@ -38,4 +38,14 @@ test('History records only confirmed EANs and deliverable exact prices, ignoring
  vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),ctx);
  ctx.shops=[{name:'BIKE24',done:true,offers:[{ean:'8020775045428',price:22.99,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1.html'},{ean:'8020775045428',price:10,priceKind:'exact',stock:'Nicht lieferbar'},{ean:'',price:5,priceKind:'exact',stock:'Auf Lager'},{ean:'8020775045428',price:2,priceKind:'from',stock:'Auf Lager'}]},{name:'r2-bike',done:true,stale:true,offers:[{ean:'8020775045428',price:1,priceKind:'exact',stock:'Auf Lager'}]}];
  const result=vm.runInContext("priceObservations(shops,'job','2026-10-12T10:00:00Z')",ctx);assert.equal(result.length,1);assert.equal(result[0].offers.length,1);assert.equal(result[0].offers[0].price,22.99);assert.equal(result[0].key,'job|8020775045428');
+});
+test('Per-product EAN switch survives export and import while retaining its identifier',()=>{
+ ctx.items=[{query:'Example',variant:'Vanille',maxPrice:null,ean:'1234567890128',useEAN:false}];
+ const result=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(result[0].useEAN,false);assert.equal(result[0].ean,'1234567890128');
+ ctx.items[0].useEAN=undefined;assert.equal(vm.runInContext('parseWishlistFile(wishlistFile(items))[0].useEAN',ctx),true);
+});
+test('Price ranges survive file round trips and invalid lower bounds are rejected',()=>{
+ ctx.items=[{query:'Example',variant:'',minPrice:5,maxPrice:10}];
+ let result=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(result[0].minPrice,5);assert.equal(result[0].maxPrice,10);
+ ctx.items[0].minPrice=11;assert.throws(()=>vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx));
 });

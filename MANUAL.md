@@ -32,7 +32,7 @@ Der Ordner `outputs/firefox-addon/` bleibt bei Builds am selben Ort. Ein Entfern
 
 Mengenangaben in Liter und Milliliter werden gleichgesetzt (z. B. `1 L` = `1000 ml`). Wird der Produktname gefunden, aber die gewünschte Variante nicht bestätigt, werden die anderen Ausführungen mit ihren Variantenangaben angezeigt. „Ohne Variantenfilter suchen“ sucht denselben Produktnamen erneut mit leerem Variantenfeld.
 
-In allen vier Shops werden zuerst die Suchtreffer ausgewertet. Bereits bestätigte Ausführung, exakter Preis und Lagerstatus werden direkt übernommen; eindeutig abweichende Varianten werden aussortiert. Produktseiten und Dropdowns werden nur für fehlende Angaben geprüft. Die vier Shop-Tabs werden dabei wiederverwendet. Bei einer Sicherheitsprüfung den betroffenen Tab öffnen und die Prüfung selbst abschließen. Produktlinks öffnen das Angebot; das Symbol mit zwei Quadraten kopiert den Link.
+Bei bekannten Artikeln werden zuerst die gespeicherten Produktseiten direkt geprüft. Die Erweiterung speichert bestätigte Produktlinks pro Shop dauerhaft lokal, mit EAN oder Suchbegriff und Variante als Zuordnung. Preise, Lagerstatus und Produktidentität werden bei jeder Prüfung neu gelesen. Fehlt ein passender Link oder kann die Produktseite nicht bestätigt werden, folgt die normale Shopsuche. Bei dieser werden in allen vier Shops zuerst die Suchtreffer ausgewertet. Bereits bestätigte Ausführung, exakter Preis und Lagerstatus werden direkt übernommen; eindeutig abweichende Varianten werden aussortiert. Produktseiten und Dropdowns werden nur für fehlende Angaben geprüft. Die vier Shop-Tabs werden dabei wiederverwendet. Bei einer Sicherheitsprüfung den betroffenen Tab öffnen und die Prüfung selbst abschließen. Produktlinks öffnen das Angebot; das Symbol mit zwei Quadraten kopiert den Link.
 
 Fehlen passende Treffer, schließt die Suche auch ohne ausdrückliches „keine Ergebnisse“-Banner ab. Eine breitere Suche wird einmal versucht. Danach wird der Artikel als ohne passendes Angebot markiert und die Wunschliste läuft weiter. Nicht antwortende Shop-Skripte haben eine begrenzte Wartezeit.
 
@@ -42,7 +42,7 @@ Sobald eine eindeutige EAN gefunden wurde, wird sie ins Suchfeld und beim passen
 
 Neben jeder EAN in den Ergebnissen steht ein Symbol mit zwei überlappenden Quadraten. Es übernimmt die Kennung direkt ins EAN-Suchfeld und gegebenenfalls in den zugehörigen Wunschlistenartikel. Anschließend „Suchen“ klicken. Das gleiche Symbol neben Shoplinks kopiert dagegen den Link in die Zwischenablage.
 
-Eine vorhandene EAN wird von Anfang an als Suchbegriff verwendet. Wird sie erst während der Suche gefunden, werden Shops mit mehreren Treffern einmal mit der EAN nachgesucht. Eine erfolglose EAN-Nachsuche entfernt keine zuvor gefundenen Angebote.
+Ist das EAN-Häkchen aktiviert, wird eine vorhandene EAN von Anfang an als Suchbegriff verwendet. Ohne Häkchen wird nach dem Namen gesucht; eine gespeicherte EAN kann dann dennoch ein auf der Produktseite geprüftes ähnliches Angebot bestätigen, wenn EAN und gewünschte Variante übereinstimmen. Wird sie erst während der Suche gefunden, werden Shops mit mehreren Treffern einmal mit der EAN nachgesucht. Eine erfolglose EAN-Nachsuche entfernt keine zuvor gefundenen Angebote.
 
 Bei BIKE24 wird auch die GTIN im Datenblatt als EAN gelesen. Bei r2-bike wird die EAN aus der Beschreibung übernommen; falls erforderlich, öffnet die Erweiterung „mehr lesen“. Eine Änderung des Produktnamens oder der Variante entfernt die bisherige EAN, damit sie nicht für einen anderen Artikel verwendet wird.
 
@@ -86,3 +86,9 @@ Quellcode: `teilefinder/firefox-r2/`. Tests: `teilefinder/*.test.mjs` und `teile
 Nach abgeschlossenen Suchen speichert die Erweiterung bestätigte, lieferbare Angebote pro EAN in IndexedDB. Über „Preisverlauf“ beim Wunschlistenartikel erscheint eine Grafik des günstigsten lieferbaren Preises mit Zeitraumauswahl und Tabelle. Maximalpreise begrenzen diese Historie nicht. Die Aufzeichnung beginnt mit zukünftigen Suchen; alte Ergebnisse werden nicht nachträglich als neue Preise erfasst.
 
 „Als Datei speichern“ exportiert auch die Historie; „Datei laden“ stellt sie wieder her. Beim Deinstallieren werden die lokalen Daten gelöscht.
+
+Das Preisfeld akzeptiert ein Maximum (z. B. `10`) oder einen Bereich (z. B. `5-10`). Beide Grenzen gelten auch für ähnliche Produktvorschläge. Bei gesetzter Preisgrenze werden Vorschläge ohne bestätigten Preis ausgeblendet; die gespeicherten Ergebnisse bleiben erhalten.
+
+Die Oberfläche folgt automatisch dem in Firefox eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen.
+
+Shopprüfungen haben ein Gesamtzeitlimit von 60 Sekunden (EAN-Nachsuche: 30 Sekunden). Bei einem blockierten Shop bleiben abgeschlossene Ergebnisse erhalten und die Wunschliste wird fortgesetzt. Eine zusätzliche Absicherung nach 105 Sekunden pro Artikel verhindert das Warten auf verlorene Abschlussmeldungen. Übersprungene Shops und ältere Ergebnisse werden entsprechend gekennzeichnet.

@@ -104,3 +104,42 @@ test('Different product terms are not silently rewritten into exact matches',()=
  assert.equal(context.matches('Powerbar Powergel Hydro 67ml','Powerbar Hydrogel 24er'),false);
  assert.equal(context.matches('Powerbar Powergel Original 24er Box','Powerbar Hydrogel 24er'),false);
 });
+
+
+test('Generic pack-count matching accepts attached quantities without confusing other sizes or models',()=>{
+ const query='Dextro Energy Kohlenhydrat-Riegel Energy Bar 24';
+ assert.equal(context.matches('DEXTRO ENERGY* Bar - Kohlenhydrat-Riegel - 24x50g',query),true);
+ assert.equal(context.matches('DEXTRO ENERGY* Bar - Kohlenhydrat-Riegel - 24 × 50 g',query),true);
+ for(const size of ['50g','25x50g','124x50g'])assert.equal(context.matches('DEXTRO ENERGY* Bar - Kohlenhydrat-Riegel - '+size,query),false);
+ assert.equal(context.matches('Example Drink 12x60ml','Example Drink 12'),true);
+ assert.equal(context.matches('Example Drink 12x60ml','Example Drink 60'),false);
+ assert.equal(context.matches('Example Part M24','Example Part 24'),false);
+ assert.equal(context.matches('Other Brand Bar 24x50g',query),false);
+});
+
+
+test('r2-bike delayed delivery text is read without confusing shipping promises with stock',()=>{
+ for(const label of ['in ca. 1 - 2 Wochen','in ca. 2–4 Wochen','Lieferzeit: 1-2 Wochen','lieferbar in 1 Woche'])assert.equal(context.stockText(label),label);
+ assert.equal(context.stockText('in ca. 1 - 2 Wochen. Andere Artikel ab Lager verfügbar'),'in ca. 1 - 2 Wochen');
+ assert.equal(context.stockText('in 3 - 5 Tagen'),'in 3 - 5 Tagen');
+ assert.equal(context.stockText('ab Lager verfügbar'),'ab Lager verfügbar');
+});
+
+
+test('Future availability dates retain day, month and optional year instead of truncating at the first period',()=>{
+ for(const label of ['verfügbar ab 4.11.','Verfügbar ab 04.11.2026','lieferbar ab 4. 11.','erhältlich ab dem 04.11.2026','verfügbar\u00a0ab\u00a04.11.'])assert.equal(context.stockText(label+' · weitere Angaben'),label);
+ assert.equal(context.stockText('Nicht verfügbar ab 4.11.'),'Nicht verfügbar');
+});
+
+
+test('Bike-Discount restock notice means unavailable and ignores notices outside the product buy area',()=>{
+ const notice='Benachrichtigen Sie mich, sobald der Artikel lieferbar ist.';
+ const nodes={'.product-detail-buy':{innerText:notice}};
+ const c=vm.createContext({document:{body:{innerText:notice},querySelector:s=>nodes[s]||null}});
+ vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);
+ assert.equal(c.bikeDiscountStock(),'Nicht lieferbar');
+ nodes['.product-detail-buy'].innerText='';nodes['.nele-product-availability-info']={innerText:'Lagernd, Lieferzeit 1-3 Tage'};
+ assert.equal(c.bikeDiscountStock(),'Lagernd, Lieferzeit 1-3 Tage');
+ delete nodes['.nele-product-availability-info'];assert.equal(c.bikeDiscountStock(),'Lagerstatus nicht auslesbar');
+ assert.equal(c.stockText('Benachrichtigen Sie mich,\n sobald der Artikel lieferbar ist.'),'Nicht lieferbar');
+});

@@ -25,7 +25,7 @@ async function bikeDiscountVariants(fallback,requested){
   while(Date.now()<until){
    const selected=document.querySelector('#productDetailConfiguratorOptions')?.innerText.trim()||'';
    const price=document.querySelector('.product-detail-price')?.innerText.trim()||'';
-   const stock=document.querySelector('.nele-product-availability-info')?.innerText.trim()||'';
+   const stock=typeof bikeDiscountStock==='function'?bikeDiscountStock():document.querySelector('.nele-product-availability-info')?.innerText.trim()||'';
    const ean=typeof currentProductEAN==='function'?currentProductEAN():'';
    const signature=JSON.stringify([selected,price,stock,ean]);
    const liveInput=document.getElementById(variant.id);
@@ -44,14 +44,28 @@ async function bikeDiscountVariants(fallback,requested){
 function productDropdowns(){
  return [...document.querySelectorAll('select')].filter(select=>{
   if(select.id==='variant'&&select.closest('#add-to-cart'))return false;
-  if(select.disabled||select.multiple||!select.getClientRects().length)return false;
+  // BIKE24 can present product options as chips while retaining a hidden
+  // native selector. Its option-dropdown identity excludes quantity controls.
+  const bike24Option=location.hostname?.replace(/^www\./,'')==='bike24.de'&&select.matches?.('[data-testid^="option-dropdown"]');
+  if(select.disabled||select.multiple||(!select.getClientRects().length&&!bike24Option))return false;
   const label=[...(select.labels||[])].map(l=>l.textContent).join(' ');
   const identity=[select.name,select.id,label,select.getAttribute?.('aria-label')||''].join(' ');
   if(/quantity|menge|sort|filter|country|land|shipping/i.test(identity)||/^anzahl$/i.test(label.trim()))return false;
   return select.matches?.('[data-testid^="option-dropdown"]')||/größe|groesse|size|farbe|color|colour|volumen|volume|capacity|inhalt|länge|laenge|length|breite|width|ausführung|ausfuehrung|variant|variation|eigenschaft/i.test(identity)||!!select.closest('.variations, .variation, .product-detail-configurator, [data-variation]');
  });
 }
-async function dropdownVariants(fallback){
+function selectProductOption(select,choice,bike24){
+ // Use a visible semantic option when a chip interface hides the native select.
+ // This lets the page's own handler update dependent options and availability.
+ if(bike24&&!select.getClientRects().length){
+  const label=(select.getAttribute?.('aria-label')||[...(select.labels||[])].map(l=>l.textContent.trim()).join(' ')).trim();
+  const group=label&&[...document.querySelectorAll('[role="radiogroup"]')].find(g=>g.getAttribute('aria-label')?.trim()===label&&g.getClientRects().length);
+  const chip=group&&[...group.querySelectorAll('button[role="radio"]')].find(b=>!b.disabled&&b.getClientRects().length&&(b.getAttribute('aria-label')||b.textContent).trim()===choice.text);
+  if(chip){chip.click();return;}
+ }
+ select.value=choice.value;if(!bike24)select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));
+}
+async function dropdownVariants(fallback,requested=''){
  const bike24=typeof location.hostname==='string'&&location.hostname.replace(/^www\./,'')==='bike24.de';
  const release=bike24?guardBike24Purchase():()=>{};
  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -61,12 +75,12 @@ async function dropdownVariants(fallback){
   if(attempted>=24)return;
   const selects=productDropdowns();
   if(depth<selects.length){
-   const choices=options(selects[depth]);
+   const choices=options(selects[depth]).filter(choice=>selects.length!==1||!requested||variantMatches({...fallback,variant:[fallback.baseVariant,choice.text].filter(Boolean).join(' · ')},requested));
    for(const choice of choices){
     if(attempted>=24)break;
     const select=productDropdowns()[depth];
     if(!select||![...select.options].some(o=>o.value===choice.value&&!o.disabled))continue;
-    select.value=choice.value;if(!bike24)select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));
+    selectProductOption(select,choice,bike24);
     await pause(700);
     const refreshed=productDropdowns()[depth];if(!refreshed||refreshed.value!==choice.value)continue;
     const label=[...(select.labels||[])].map(l=>l.textContent.trim()).join(' ')||select.getAttribute?.('aria-label')||'';
@@ -79,13 +93,13 @@ async function dropdownVariants(fallback){
   let previous='',stable=0;
   for(let i=0;i<20;i++){
    const priceNode=document.querySelector('#add-to-cart .price__value, .product-detail-price, [itemprop="offers"] [itemprop="price"], .product-info .price, #buy_form .price, #product-offer [itemprop="price"], .product-price');
-   const priceText=priceNode?.innerText?.trim()||priceNode?.getAttribute('content')||'';
+   const priceText=(priceNode?.innerText||priceNode?.textContent||'').trim()||priceNode?.getAttribute('content')||'';
    const stockNode=document.querySelector('#add-to-cart .product-availability, .nele-product-availability-info, .delivery-status, .availability, .delivery-time, .delivery');
-   const stock=stockText(stockNode?.innerText||'');
+   const stock=stockText(stockNode?.innerText||stockNode?.textContent||'');
    const signature=JSON.stringify([priceText,stock]);stable=signature===previous?stable+1:0;previous=signature;
    const match=priceText.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);
    const price=match?euro(match[1]):priceNode?.getAttribute('content')?euro(priceNode.getAttribute('content')):null;
-   if(stable>=2&&price!==null&&!/^ab\s/i.test(priceText)&&!document.querySelector('[aria-busy="true"]')){
+   if(stable>=2&&price!==null&&!/^ab\s/i.test(priceText)&&!document.querySelector(bike24?'#add-to-cart [aria-busy="true"]':'[aria-busy="true"]')&&!(bike24&&/Bitte Option wählen/i.test(stockNode?.textContent||stockNode?.innerText||''))){
     rows.push({...fallback,variant:(/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · ':'')+labels.join(' · '),price,priceKind:'exact',stock,url:location.href,source:'Firefox · ausgewählte Produktvariante',selection:productDropdowns().map(select=>({id:select.id,value:select.value}))});break;
    }
    await pause(250);

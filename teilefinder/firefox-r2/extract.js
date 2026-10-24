@@ -9,6 +9,9 @@ function matches(name,q){
  const acronym=(token,tokens)=>/^[a-z]{2,4}$/.test(token)&&tokens.some((_,i)=>tokens.slice(i,i+token.length).length===token.length&&tokens.slice(i,i+token.length).every((word,j)=>/^[a-z]{3,}$/.test(word)&&word[0]===token[j]));
  return requested.every((token,index)=>{
   if(words.includes(token)||acronym(token,words))return true;
+  // A pack count is meaningful even when attached to its per-item size (24x50g).
+  // Keep numeric model identifiers and different counts strict.
+  if(/^\d+$/.test(token)&&[...text.matchAll(/(?:^|[^a-z0-9])(\d+)\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l)\b/g)].some(m=>m[1]===token))return true;
   // Accept abbreviations of consecutive words without a vocabulary of product names.
   for(let length=2;length<=4;length++)for(let start=Math.max(0,index-length+1);start<=index;start++){
    const phrase=requested.slice(start,start+length);
@@ -17,7 +20,7 @@ function matches(name,q){
   return token.length>2&&text.includes(token);
  });
 }
-function stockText(text){const patterns=[/(?:Lagernd,\s*Lieferzeit\s*\d+(?:\s*[-–]\s*\d+)?\s*Tage)/i,/(?:nicht (?:mehr )?(?:lieferbar|verfügbar|auf lager)|ausverkauft|out of stock)/i,/(?:verfügbar (?:ab|in) [^\n.;]{1,65}|available (?:from|in) [^\n.;]{1,65})/i,/(?:ab lager verfügbar|sofort lieferbar|lagernd|auf lager|in stock|available from stock)/i,/(?:Versand in|Lieferzeit:?|delivery time:?|lieferbar in)\s*[^\n.;]{1,65}/i,/\b\d+(?:\s*[-–]\s*\d+)?\s*(?:Arbeitstage|Werktage|working days)\b/i];for(const re of patterns){const m=text.match(re);if(m)return m[0].trim();}return 'Lagerstatus nicht auslesbar';}
+function stockText(text){if(/benachrichtigen\s+Sie\s+mich,?\s+sobald\s+der\s+Artikel\s+lieferbar\s+ist/i.test(String(text||'')))return 'Nicht lieferbar';const patterns=[/\b(?:in\s+(?:ca\.?\s*)?|(?:Lieferzeit|lieferbar)\s*:?\s*(?:in\s*)?(?:ca\.?\s*)?)\d+(?:\s*[-–]\s*\d+)?\s*Wochen?\b/i,/\bin\s+(?:ca\.?\s*)?\d+(?:\s*[-–]\s*\d+)?\s*Tagen?\b/i,/(?:Lagernd,\s*Lieferzeit\s*\d+(?:\s*[-–]\s*\d+)?\s*Tage)/i,/(?:nicht (?:mehr )?(?:lieferbar|verfügbar|auf lager)|ausverkauft|out of stock)/i,/(?:verfügbar|lieferbar|erhältlich)\s+ab\s+(?:dem\s+)?\d{1,2}\.\s*\d{1,2}\.(?:[ \t]*\d{4})?/i,/(?:verfügbar (?:ab|in) [^\n.;]{1,65}|available (?:from|in) [^\n.;]{1,65})/i,/(?:ab lager verfügbar|sofort lieferbar|lagernd|auf lager|in stock|available from stock)/i,/(?:Versand in|Lieferzeit:?|delivery time:?|lieferbar in)\s*[^\n.;]{1,65}/i,/\b\d+(?:\s*[-–]\s*\d+)?\s*(?:Arbeitstage|Werktage|working days)\b/i];for(const re of patterns){const m=text.match(re);if(m)return m[0].trim();}return 'Lagerstatus nicht auslesbar';}
 function walk(x,fn){if(!x||typeof x!=='object')return;fn(x);for(const v of Object.values(x))walk(v,fn);}
 function productEAN(product,offer={}){return ['gtin13','gtin','gtin14','gtin12','gtin8'].map(k=>String(offer[k]||product[k]||'')).find(x=>/^\d{8,14}$/.test(x))||'';}
 function structuredOffers(json,host,fallbackUrl,q){
@@ -47,15 +50,15 @@ function structuredOffers(json,host,fallbackUrl,q){
 }
 function currentProductEAN(){
  const description=document.querySelector('#tab-description')||document.querySelector('#description-tab-pane');
- const described=[...new Set([...(description?.textContent||'').matchAll(/\b(?:EAN|GTIN)\s*:?\s*(\d{8,14})(?!\d)/gi)].map(m=>m[1]))];
+ const described=[...new Set([...(description?.textContent||'').matchAll(/\b(?:EAN|GTIN|UPC)\s*:?\s*(\d{8,14})(?!\d)/gi)].map(m=>m[1]))];
  if(described.length===1)return described[0];
  if(described.length>1)return '';
- const direct=document.querySelector('.nele-fact-ean, [itemprop="gtin13"], [itemprop="gtin"]');
+ const direct=document.querySelector('.nele-fact-ean, .nele-fact-upc, [itemprop="gtin13"], [itemprop="gtin12"], [itemprop="gtin14"], [itemprop="gtin8"], [itemprop="gtin"]');
  const value=(direct?.getAttribute('content')||direct?.textContent||'').trim();
  if(/^\d{8,14}$/.test(value))return value;
  const identifiers=new Set();
  for(const label of document.querySelectorAll('.product-detail-data-sheet__row td, .product-detail-data-sheet__row th, .product-detail-data-sheet dt')){
-  if(!/^(?:GTIN|EAN)\s*:?$/i.test((label.textContent||'').trim()))continue;
+  if(!/^(?:GTIN|EAN|UPC)\s*:?$/i.test((label.textContent||'').trim()))continue;
   const cell=label.nextElementSibling;
   for(const match of (cell?.textContent||'').matchAll(/(?<!\d)\d{8,14}(?!\d)/g))identifiers.add(match[0]);
  }
@@ -108,4 +111,12 @@ async function r2DescriptionEAN(){
  toggle.click();
  for(let i=0;i<8;i++){await new Promise(resolve=>setTimeout(resolve,200));const ean=currentProductEAN();if(ean)return ean;}
  return '';
+}
+
+
+function bikeDiscountStock(){
+ const availability=document.querySelector('.nele-product-availability-info');
+ const buy=document.querySelector('.product-detail-buy')||document.querySelector('.product-detail-buy-inner');
+ const text=[availability?.innerText,buy?.innerText].filter(Boolean).join('\n');
+ return stockText(text);
 }

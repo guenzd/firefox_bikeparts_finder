@@ -61,3 +61,38 @@ test('Generic abbreviations, compound suggestions and typos need no product-spec
  assert.equal(c.compoundTokenMatch('hydroseal',['hydro','seal']),true);
  assert.equal(c.compoundTokenMatch('hydroseal',['original','seal']),false);
 });
+
+test('Pack variants accept spacing, multiplication signs and comma-separated flavour',()=>{
+ for(const variant of ['25 x 50 g | Vanille','25×50g, Vanille','25x50g - Vanille']){
+  assert.equal(match({name:'Energy food',variant},'25x50g, vanille'),true);
+ }
+ assert.equal(match({name:'Energy food',variant:'12 x 50 g | Vanille'},'25x50g, vanille'),false);
+ assert.equal(match({name:'Energy food',variant:'25 x 40 g | Vanille'},'25x50g, vanille'),false);
+ assert.equal(match({name:'Energy food',variant:'25 x 50 g | Schokolade'},'25x50g, vanille'),false);
+ assert.equal(match({name:'Tyre',variant:'Breite: 30,5 mm | Schwarz'},'30,5 mm, schwarz'),true);
+ assert.equal(match({name:'Tyre',variant:'Breite: 30 mm | Schwarz'},'30,5 mm, schwarz'),false);
+});
+
+test('Long variant words allow one generic edit while numeric identifiers stay exact',()=>{
+ assert.equal(match({name:'Energy bar',variant:'24x50g | vanilla'},'24x50g, vanille'),true);
+ assert.equal(match({name:'Energy bar',variant:'24x50g | vanille'},'24x50g, vanilla'),true);
+ assert.equal(match({name:'Part',variant:'matte black'},'matte blak'),false);
+ assert.equal(match({name:'Part',variant:'graphite'},'graphit'),true);
+ assert.equal(match({name:'Part',variant:'medium'},'medim'),true);
+ assert.equal(match({name:'Energy bar',variant:'24x50g | chocolate'},'24x50g, vanille'),false);
+ assert.equal(match({name:'Energy bar',variant:'25x50g | vanilla'},'24x50g, vanille'),false);
+ assert.equal(match({name:'Part',variant:'30mm'},'31mm'),false);
+ assert.equal(match({name:'Part',variant:'ABC123'},'ABC124'),false);
+ assert.equal(match({name:'Part',variant:'Cola'},'Colo'),false);
+ assert.equal(match({name:'Part',variant:'vanilla'},'vanilxx'),false);
+});
+
+test('Saved URLs drop referral metadata while retaining variant IDs and search queries',()=>{
+ const clean=vm.createContext({URL});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8'),clean);
+ const original={shops:[{url:'https://r2-bike.com/suchergebnisse#search?query=8055136020431',offers:[{url:'https://www.bike-components.de/product/?o=123-black&v=456&origin=SRP&utm_source=email&referrer=search&ref=affiliate&gclid=abc'}]}]};
+ const saved=clean.cleanSavedUrls(original);
+ assert.equal(saved.shops[0].url,original.shops[0].url);
+ assert.equal(saved.shops[0].offers[0].url,'https://www.bike-components.de/product/?o=123-black&v=456');
+ assert.match(original.shops[0].offers[0].url,/origin=SRP/);
+ assert.equal(clean.cleanShopUrl('https://www.bike-discount.de/de/search?search=763477000385&REF=mail'),'https://www.bike-discount.de/de/search?search=763477000385');
+});
