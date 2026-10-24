@@ -183,3 +183,9 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .item-prices-dialog .shop-actions .copy-button{width:32px;height:32px;min-height:32px;margin:0;padding:7px;border-radius:6px}
 .item-prices-dialog .shop-actions .copy-button svg{display:block;width:16px;height:16px;margin:0}
 .item-prices-dialog .shop-link-button:hover{background:var(--hover);color:var(--ink)}
+
+.search-status:has(#status:empty){display:none}
+.search-status #status{display:inline-block;min-height:24px;padding:0;border:0;border-radius:3px;background:transparent;color:var(--muted);font-size:13px;font-weight:400;line-height:1.45;text-align:left}
+.search-status #status:disabled{opacity:1;cursor:default}
+.search-status #status:not(:disabled){cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--field-line)}
+.search-status #status:not(:disabled):hover{color:var(--ink);text-decoration-color:currentColor}

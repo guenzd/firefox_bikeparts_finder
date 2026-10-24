@@ -20,7 +20,7 @@ test('Lost background completion unblocks the list once and preserves prior resu
  const state=new Map([['A',{offers:[{price:10}],done:true}],['B',{offers:[{price:20}],done:false}],['C',{offers:[],done:false}],['D',{offers:[],done:true}]]);
  let finished,cancelled=0,renders=0;
  const nodes={};const ctx=vm.createContext({state,names:['A','B','C','D'],id:'old-job',browser:{runtime:{sendMessage(){cancelled++;return Promise.resolve();}}},document:{querySelector:s=>nodes[s]||(nodes[s]={})},render(){renders++;},finishSearch(rows){finished=rows;}});
- vm.runInContext(home.slice(home.indexOf('function finishTimedOutSearch(')),ctx);
+ vm.runInContext(home.slice(home.indexOf('function setSearchRunning('),home.indexOf('async function startSearch('))+home.slice(home.indexOf('function finishTimedOutSearch(')),ctx);
  ctx.finishTimedOutSearch();assert.equal(ctx.id,'');assert.equal(finished.length,4);assert.equal(state.get('A').stale,undefined);assert.equal(state.get('B').stale,true);assert.equal(state.get('B').offers[0].price,20);assert.ok([...state.values()].every(s=>s.done));assert.equal(ctx.finishSearch,null);assert.equal(cancelled,1);
  ctx.finishTimedOutSearch();assert.equal(cancelled,1);assert.equal(renders,1);
 });
@@ -124,4 +124,16 @@ test('Popup header shares one timestamp and preserves the time span for differen
  assert.deepEqual(Array.from(ctx.priceResultsTimes(rows([first,same]),null)),[Date.parse('2026-10-24T12:00:00Z')]);
  assert.deepEqual(Array.from(ctx.priceResultsTimes(rows([last,first]),null)),[Date.parse('2026-10-24T12:00:00Z'),Date.parse(last)]);
  assert.deepEqual(Array.from(ctx.priceResultsTimes([],last)),[Date.parse(last)]);assert.deepEqual(Array.from(ctx.priceResultsTimes([],null)),[]);
+});
+
+test('Clicking active search progress cancels once, preserves results and releases a waiting list item',async()=>{
+ const nodes={};const node=selector=>nodes[selector]||(nodes[selector]={disabled:false,hidden:false,addEventListener(type,callback){this[type]=callback;}});
+ const state=new Map([['Shop',{offers:[{name:'Found product',price:20}],done:true}]]);let cancelled=0,finished;
+ const ctx=vm.createContext({document:{querySelector:node},state,searchDeadline:1,id:'job',checkingList:true,clearTimeout(){},browser:{runtime:{async sendMessage(message){if(message.type==='cancel')cancelled++;}}},finishSearch(rows){finished=rows;}});
+ vm.runInContext(home.slice(home.indexOf('function setSearchRunning('),home.indexOf('async function startSearch('))+home.slice(home.indexOf('function stopCurrentSearch('),home.indexOf('let historyWrites=')),ctx);
+ ctx.setSearchRunning(true);node('#status').click();
+ assert.equal(cancelled,1);assert.equal(ctx.id,'');assert.equal(ctx.stopRequested,true);assert.equal(node('#status').disabled,true);assert.equal(node('#stop-search').hidden,true);assert.equal(state.get('Shop').offers[0].price,20);assert.equal(finished[0].offers[0].name,'Found product');assert.equal(ctx.finishSearch,null);
+ node('#status').click();assert.equal(cancelled,1);
+ vm.runInContext(home.slice(home.indexOf("document.querySelector('#check-wishlist').addEventListener"),home.indexOf('function copyListButton(')),ctx);
+ ctx.setSearchRunning(true);ctx.stopRequested=false;await node('#check-wishlist').click();assert.equal(cancelled,2);assert.equal(ctx.stopRequested,true);
 });
