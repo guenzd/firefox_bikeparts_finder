@@ -137,3 +137,13 @@ test('EAN visibility uses displayed four-shop matches without requiring metadata
   assert.equal(ctx.allShopsHaveDisplayedOffers([{...shops[0],offers:offer?[offer]:[]},...shops.slice(1)],item),false);
  }
 });
+
+test('Applying a wishlist search never persists conflicting EAN offers when EAN is enabled',()=>{
+ const ean='8057628581253',other='8057628583325';
+ const shops=[{name:'r2-bike',offers:[{name:'Chain',ean,price:59.99,priceKind:'exact'},{name:'Other chain',ean:other,price:59.99,priceKind:'exact'}]}];
+ for(const useEAN of [true,false]){
+  const item={id:'chain',query:'Example chain',ean,useEAN,shops:[]};
+  const updated=ctx.applyWishlistSearch([item],'chain',shops,'2026-10-24T12:00:00Z')[0];
+  assert.equal(updated.ean,ean);assert.equal(updated.shops[0].offers.length,useEAN?1:2);assert.equal(shops[0].offers.length,2);
+ }
+});

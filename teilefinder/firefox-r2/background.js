@@ -122,7 +122,7 @@ async function searchAll(job){
  }
  if(!jobActive(job))return;
  const final=shareVariantEAN([...job.results.values()],job.variant,shared.ean);
- for(const result of final.shops)await browser.runtime.sendMessage(result).catch(()=>{});
+ for(const result of filterConflictingEANs(final.shops,job.useEAN?final.ean:''))await browser.runtime.sendMessage(result).catch(()=>{});
 }
 async function run(job,shop,searchQuery=job.query){
  const task={...job,root:job.root||job,cancelled:false};

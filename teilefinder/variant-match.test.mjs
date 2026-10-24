@@ -115,3 +115,15 @@ test('Exact model identifiers bridge shop series names without a product diction
  assert.equal(c.matches('Acme BC-24000 Cable','Acme Racing Cable BC-2400'),false);
  assert.equal(c.broaderQuery(query),'Shimano CN-M9100');assert.equal(c.broaderQuery('Shimano CN-M9100'),null);
 });
+
+test('EAN discovery intersects shop identifiers without choosing an arbitrary execution',()=>{
+ const good='8057628581253',other='8057628583325';
+ const offer=ean=>({ean,name:'Example chain',variant:'',priceKind:'exact'});
+ const shops=[{offers:[offer(good)]},{offers:[offer(good),offer(other)]}];
+ assert.equal(ctx.shareVariantEAN(shops,'').ean,good);
+ assert.equal(ctx.shareVariantEAN([{offers:[offer(good)]},{offers:[offer(other)]}],'').ean,'');
+ assert.equal(ctx.shareVariantEAN([{offers:[offer(good),offer(other)]}],'').ean,'');
+ assert.equal(ctx.shareVariantEAN(shops,'',other).ean,other);
+ const filtered=ctx.filterConflictingEANs(shops,good);assert.equal(filtered[1].offers.length,1);assert.equal(filtered[1].offers[0].ean,good);assert.equal(shops[1].offers.length,2);
+ assert.equal(ctx.filterConflictingEANs(shops,'')[1].offers.length,2);
+});

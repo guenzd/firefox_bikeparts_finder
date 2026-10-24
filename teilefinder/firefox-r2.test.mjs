@@ -503,3 +503,21 @@ test('An EAN search redirect preserves its specific mismatch explanation in the 
  for(let i=0;i<80;i++)await new Promise(setImmediate);
  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);assert.ok(results.every(m=>m.message===reason&&m.offers.length===0));
 });
+
+test('Discovered EAN removes a different r2 execution even when EAN refinement fails; disabled EAN retains name results',async()=>{
+ for(const useEAN of [true,false]){
+  let listener;const home='moz-extension://unit/home.html',messages=[],queries=[],good='8057628581253',other='8057628583325';
+  const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){queries.push(o.url);return {id:new URL(o.url).hostname};},async update(id,o){queries.push(o.url);return {id};},async get(){return {};},async sendMessage(id,data){
+   if(data.query===good)return {ready:true,empty:true,offers:[]};
+   const row={name:'Example chain',ean:good,variant:'',price:59.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/chain'};
+   return {ready:true,offers:data.shopId==='r2-bike'?[row,{...row,ean:other,url:'https://'+data.host+'/other-chain'}]:[row]};
+  }}};
+  vm.runInNewContext(source,{browser,URL,clearTimeout,setTimeout:fastTimeout});
+  await listener({type:'search',id:'ean-conflict',query:'Example chain',useEAN},{url:home,tab:{id:99}});
+  for(let i=0;i<120;i++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);
+  const r2=results.find(m=>m.shop==='r2-bike');assert.equal(r2.offers.length,useEAN?1:2);
+  if(useEAN){assert.ok(results.every(m=>m.offers.every(o=>o.ean===good)));assert.ok(queries.some(q=>q.includes('query='+good)));}
+  else assert.ok(!queries.some(q=>q.includes(good)));
+ }
+});

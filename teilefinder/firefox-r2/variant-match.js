@@ -59,10 +59,26 @@ function validEAN(value){const text=String(value||'').trim();return /^\d{8,14}$/
 function shareVariantEAN(shops,requested,known=''){
  const candidates=shops.filter(s=>!s.stale).flatMap(s=>s.offers||[]).filter(o=>o.priceKind==='exact'&&variantMatches(o,requested));
  const identifiers=[...new Set(candidates.map(o=>validEAN(o.ean)).filter(Boolean))];
- const ean=validEAN(known)||(identifiers.length===1?identifiers[0]:'');
- if(!ean||identifiers.length!==1||identifiers.some(value=>value!==ean))return {ean:validEAN(known),shops};
+ // A shop may list several executions. Only an identifier shared by every
+ // shop that actually extracted identifiers is unambiguous; never vote by count.
+ const perShop=shops.filter(s=>!s.stale).map(s=>[...new Set((s.offers||[]).filter(o=>o.priceKind==='exact'&&variantMatches(o,requested)).map(o=>validEAN(o.ean)).filter(Boolean))]).filter(ids=>ids.length);
+ const common=perShop.length?perShop[0].filter(ean=>perShop.every(ids=>ids.includes(ean))):[];
+ const ean=validEAN(known)||(common.length===1?common[0]:'');
+ if(!ean||identifiers.length!==1||identifiers.some(value=>value!==ean))return {ean,shops};
  if(!requested?.trim())return {ean,shops};
  return {ean,shops:shops.map(shop=>({...shop,offers:(shop.offers||[]).map(o=>!shop.stale&&o.priceKind==='exact'&&variantMatches(o,requested)&&!validEAN(o.ean)?{...o,ean}:o)}))};
+}
+
+// Once an enabled EAN is established, an explicitly different identifier can
+// never be restored as a matching offer. Unread identifiers stay unconfirmed.
+function filterConflictingEANs(shops,ean){
+ if(!validEAN(ean))return shops;
+ const compatible=offer=>!validEAN(offer.ean)||validEAN(offer.ean)===ean;
+ return shops.map(shop=>{
+  const offers=(shop.offers||[]).filter(compatible);
+  return {...shop,offers,suggestions:(shop.suggestions||[]).filter(compatible),
+   ...((shop.offers||[]).length&&!offers.length?{message:'Keine Angebote mit EAN '+ean+'. Abweichende EAN ausgeschlossen.'}:{})};
+ });
 }
 
 // Keep product/variant and search parameters; remove only referral and tracking metadata.

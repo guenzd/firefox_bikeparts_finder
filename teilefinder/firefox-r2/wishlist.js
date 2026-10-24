@@ -45,7 +45,7 @@ function renameWishlistItem(items,id,query){
 }
 
 function applyWishlistSearch(items,id,shops,checkedAt){
- return items.map(item=>{if(item.id!==id)return item;const shared=shareVariantEAN(mergeShopResults(item.shops||[],shops),item.variant,item.useEAN===false?'':item.ean);return {...item,ean:item.useEAN===false?(item.ean||shared.ean):shared.ean,shops:shared.shops,checkedAt};});
+ return items.map(item=>{if(item.id!==id)return item;const shared=shareVariantEAN(mergeShopResults(item.shops||[],shops),item.variant,item.useEAN===false?'':item.ean);return {...item,ean:item.useEAN===false?(item.ean||shared.ean):shared.ean,shops:filterConflictingEANs(shared.shops,item.useEAN===false?'':shared.ean),checkedAt};});
 }
 
 function mergeShopResults(previous,incoming){
