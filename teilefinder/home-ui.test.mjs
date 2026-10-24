@@ -64,3 +64,26 @@ test('Wishlist copy groups mixed best offers under each shop heading in HTML and
  assert.equal(await formats['text/plain'].text(),'BIKE24\nA https://example.org/A\nC https://example.org/C\n\nr2-bike\nB https://example.org/B');
  assert.equal(await formats['text/html'].text(),'<div><strong>BIKE24</strong><br><a href="https://example.org/A">A</a><br><a href="https://example.org/C">C</a></div><br><div><strong>r2-bike</strong><br><a href="https://example.org/B">B</a></div>');
 });
+
+test('Individual search collapses the wishlist while retaining its saved results; list searches reopen it',async()=>{
+ const nodes={};const node=selector=>nodes[selector]||(nodes[selector]={hidden:false,value:'',textContent:'',attrs:{},setAttribute(key,value){this.attrs[key]=value;},getAttribute(key){return this.attrs[key];},querySelector(){return node('arrow');},addEventListener(type,callback){this[type]=callback;}});
+ const wishlist=[{id:'saved',query:'Saved item',shops:[{name:'BIKE24',offers:[{name:'Saved offer',price:15,url:'https://www.bike24.de/saved',stock:'Auf Lager'}]}]}];
+ const before=JSON.stringify(wishlist),state=new Map([['BIKE24',{offers:[{name:'Old direct result'}]}]]);
+ const ctx=vm.createContext({document:{querySelector:node},wishlist,state,searchDeadline:null,activeWishlistId:'',names:['BIKE24'],query:'Old query',searchedVariant:'',checkingList:false,crypto:{randomUUID:()=> 'new-job'},clearTimeout(){},setTimeout(){return 1;},finishTimedOutSearch(){},render(){},validEAN:()=>'',inputPriceRange:()=>({}),knownSearchShops:()=>[],browser:{runtime:{async sendMessage(){}}}});
+ vm.runInContext(home.slice(home.indexOf('function setWishlistCollapsed('),home.indexOf("document.querySelector('#query').addEventListener")),ctx);
+ await ctx.startSearch('Individual item','');
+ assert.equal(node('#wishlist-content').hidden,true);assert.equal(node('#wishlist-toggle').attrs['aria-expanded'],'false');assert.equal(ctx.wishlistDetails,false);assert.equal(JSON.stringify(wishlist),before);
+ node('#wishlist-toggle').click();assert.equal(node('#wishlist-content').hidden,false);assert.equal(JSON.stringify(wishlist),before);
+ ctx.setWishlistCollapsed(true);ctx.checkingList=true;await ctx.startSearch('Saved item','',wishlist[0].shops);
+ assert.equal(node('#wishlist-content').hidden,false);assert.equal(node('#wishlist-toggle').attrs['aria-expanded'],'true');assert.equal(ctx.wishlistDetails,true);assert.equal(JSON.stringify(wishlist),before);
+});
+
+test('Saved wishlist shop results remain rendered in their own container during individual searches',()=>{
+ const saved={children:['old'],replaceChildren(){this.children=[];}},direct={children:['old'],replaceChildren(){this.children=[];}},heading={};
+ const doc={'#wishlist-shop-results':saved,'#results':direct,'#search-results-heading':heading};
+ const offer={name:'Saved wishlist offer',price:25};
+ const ctx=vm.createContext({document:{querySelector:selector=>doc[selector]},names:[],wishlistDetails:false,renderWishlistDetails(root){root.children.push(offer);}});
+ vm.runInContext(home.slice(home.indexOf('function render(){'),home.indexOf('function renderWishlistDetails(')),ctx);
+ ctx.render();assert.deepEqual(saved.children,[offer]);assert.equal(heading.hidden,false);
+ ctx.wishlistDetails=true;ctx.render();assert.deepEqual(saved.children,[offer]);assert.equal(heading.hidden,true);assert.deepEqual(direct.children,[]);
+});

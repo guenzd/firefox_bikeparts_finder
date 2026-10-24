@@ -134,3 +134,5 @@ td.price,.total-results .price,.wishlist-results .price,.item-prices-dialog .pri
 .wish-row .remove-button,.wish-row .recheck-button{font-weight:400;line-height:1}
 
 .copy-list-button{display:inline-flex;align-items:center;gap:6px;width:auto;height:28px;min-height:28px;padding:4px 8px;font-size:11px;white-space:nowrap;flex-shrink:0}.copy-list-button:disabled{opacity:.45;cursor:default}.total-heading{flex-wrap:wrap}.total-heading>small{margin-left:auto}.shop-heading>.copy-list-button{margin-left:auto}
+
+#wishlist-toggle{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-align:left}#wishlist-toggle:hover{color:var(--muted)}#wishlist-toggle>span{width:12px;font-size:13px}.wishlist [hidden],#search-results-heading[hidden]{display:none!important}
