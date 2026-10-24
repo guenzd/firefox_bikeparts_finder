@@ -160,7 +160,7 @@ test('EAN button updates the search and wishlist and copies the same identifier,
  fail=true;await ctx.eanRow('4550170323134','item').children.at(-1).click();assert.equal(fields['#search-ean'].value,'4550170323134');assert.equal(wishlist[0].ean,'4550170323134');assert.match(fields['#status'].textContent,/Kopieren fehlgeschlagen/);
 });
 
-test('Complete cross-shop EAN consensus hides repeated rows in totals and shop lists, and variants have no prefix',()=>{
+test('Displayed four-shop matches hide repeated EAN rows in totals and shop lists, and variants have no prefix',()=>{
  const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},setAttribute(){},addEventListener(){}});
  const root=make('div'),names=['BIKE24','Bike-Discount','bike-components','r2-bike'],ean='4524667879565';let eanRows=0;
  const item={id:'one',query:'Example tyre',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
@@ -175,10 +175,12 @@ test('Complete cross-shop EAN consensus hides repeated rows in totals and shop l
  // Restored and reused results need no live job flags or repeated per-shop EAN.
  item.shops.forEach((shop,i)=>{shop.done=false;if(i)shop.offers[0].ean='';});
  ctx.renderTotal();ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
- item.shops[1].offers[0].ean='4550170323134';ctx.renderTotal();assert.ok(eanRows>0);
- eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
+ item.shops[1].offers[0].ean='4550170323134';ctx.renderTotal();assert.equal(eanRows,0);
+ eanRows=0;ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
  item.shops[1].offers[0].ean='';eanRows=0;
- item.shops[0].stale=true;ctx.renderTotal();assert.ok(eanRows>0);
+ item.shops[0].stale=true;ctx.renderTotal();assert.equal(eanRows,0);
+ ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
+ item.shops[0].offers=[];ctx.renderTotal();assert.ok(eanRows>0);
  eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
 });
 

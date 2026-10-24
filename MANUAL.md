@@ -103,6 +103,6 @@ Ein Klick auf den laufenden Suchfortschritt stoppt die Suche. Während der Liste
 
 Preis und Ausführung in der Wunschliste lassen sich direkt im Feld bearbeiten: Beim ersten Klick wird der Inhalt markiert. Enter übernimmt die Änderung, Escape setzt den gespeicherten Wert wieder ein. Beim Verlassen des Feldes wird ebenfalls gespeichert. „Bearbeiten“ neben dem Artikelnamen ist nur für den Namen erforderlich.
 
-Wird der Artikel mit passender Variante in allen vier Shops gefunden, werden wiederholte EAN-Zeilen in der Gesamtübersicht und den Shop-Ergebnissen ausgeblendet. Maßgeblich sind die vorhandenen Angebote, auch nach dem Laden gespeicherter Ergebnisse. Eine bekannte EAN muss nicht nochmals in jedem Shop auslesbar sein. Das EAN-Eingabefeld bleibt erhalten. Fehlende Angebote, veraltete Ergebnisse oder abweichende EANs verhindern die Ausblendung.
+Zeigen alle vier Shop-Listen für einen Artikel ein Angebot innerhalb des Preis- und Variantenfilters an, werden die EAN-Zeilen in der Gesamtübersicht und den Shop-Ergebnissen ausgeblendet. Es zählen die bereits angezeigten Ergebnisse, unabhängig von EAN-Metadaten und Abschlusskennzeichen. Eine neue Suche ist dafür nicht nötig; das EAN-Eingabefeld bleibt erhalten. Fehlt in einer Shop-Liste ein passendes Angebot, erscheinen die EAN-Zeilen wieder.
 
 Bei erfolglosen EAN-Abfragen unterscheidet die Meldung zwischen einer abweichenden EAN, einer nicht auslesbaren EAN und einer bestätigten EAN mit nicht bestätigter Wunschvariante. Abweichende Produkte werden nicht als passende Angebote übernommen.

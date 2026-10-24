@@ -18,18 +18,12 @@ function deliverable(stock){
  if(/\bWochen?\b|nicht|ausverkauft|out of stock|sold out|vorbestell|nachbestell|(?:verfügbar|lieferbar|erhältlich)\s+(?:ab|in)|available (?:from|in)|unbekannt|nicht auslesbar/i.test(s))return false;
  return /auf lager|lagernd|ab lager|sofort lieferbar|in stock|available from stock|(?:Versand in|Lieferzeit:?|lieferbar in)\s*\d+(?:\s*[-–]\s*\d+)?\s*(?:Werk|Arbeits)?tage[n]?|\b\d+(?:\s*[-–]\s*\d+)?\s*(?:Arbeits|Werk)tage[n]?/i.test(s);
 }
-// Display-only redundancy check: finding a matching offer in every shop is
-// independent of the live job's done flag and of EAN extraction in every shop.
-function confirmedEANAcrossShops(shops,variant='',knownEAN=''){
- const required=['BIKE24','Bike-Discount','bike-components','r2-bike'];
- const matching=required.map(name=>{
-  const shop=shops.find(shop=>shop.name===name);if(!shop||shop.stale)return [];
-  return (shop.offers||[]).filter(offer=>Number.isFinite(offer.price)&&offer.price>0&&variantMatches(offer,variant));
- });
- if(matching.some(offers=>!offers.length))return '';
- const identifiers=[...new Set(matching.flat().map(offer=>validEAN(offer.ean)).filter(Boolean))];
- const ean=validEAN(knownEAN)||(identifiers.length===1?identifiers[0]:'');
- return ean&&identifiers.every(identifier=>identifier===ean)?ean:'';
+// Use exactly the offers displayed in shop lists. This is presentation only:
+// completion flags, freshness and EAN metadata do not change whether a row exists.
+function allShopsHaveDisplayedOffers(shops,item={}){
+ return ['BIKE24','Bike-Discount','bike-components','r2-bike'].every(name=>
+  (shops.find(shop=>shop.name===name)?.offers||[]).some(offer=>
+   Number.isFinite(offer.price)&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)));
 }
 
 function cheapestWishlist(items){
