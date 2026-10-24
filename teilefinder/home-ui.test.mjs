@@ -197,3 +197,22 @@ test('Wishlist button fill follows completed shops and items, never regresses, a
  ctx.updateWishlistProgress(4);assert.equal(style['--wishlist-progress'],'100%');
  ctx.wishlistProgress=null;ctx.updateWishlistProgress();assert.equal(style['--wishlist-progress'],undefined);assert.equal(attrs['aria-label'],undefined);assert.equal(button.textContent,'Wunschliste prüfen');assert.ok(!classes.has('is-checking'));
 });
+
+test('Shop prices show a muted best-price comparison only for unequal current exact prices and omit header item counts',()=>{
+ const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},setAttribute(){}}),root=make('div');
+ const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
+ const offer=(price,extra={})=>({name:'Tyre',variant:'30 mm',price,priceKind:'exact',stock:'Auf Lager',url:'https://example.org/product',...extra});
+ const item={id:'one',query:'Wanted tyre',variant:'30 mm',minPrice:15,maxPrice:30,shops:[
+  {name:names[0],offers:[offer(20),offer(16,{variant:'28 mm'}),offer(15,{priceKind:'from'})]},
+  {name:names[1],offers:[offer(25),offer(40)]},
+  {name:names[2],stale:true,offers:[offer(15)]},
+  {name:names[3],offers:[offer(18,{stock:'Nicht lieferbar'})]}]};
+ const ctx=vm.createContext({el:make,names,wishlist:[item],checkingList:false,state:new Map(),money:String,copyListButton:()=>make('button'),resultLinkActions:()=>make('div'),eanRow:()=>make('small'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
+ for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),ctx);
+ vm.runInContext(home.slice(home.indexOf('function renderWishlistDetails('),home.indexOf('browser.runtime.onMessage.addListener')),ctx);
+ ctx.renderWishlistDetails(root);
+ const all=node=>[node,...node.children.flatMap(all)],nodes=all(root),comparisons=nodes.filter(node=>node.className==='price-comparison');
+ assert.equal(comparisons.length,2);assert.ok(comparisons.every(node=>node.children[0].text==='Bestpreis 20'));
+ assert.equal(comparisons[0].children[1].text,'+5');assert.equal(comparisons[1].children[1].text,'−2');
+ assert.ok(!nodes.some(node=>typeof node.text==='string'&&/^\d+ Artikel$/.test(node.text)));
+});
