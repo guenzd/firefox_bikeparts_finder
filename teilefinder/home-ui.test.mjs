@@ -116,3 +116,12 @@ test('Adding a completed ad hoc search adopts all results and timestamps without
  }
  assert.equal(searches,4);
 });
+
+test('Popup header shares one timestamp and preserves the time span for differently aged shop results',()=>{
+ const ctx=vm.createContext({});vm.runInContext(home.slice(home.indexOf('function priceResultsTimes('),home.indexOf('async function showPriceHistory(')),ctx);
+ const first='2026-10-24T12:00:00.100Z',same='2026-10-24T12:00:00.900Z',last='2026-10-24T13:00:00Z';
+ const rows=times=>times.map(checkedAt=>({shop:{checkedAt}}));
+ assert.deepEqual(Array.from(ctx.priceResultsTimes(rows([first,same]),null)),[Date.parse('2026-10-24T12:00:00Z')]);
+ assert.deepEqual(Array.from(ctx.priceResultsTimes(rows([last,first]),null)),[Date.parse('2026-10-24T12:00:00Z'),Date.parse(last)]);
+ assert.deepEqual(Array.from(ctx.priceResultsTimes([],last)),[Date.parse(last)]);assert.deepEqual(Array.from(ctx.priceResultsTimes([],null)),[]);
+});

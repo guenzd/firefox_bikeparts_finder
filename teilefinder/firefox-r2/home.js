@@ -296,9 +296,17 @@ function recordPriceHistory(){
  const rows=priceObservations([...state.entries()].map(([name,s])=>({name,...s})),id,new Date().toISOString());
  historyWrites=historyWrites.then(()=>priceHistoryDB.put(rows)).catch(()=>{document.querySelector('#status').textContent='Preishistorie konnte nicht gespeichert werden.';});return historyWrites;
 }
+function dialogCloseButton(dialog){
+ const button=el('button'),icon=el('span','×');button.type='button';button.className='secondary dialog-close';button.title='Schließen';button.setAttribute('aria-label','Schließen');icon.setAttribute('aria-hidden','true');button.append(icon);button.addEventListener('click',()=>dialog.close());return button;
+}
+function priceResultsTimes(offers,fallback){
+ const times=[...new Set(offers.map(({shop})=>Date.parse(shop.checkedAt)).filter(Number.isFinite).map(time=>Math.floor(time/1000)*1000))].sort((a,b)=>a-b);
+ if(times.length)return times.length===1?times:[times[0],times.at(-1)];
+ const time=Date.parse(fallback);return Number.isFinite(time)?[time]:[];
+}
 async function showPriceHistory(item){
  if(!validEAN(item.ean)){document.querySelector('#status').textContent='Für den Preisverlauf wird eine bestätigte EAN benötigt.';return;}
- const trigger=document.activeElement,dialog=el('dialog');dialog.className='price-history-dialog';const heading=el('div'),title=el('h2',item.query);title.id='price-history-title';dialog.setAttribute('aria-labelledby',title.id);heading.className='shop-heading';heading.append(title);const close=el('button','Schließen');close.className='secondary';close.addEventListener('click',()=>dialog.close());heading.append(close);dialog.append(heading);
+ const trigger=document.activeElement,dialog=el('dialog');dialog.className='price-history-dialog';const heading=el('div'),title=el('h2',item.query);title.id='price-history-title';dialog.setAttribute('aria-labelledby',title.id);heading.className='shop-heading';heading.append(title);const close=dialogCloseButton(dialog);heading.append(close);dialog.append(heading);
  const controls=el('div');controls.className='history-controls';const range=el('select');for(const [value,label] of [['30','30 Tage'],['90','90 Tage'],['365','1 Jahr'],['0','Gesamter Verlauf']]){const option=el('option',label);option.value=value;range.append(option);}range.value='0';range.setAttribute('aria-label','Zeitraum');controls.append(range);const content=el('div');dialog.append(controls,content);document.body.append(dialog);dialog.addEventListener('close',()=>{dialog.remove();trigger?.focus();});dialog.showModal();close.focus();content.textContent='Preisverlauf wird geladen…';
  try{await historyWrites;const all=await priceHistoryDB.all(item.ean);const draw=()=>{content.replaceChildren();const cutoff=range.value==='0'?0:Date.now()-Number(range.value)*86400000;const rows=all.filter(r=>Date.parse(r.at)>=cutoff&&r.offers.length);if(!rows.length){content.append(el('p','Keine Preise in diesem Zeitraum.'));return;}
  const points=priceHistoryPoints(rows);const low=Math.min(...points.map(p=>p.price)),high=Math.max(...points.map(p=>p.price)),start=points[0].at,end=points.at(-1).at;const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 640 220');svg.setAttribute('role','img');svg.setAttribute('aria-label','Günstigster lieferbarer Preis über die Zeit');const node=(tag,attrs,text)=>{const n=document.createElementNS(svg.namespaceURI,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));if(text)n.textContent=text;svg.append(n);return n;};
@@ -317,15 +325,16 @@ function showWishlistPrices(itemId,trigger){
  const item=wishlist.find(row=>row.id===itemId);if(!item)return;
  const dialog=el('dialog');dialog.className='price-history-dialog item-prices-dialog';
  const heading=el('div');heading.className='shop-heading';const title=el('h2',item.query);title.id='item-prices-title';dialog.setAttribute('aria-labelledby',title.id);
- const close=el('button','Schließen');close.type='button';close.className='secondary';close.addEventListener('click',()=>dialog.close());heading.append(title,close);dialog.append(heading);
- const meta=[item.variant?'Gewünscht: '+item.variant:'Alle Varianten',item.ean?'EAN: '+item.ean:'',priceRangeText(item)?'Preis €: '+priceRangeText(item):''].filter(Boolean);dialog.append(el('p',meta.join(' · ')));
- const table=el('table'),head=el('tr');table.setAttribute('aria-label','Shoppreise für '+item.query);['Shop / Variante','Preis','Lagerstatus / Stand','Link'].forEach(label=>head.append(el('th',label)));appendTableHead(table,head);
+ const close=dialogCloseButton(dialog);heading.append(title,close);dialog.append(heading);
+ const meta=[item.variant?'Gewünscht: '+item.variant:'Alle Varianten',item.ean?'EAN: '+item.ean:'',priceRangeText(item)?'Preis €: '+priceRangeText(item):''].filter(Boolean),info=el('div');info.className='item-prices-info';info.append(el('span',meta.join(' · ')));dialog.append(info);
+ const table=el('table'),head=el('tr');table.setAttribute('aria-label','Shoppreise für '+item.query);['Shop / Variante','Preis','Lagerstatus','Link'].forEach(label=>head.append(el('th',label)));appendTableHead(table,head);
  const entries=names.flatMap(name=>wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state).filter(entry=>entry.item.id===itemId));
- const offers=wishlistPriceRows(entries,item);
+ const offers=wishlistPriceRows(entries,item),times=priceResultsTimes(offers,item.checkedAt);
+ if(times.length){const updated=el('span','Stand: '+times.map(time=>new Date(time).toLocaleString('de-DE')).join(' – '));updated.className='item-prices-updated';info.append(updated);}
  for(const {shop,offer} of offers){
    const row=el('tr'),product=el('td');product.append(el('strong',shop.name),el('small',offer.variant||offer.name));
    const price=el('td',(offer.priceKind==='from'?'ab ':'')+money(offer.price));price.className='price';
-   const stock=el('td',offer.stock||'Lagerstatus nicht auslesbar');if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));if(shop.checkedAt)stock.append(el('small',new Date(shop.checkedAt).toLocaleString('de-DE')));
+   const stock=el('td',offer.stock||'Lagerstatus nicht auslesbar');if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));
    const links=el('td');if(offer.url){const link=el('a','Öffnen');link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';link.addEventListener('click',event=>{event.preventDefault();void browser.tabs.create({url:offer.url}).catch(()=>{document.querySelector('#status').textContent='Shoplink konnte nicht geöffnet werden.';});});links.append(link,copyButton(offer.url));}
    row.append(product,price,stock,links);table.append(row);
  }
