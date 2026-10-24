@@ -96,3 +96,22 @@ test('Saved URLs drop referral metadata while retaining variant IDs and search q
  assert.match(original.shops[0].offers[0].url,/origin=SRP/);
  assert.equal(clean.cleanShopUrl('https://www.bike-discount.de/de/search?search=763477000385&REF=mail'),'https://www.bike-discount.de/de/search?search=763477000385');
 });
+
+test('Bare numeric variants match titles and selected values, while selected alternatives and prices stay strict',()=>{
+ assert.equal(match({name:'Acme chain 116 links',variant:'silver'},'116'),true);
+ assert.equal(match({name:'Acme chain CN-M9100',variant:'116 Glieder · silber'},'116'),true);
+ assert.equal(match({name:'Acme chain 116 links',variant:'126 Glieder · silber'},'116'),false);
+ assert.equal(match({name:'Acme chain ABC116',variant:'silver'},'116'),false);
+ assert.equal(match({name:'Acme chain',variant:'silver · 116,00 €'},'116'),false);
+ assert.equal(match({name:'Acme chain',variant:'EAN: 1234567890116'},'116'),false);
+});
+
+test('Exact model identifiers bridge shop series names without a product dictionary or loose numeric matching',()=>{
+ const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/suggestions.js',import.meta.url),'utf8'),c);
+ const query='Shimano Kette Dura Ace 12 fach CN-M9100';
+ for(const name of ['Shimano XTR CN-M9100 Kette 12-fach - mit Quick Link - silver','Shimano XTR CN-M9100 12-fach Kette mit Quick-Link'])assert.equal(c.matches(name,query),true);
+ for(const name of ['Shimano XTR CN-M8100 Kette 12-fach','Shimano XTR CN-M91000 Kette 12-fach','Other XTR CN-M9100 Kette 12-fach','Shimano Kettenschloss für CN-M9100 Kette 12-fach','Shimano Verschleißset CN-M9100 Kette 12-fach'])assert.equal(c.matches(name,query),false,name);
+ assert.equal(c.matches('Acme Touring BC-2400 Cable Kit','Acme Cable Racing BC-2400'),true);
+ assert.equal(c.matches('Acme BC-24000 Cable','Acme Racing Cable BC-2400'),false);
+ assert.equal(c.broaderQuery(query),'Shimano CN-M9100');assert.equal(c.broaderQuery('Shimano CN-M9100'),null);
+});

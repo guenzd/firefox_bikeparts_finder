@@ -21,6 +21,8 @@ function similarProducts(cards,query){
  }).filter(c=>c.similarity>=.55).sort((a,b)=>b.similarity-a.similarity||(a.price??Infinity)-(b.price??Infinity)).slice(0,5);
 }
 function broaderQuery(query){
+ const modelQuery=typeof modelSearchQuery==='function'?modelSearchQuery(query):null;
+ if(modelQuery)return modelQuery.toLowerCase()!==query.trim().toLowerCase()?modelQuery:null;
  const tokens=query.trim().split(/\s+/);if(/^\d{8,14}$/.test(query.trim()))return null;
  const next=tokens.length>2?tokens.slice(0,2).join(' '):tokens.length===2?tokens[0]:tokens[0].split(/[-\d]/)[0];
  return next&&next.length>=2&&next!==query.trim()?next:null;

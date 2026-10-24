@@ -3,7 +3,8 @@ function variantMatches(offer,requested){
  const normalize=s=>String(s||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[‐‑–—]/g,'-').replace(/\bblack\b/g,'schwarz').replace(/\bwhite\b/g,'weiss').replace(/[()\[\]|;]/g,' ').replace(/(?<!\d),|,(?!\d)/g,' ').replace(/(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(kg|g|ml|mm|cm|inch)\b/g,'$1x$2$3').replace(/(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(?:liter|litre|liters|litres|l)\b/gi,(_,n)=>String(Math.round(Number(n.replace(',','.'))*1000*1000)/1000)+'ml');
  // Listing link text can contain prices; prices must never count as dimensions.
  const name=String(offer.name||'').split(/\bUVP\b|\d{1,5}(?:\.\d{3})*,\d{2}\s*€/i)[0];
- const text=normalize(name+' '+(offer.variant||''));
+ const selectedText=String(offer.variant||'').replace(/\d{1,5}(?:\.\d{3})*(?:[.,]\d{2})\s*(?:€|EUR\b)/gi,'');
+ const text=normalize(name+' '+selectedText);
  const wanted=normalize(requested).replace(/(\d)\s+(mm|cm|ml|inch|g|kg)\b/g,'$1$2').split(/\s+/).filter(Boolean);
  return wanted.every(token=>{
   const dimension=token.match(/^(\d+(?:[.,]\d+)?)(mm|cm|ml|inch)?$/);
@@ -11,11 +12,13 @@ function variantMatches(offer,requested){
    const number=dimension[1].replace(',','.');const numeric=Number(number);
    const value=String(numeric).replace('.', '[.,]');
    const decimals=Number.isInteger(numeric)?'(?:[.,]0+)?':'';
-   const re=new RegExp('(?<![\\d.,])'+value+decimals+'(?![\\d.,])','i');
+   const re=new RegExp('(?<!'+(dimension[2]?'[\\d.,]':'[a-z0-9.,]')+')'+value+decimals+'(?![\\d.,])','i');
    let evidence=text;
-   const selected=normalize(offer.variant||'');
+   const selected=normalize(selectedText);
    const explicitUnit=dimension[2]&&new RegExp('\\d\\s*'+dimension[2]+'\\b','i').test(selected);
-   if(explicitUnit||/breite|width/.test(selected))evidence=selected;
+   const selectedNumbers=selected.replace(/\b(?:ean|gtin|upc)\s*:?\s*\d{8,14}\b/gi,'').replace(/\d+(?:[.,]\d+)?\s*(?:€|eur\b)/gi,'');
+   const selectedHasNumber=/(?<![a-z0-9.,])\d+(?:[.,]\d+)?(?![a-z0-9.,])/i.test(selectedNumbers);
+   if(explicitUnit||/breite|width/.test(selected)||!dimension[2]&&selectedHasNumber)evidence=selected;
    const occurrences=[...evidence.matchAll(new RegExp(re.source,'gi'))];
    return occurrences.some(m=>{const unit=evidence.slice(m.index+m[0].length).match(/^\s*(mm|cm|ml|inch)\b/)?.[1];return !dimension[2]||!unit||unit===dimension[2];});
   }

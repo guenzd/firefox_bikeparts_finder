@@ -457,3 +457,23 @@ test('Ad hoc EAN fallback retries only empty shops by name and preserves success
  calls.length=0;messages.length=0;job.nameFallback=false;job.results.clear();await ctx.searchAll(job);assert.equal(calls.length,4);assert.ok(calls.every(row=>row.query==='1234567890128'));
  calls.length=0;job.useEAN=false;job.query='Generic product';job.nameFallback=true;job.results.clear();await ctx.searchAll(job);assert.equal(calls.length,4);assert.ok(calls.every(row=>row.query==='Generic product'));
 });
+
+test('Generic model search finds differently named shop products and selects only the requested link count',async()=>{
+ let listener;const messages=[],updates=[],tabs=new Map(),home='moz-extension://unit/home.html';
+ const titles={'www.bike24.de':'Shimano XTR CN-M9100 Kette 12-fach - mit Quick Link - silver','www.bike-discount.de':'Shimano XTR CN-M9100 12-fach Kette mit Quick-Link','www.bike-components.de':'Shimano XTR / Dura-Ace Quick-Link Kette CN-M9100 12-fach','r2-bike.com':'SHIMANO XTR | Dura Ace Kette CN-M9100 12-fach | 116 Glieder'};
+ let ctx;
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create({url}){const id=new URL(url).hostname;tabs.set(id,url);return {id,url};},async update(id,{url}){updates.push(url);tabs.set(id,url);return {id,url};},async get(id){return {id,url:tabs.get(id)};},async sendMessage(id,data){
+  const name=titles[data.host],offer={name,url:'https://'+data.host+'/product',price:40,priceKind:'from',stock:'Lagerstatus nicht auslesbar',variant:'Ausführung im Shop prüfen'};
+  if(data.type==='detail')return {ready:true,offers:[{...offer,ean:'4524667879565',variant:'silber | 116 Glieder',priceKind:'exact',stock:'Auf Lager'},{...offer,ean:'4550170323134',variant:'silber | 126 Glieder',priceKind:'exact',stock:'Auf Lager'}]};
+  const shortQuery=tabs.get(id).includes(encodeURIComponent('Shimano CN-M9100'));
+  const missingFullName=['www.bike24.de','www.bike-discount.de'].includes(data.host)&&!shortQuery;
+  return {ready:true,empty:missingFullName,offers:!missingFullName&&ctx.matches(name,data.query)?[offer]:[],suggestions:[]};
+ }}};
+ ctx=vm.createContext({browser,URL,setTimeout:fastTimeout,clearTimeout});
+ vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/suggestions.js',import.meta.url),'utf8')+source,ctx);
+ await listener({type:'search',id:'model-variant',query:'Shimano Kette Dura Ace 12 fach CN-M9100',variant:'116',useEAN:false},{url:home,tab:{id:99}});
+ for(let i=0;i<80;i++)await new Promise(setImmediate);
+ const results=messages.filter(row=>row.type==='result');assert.equal(results.length,4);
+ for(const result of results){assert.equal(result.offers.length,1,result.shop);assert.equal(result.offers[0].variant,'silber | 116 Glieder');assert.equal(result.offers[0].ean,'4524667879565');}
+ assert.equal(updates.filter(url=>url.includes(encodeURIComponent('Shimano CN-M9100'))).length,2);
+});
