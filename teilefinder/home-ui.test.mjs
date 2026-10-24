@@ -213,6 +213,6 @@ test('Shop prices show a muted best-price comparison only for unequal current ex
  ctx.renderWishlistDetails(root);
  const all=node=>[node,...node.children.flatMap(all)],nodes=all(root),comparisons=nodes.filter(node=>node.className==='price-comparison');
  assert.equal(comparisons.length,2);assert.ok(comparisons.every(node=>node.children.length===1&&node.title==='Bestpreis 20 bei BIKE24'));
- assert.equal(comparisons[0].children[0].text,'+5');assert.equal(comparisons[1].children[0].text,'−2');
+ assert.equal(comparisons[0].children[0].text,'−5');assert.equal(comparisons[1].children[0].text,'+2');
  assert.ok(!nodes.some(node=>typeof node.text==='string'&&/^\d+ Artikel$/.test(node.text)));
 });

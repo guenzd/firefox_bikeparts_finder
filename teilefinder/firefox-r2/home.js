@@ -61,11 +61,11 @@ function renderWishlistDetails(root){
 
      if(validEAN(offer.ean)&&!hideEANs.get(item.id))product.append(eanRow(offer.ean,item.id));
      price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);
-     const best=bestOffers.get(item.id),difference=best?Math.round((offer.price-best.price)*100)/100:0;
+     const best=bestOffers.get(item.id),difference=best?Math.round((best.price-offer.price)*100)/100:0;
      if(best&&difference!==0&&!shop.stale&&offer.priceKind==='exact'){
       const comparison=el('small');comparison.className='price-comparison';comparison.title='Bestpreis '+money(best.price)+' bei '+best.shop;
       comparison.append(el('span',(difference>0?'+':'−')+money(Math.abs(difference))));
-      comparison.setAttribute('aria-label','Bestpreis '+money(best.price)+' · dieses Angebot '+money(Math.abs(difference))+(difference>0?' teurer':' günstiger'));price.append(comparison);
+      comparison.setAttribute('aria-label','Bestpreis '+money(best.price)+' · dieses Angebot '+money(Math.abs(difference))+(difference<0?' teurer':' günstiger'));price.append(comparison);
      }
      const availability=el('span',offer.stock);availability.className=deliverable(offer.stock)?'stock-available':(!offer.stock||/nicht auslesbar|unbekannt/i.test(offer.stock)?'stock-unknown':'stock-unavailable');stock.append(availability);
      links.append(resultLinkActions('Öffnen',offer.url));
