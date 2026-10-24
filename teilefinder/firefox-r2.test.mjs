@@ -440,3 +440,20 @@ test('Closing the owner while a child tab is being created cannot leave a late o
  await ctx.closeShopTabs(99);complete({id:42,url:'https://www.bike24.de/'});await rejected;
  assert.deepEqual(removed,[42]);assert.equal(vm.runInContext('shopTabs.size',ctx),0);
 });
+
+test('Ad hoc EAN fallback retries only empty shops by name and preserves successful EAN results',async()=>{
+ const messages=[],calls=[];
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}},async sendMessage(data){messages.push(data);}}};
+ const ctx=vm.createContext({browser,URL,setTimeout,clearTimeout});vm.runInContext(source,ctx);
+ ctx.run=async(job,shop,query=job.query)=>{
+  calls.push({shop:shop.name,query,knownEAN:job.knownEAN});
+  const found=query==='Generic product'||shop.id==='bike24';
+  job.results.set(shop.id,{shop:shop.name,query,type:'result',url:shop.search(query),offers:found?[{name:'Generic product',ean:'1234567890128',variant:'black',priceKind:'exact',price:20,stock:'Auf Lager',url:'https://'+shop.host+'/product'}]:[],message:found?'':'Kein Treffer mit bestätigter EAN.'});
+ };
+ const job={id:'test',source:99,query:'1234567890128',nameQuery:'Generic product',nameFallback:true,useEAN:true,knownEAN:'1234567890128',knownShops:[],variant:'black',results:new Map(),counts:new Map()};ctx.job=job;vm.runInContext('jobs.set(job.source,job)',ctx);
+ await ctx.searchAll(job);
+ assert.equal(calls.length,7);assert.equal(calls.filter(row=>row.query==='1234567890128').length,4);assert.equal(calls.filter(row=>row.query==='Generic product').length,3);assert.ok(calls.filter(row=>row.query==='Generic product').every(row=>row.shop!=='BIKE24'&&row.knownEAN===''));
+ assert.equal(messages.filter(row=>row.type==='result').length,4);assert.ok(messages.filter(row=>row.type==='result').every(row=>row.offers.length===1));
+ calls.length=0;messages.length=0;job.nameFallback=false;job.results.clear();await ctx.searchAll(job);assert.equal(calls.length,4);assert.ok(calls.every(row=>row.query==='1234567890128'));
+ calls.length=0;job.useEAN=false;job.query='Generic product';job.nameFallback=true;job.results.clear();await ctx.searchAll(job);assert.equal(calls.length,4);assert.ok(calls.every(row=>row.query==='Generic product'));
+});

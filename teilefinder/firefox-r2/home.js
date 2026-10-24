@@ -77,8 +77,9 @@ browser.runtime.onMessage.addListener(d=>{
  }
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
-  const shared=shareVariantEAN([...state.entries()].map(([name,s])=>({name,...s})),searchedVariant,activeItem?.useEAN===false?'':document.querySelector('#search-ean').value);
-  document.querySelector('#search-ean').value=activeItem?.useEAN===false?(activeItem.ean||shared.ean):shared.ean;shared.shops.forEach(s=>state.set(s.name,s));
+  const useEAN=activeItem?activeItem.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
+  const shared=shareVariantEAN([...state.entries()].map(([name,s])=>({name,...s})),searchedVariant,useEAN?document.querySelector('#search-ean').value:'');
+  document.querySelector('#search-ean').value=!useEAN?(activeItem?.ean||document.querySelector('#search-ean').value||shared.ean):shared.ean;shared.shops.forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:item.useEAN===false?(item.ean||shared.ean||''):(shared.ean||item.ean||'')}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
  document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);document.querySelector('#stop-search').hidden=true;void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
@@ -98,8 +99,8 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  wishlistDetails=checkingList;setWishlistCollapsed(!checkingList);
  const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,message:'Shopsuche wird geöffnet…'}));document.querySelector('#stop-search').hidden=false;render();document.querySelector('#status').textContent='Suche läuft…';
  searchedEAN=validEAN(document.querySelector('#search-ean').value);
- const useEAN=wishlist.find(item=>item.id===activeWishlistId)?.useEAN!==false;
- try{await browser.runtime.sendMessage({type:'search',query,useEAN,...(inputPriceRange(document.querySelector('#max'))||{}),ean:validEAN(document.querySelector('#search-ean').value),variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,validEAN(document.querySelector('#search-ean').value)||validEAN(query))});}catch{document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ const useEAN=checkingList?wishlist.find(item=>item.id===activeWishlistId)?.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
+ try{await browser.runtime.sendMessage({type:'search',query,useEAN,nameFallback:!checkingList&&useEAN,...(inputPriceRange(document.querySelector('#max'))||{}),ean:validEAN(document.querySelector('#search-ean').value),variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,validEAN(document.querySelector('#search-ean').value)||validEAN(query))});}catch{document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
@@ -191,7 +192,7 @@ document.querySelector('#add-wish').addEventListener('click',async()=>{
  const reuseResults=!wishlistDetails&&q===query&&requested===searchedVariant&&sameEAN&&names.every(name=>state.get(name)?.done);
  const shops=q===query&&requested===searchedVariant?[...state.entries()].filter(([,s])=>s.done).map(([name,s])=>({name,...s})):[];
  const itemId=crypto.randomUUID();
- wishlist.push({id:itemId,query:q,ean,...parsePriceRange(raw),variant:requested,shops,checkedAt:shops.reduce((at,shop)=>shop.checkedAt&&(!at||shop.checkedAt>at)?shop.checkedAt:at,null)});
+ wishlist.push({id:itemId,query:q,ean,useEAN:document.querySelector('#search-use-ean').checked!==false,...parsePriceRange(raw),variant:requested,shops,checkedAt:shops.reduce((at,shop)=>shop.checkedAt&&(!at||shop.checkedAt>at)?shop.checkedAt:at,null)});
  document.querySelector('#add-wish').disabled=true;
  try{await saveList();if(reuseResults){wishlistDetails=true;setWishlistCollapsed(false);renderWishlist();document.querySelector('#status').textContent='Artikel mit Ergebnissen übernommen.';}else await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList;}
 });
@@ -254,7 +255,7 @@ function copyButton(url,onUse){
 document.querySelector('#export-wishlist').addEventListener('click',async()=>{
  if(checkingList||(!wishlist.length&&!state.size))return;
  const raw=document.querySelector('#max').value;if(!inputPriceRange(document.querySelector('#max'))){document.querySelector('#max').reportValidity();return;}
- const screen={wishlistDetails,query:document.querySelector('#query').value,variant:document.querySelector('#search-variant').value,ean:document.querySelector('#search-ean').value,...parsePriceRange(raw),searchedQuery:query,searchedVariant,shops:[...state.entries()].map(([name,s])=>({name,...s}))};
+ const screen={wishlistDetails,query:document.querySelector('#query').value,variant:document.querySelector('#search-variant').value,ean:document.querySelector('#search-ean').value,useEAN:document.querySelector('#search-use-ean').checked!==false,...parsePriceRange(raw),searchedQuery:query,searchedVariant,shops:[...state.entries()].map(([name,s])=>({name,...s}))};
  let history;try{await historyWrites;history=await priceHistoryDB.all();}catch{document.querySelector('#status').textContent='Preishistorie konnte nicht exportiert werden.';return;}
  const blob=new Blob([wishlistFile(wishlist,screen,history)],{type:'application/json'}),url=URL.createObjectURL(blob);
  const link=el('a');link.href=url;link.download='teilefinder-wunschliste-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
@@ -269,7 +270,7 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
   await priceHistoryDB.put(incoming.history||[]);
   const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
   await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
-  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void browser.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));document.querySelector('#stop-search').hidden=true;render();}
+  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void browser.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));document.querySelector('#stop-search').hidden=true;render();}
   renderWishlist();
   document.querySelector('#status').textContent=added+' Artikel importiert · Ergebnisse wiederhergestellt.';
  }catch(error){document.querySelector('#status').textContent='Import fehlgeschlagen: '+(error instanceof SyntaxError?'Ungültige JSON-Datei.':error.message);}

@@ -39,7 +39,7 @@ browser.runtime.onMessage.addListener((data,sender)=>{
  if(data?.type==='cancel'){jobs.delete(sender.tab.id);return Promise.resolve({cancelled:true});}
  if(data?.type!=='search'||typeof data.query!=='string'||!data.query.trim()||data.query.length>160||typeof data.id!=='string')return;
  if(data.variant!==undefined&&(typeof data.variant!=='string'||data.variant.length>100))return;
- const job={id:data.id,maxPrice:Number.isFinite(data.maxPrice)&&data.maxPrice>=0?data.maxPrice:null,knownEAN:validEAN(data.ean),useEAN:data.useEAN!==false,query:(data.useEAN===false?'':validEAN(data.ean))||productSearchQuery(data.query,(data.variant||'')),variant:(data.variant||'').trim(),source:sender.tab.id,results:new Map(),counts:new Map(),knownShops:Array.isArray(data.knownShops)?data.knownShops.slice(0,4):[]};jobs.set(job.source,job);
+ const job={nameQuery:productSearchQuery(data.query,data.variant||''),nameFallback:data.nameFallback===true,id:data.id,maxPrice:Number.isFinite(data.maxPrice)&&data.maxPrice>=0?data.maxPrice:null,knownEAN:validEAN(data.ean),useEAN:data.useEAN!==false,query:(data.useEAN===false?'':validEAN(data.ean))||productSearchQuery(data.query,(data.variant||'')),variant:(data.variant||'').trim(),source:sender.tab.id,results:new Map(),counts:new Map(),knownShops:Array.isArray(data.knownShops)?data.knownShops.slice(0,4):[]};jobs.set(job.source,job);
  void searchAll(job).catch(async()=>{if(!jobActive(job))return;for(const shop of shops){const result=job.results.get(shop.id)||{offers:[],suggestions:[],message:'Shopprüfung fehlgeschlagen.'};await browser.runtime.sendMessage({...result,type:'result',target:job.source,id:job.id,query:job.query,shop:shop.name,url:shop.search(job.query)}).catch(()=>{});}}).finally(()=>{if(jobActive(job))jobs.delete(job.source);});
  return Promise.resolve({accepted:true});
 });
@@ -98,6 +98,17 @@ function matchesKnownProduct(title,query,offer,knownEAN){
 async function searchAll(job){
  await loadProductHints(job);if(!jobActive(job))return;
  await Promise.all(shops.map(shop=>run(job,shop)));
+ if(!jobActive(job))return;
+ if(job.nameFallback&&job.useEAN&&validEAN(job.query)&&!validEAN(job.nameQuery)){
+  await Promise.all(shops.filter(shop=>{
+   const result=job.results.get(shop.id);return result&&!result.offers?.length&&!/Sicherheitsprüfung|Zeitlimit|Shopfehler|geschlossen|fehlgeschlagen|nicht abgeschlossen/i.test(result.message||'');
+  }).map(async shop=>{
+   const previous=job.results.get(shop.id);
+   await browser.runtime.sendMessage({...previous,type:'status',message:'Kein EAN-Treffer · suche nach Name…'}).catch(()=>{});
+   if(!jobActive(job))return;
+   await run({...job,root:job,knownEAN:'',knownShops:[]},shop,job.nameQuery);
+  }));
+ }
  if(!jobActive(job))return;
  const shared=shareVariantEAN([...job.results.values()],job.variant,validEAN(job.query));
  if(job.useEAN&&shared.ean&&shared.ean!==job.query){
@@ -189,7 +200,7 @@ async function runShop(job,shop,searchQuery=job.query){
 
 async function suggestionDetails(tab,shop,job,rows,send){
  const enriched=new Map();
- for(const row of rows.filter(o=>!exceedsSearchBudget(o,job)&&(!validEAN(o.ean)||validEAN(o.ean)===job.knownEAN)&&!listingVariantConflict(o,job.variant)).slice(0,3)){
+ for(const row of rows.filter(o=>!exceedsSearchBudget(o,job)&&(!job.knownEAN||!validEAN(o.ean)||validEAN(o.ean)===job.knownEAN)&&!listingVariantConflict(o,job.variant)).slice(0,3)){
   if(!jobActive(job))break;
   await send({type:'status',message:'EAN und Ausführungen ähnlicher Produkte werden geprüft…'});
   await browser.tabs.update(tab.id,{url:row.url});
