@@ -92,3 +92,5 @@ Das Preisfeld akzeptiert ein Maximum (z. B. `10`) oder einen Bereich (z. B. `5-1
 Die Oberfläche folgt automatisch dem in Firefox eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen.
 
 Shopprüfungen haben ein Gesamtzeitlimit von 60 Sekunden (EAN-Nachsuche: 30 Sekunden). Bei einem blockierten Shop bleiben abgeschlossene Ergebnisse erhalten und die Wunschliste wird fortgesetzt. Eine zusätzliche Absicherung nach 105 Sekunden pro Artikel verhindert das Warten auf verlorene Abschlussmeldungen. Übersprungene Shops und ältere Ergebnisse werden entsprechend gekennzeichnet.
+
+Mit „Shop-Tabs schließen“ werden die von diesem Teilefinder-Tab geöffneten Shop-Tabs gemeinsam geschlossen und eine laufende Suche gestoppt. Gespeicherte Ergebnisse bleiben erhalten. Beim Schließen des Teilefinder-Tabs werden seine Shop-Tabs automatisch geschlossen. Selbst geöffnete Shop-Tabs und die Tabs anderer Teilefinder-Fenster bleiben erhalten.

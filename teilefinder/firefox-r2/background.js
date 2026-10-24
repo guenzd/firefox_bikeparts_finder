@@ -1,10 +1,31 @@
 const shops=[{id:'bike24',name:'BIKE24',host:'www.bike24.de',search:q=>'https://www.bike24.de/suchergebnis?searchTerm='+encodeURIComponent(q)},{id:'bike-discount',name:'Bike-Discount',host:'www.bike-discount.de',search:q=>'https://www.bike-discount.de/de/search?search='+encodeURIComponent(q)},{id:'bike-components',name:'bike-components',host:'www.bike-components.de',search:q=>'https://www.bike-components.de/de/s/?keywords='+encodeURIComponent(q)},{id:'r2-bike',name:'r2-bike',host:'r2-bike.com',search:q=>'https://r2-bike.com/suchergebnisse#search?query='+encodeURIComponent(q)}];
-const jobs=new Map(),shopTabs=new Map();
+const jobs=new Map(),shopTabs=new Map(),tabSessions=new Map();
 async function shopTab(source,shop,url,active=false){
+ const session=tabSessions.get(source)||{};tabSessions.set(source,session);
+ const current=()=>tabSessions.get(source)===session;
  const key=source+":"+shop.id,existing=shopTabs.get(key);
- if(existing!==undefined){try{const tab=await browser.tabs.get(existing);const host=new URL(tab.url).hostname.replace(/^www\./,"");if(host===shop.host.replace(/^www\./,""))return await browser.tabs.update(existing,{url,active});}catch{}shopTabs.delete(key);}
- const tab=await browser.tabs.create({url,active});shopTabs.set(key,tab.id);return tab;
+ if(existing!==undefined){
+  try{
+   const tab=await browser.tabs.get(existing);if(!current())throw Error('Shop-Tabs geschlossen');
+   const host=new URL(tab.url).hostname.replace(/^www\./,"");
+   if(host===shop.host.replace(/^www\./,""))return await browser.tabs.update(existing,{url,active});
+  }catch{}
+  if(!current())throw Error('Shop-Tabs geschlossen');shopTabs.delete(key);
+ }
+ const tab=await browser.tabs.create({url,active});
+ if(!current()){await browser.tabs.remove(tab.id).catch(()=>{});throw Error('Shop-Tabs geschlossen');}
+ shopTabs.set(key,tab.id);return tab;
 }
+async function closeShopTabs(source){
+ jobs.delete(source);tabSessions.delete(source);
+ const ids=[];for(const [key,id] of shopTabs){if(key.startsWith(source+':')){shopTabs.delete(key);ids.push(id);}}
+ const results=await Promise.allSettled(ids.map(id=>browser.tabs.remove(id)));
+ return {closed:results.filter(result=>result.status==='fulfilled').length};
+}
+browser.tabs?.onRemoved?.addListener(tabId=>{
+ for(const [key,id] of shopTabs)if(id===tabId)shopTabs.delete(key);
+ return closeShopTabs(tabId);
+});
 browser.browserAction.onClicked.addListener(()=>browser.tabs.create({url:browser.runtime.getURL('home.html')}));
 function jobActive(job){return jobs.get(job.source)===(job.root||job)&&!job.cancelled;}
 async function boundedOperation(promise,ms){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Zeitlimit überschritten')),ms);})]);}finally{clearTimeout(timer);}}
@@ -14,6 +35,7 @@ function boundedMessage(tab,data,ms=15000){
 }
 browser.runtime.onMessage.addListener((data,sender)=>{
  if(!sender.tab||sender.url!==browser.runtime.getURL('home.html'))return;
+ if(data?.type==='close-shop-tabs')return closeShopTabs(sender.tab.id);
  if(data?.type==='cancel'){jobs.delete(sender.tab.id);return Promise.resolve({cancelled:true});}
  if(data?.type!=='search'||typeof data.query!=='string'||!data.query.trim()||data.query.length>160||typeof data.id!=='string')return;
  if(data.variant!==undefined&&(typeof data.variant!=='string'||data.variant.length>100))return;

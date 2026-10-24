@@ -269,10 +269,18 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
 });
 
 
-document.querySelector('#stop-search').addEventListener('click',()=>{
+function stopCurrentSearch(){
  clearTimeout(searchDeadline);stopRequested=true;void browser.runtime.sendMessage({type:'cancel'});id='';document.querySelector('#stop-search').hidden=true;
  if(finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,shop])=>({name,...shop})));}
  document.querySelector('#status').textContent='Suche gestoppt. Ergebnisse bleiben erhalten.';
+}
+document.querySelector('#stop-search').addEventListener('click',stopCurrentSearch);
+document.querySelector('#close-shop-tabs').addEventListener('click',async()=>{
+ const button=document.querySelector('#close-shop-tabs');if(button.disabled)return;button.disabled=true;
+ stopCurrentSearch();
+ try{await browser.runtime.sendMessage({type:'close-shop-tabs'});document.querySelector('#status').textContent='Shop-Tabs geschlossen. Ergebnisse bleiben erhalten.';}
+ catch{document.querySelector('#status').textContent='Shop-Tabs konnten nicht geschlossen werden.';}
+ finally{button.disabled=false;}
 });
 
 let historyWrites=Promise.resolve();

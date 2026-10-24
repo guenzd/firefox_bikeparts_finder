@@ -416,3 +416,27 @@ test('A hung sixth article in an eleven-item batch times out, preserves complete
  }
  const count=messages.length;lateTab();for(let tick=0;tick<20;tick++)await new Promise(setImmediate);assert.equal(messages.length,count);assert.equal(timers.size,0);
 });
+
+test('One-click tab cleanup closes only the requesting extension tab’s children; owner closure cleans up automatically',async()=>{
+ let messageListener,removedListener,nextId=0;const tabs=new Map([[777,{id:777,url:'https://www.bike24.de/manually-opened'}]]),removed=[];
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=> 'moz-extension://test/home.html',onMessage:{addListener(fn){messageListener=fn;}}},tabs:{onRemoved:{addListener(fn){removedListener=fn;}},async create({url}){const tab={id:++nextId,url};tabs.set(tab.id,tab);return tab;},async get(id){if(!tabs.has(id))throw Error('Closed');return tabs.get(id);},async update(id,data){Object.assign(tabs.get(id),data);return tabs.get(id);},async remove(id){removed.push(id);tabs.delete(id);}}};
+ const ctx=vm.createContext({browser,URL,setTimeout,clearTimeout});vm.runInContext(source,ctx);
+ for(let index=0;index<4;index++)await vm.runInContext(`shopTab(99,shops[${index}],shops[${index}].search('part'))`,ctx);
+ await vm.runInContext("shopTab(100,shops[0],shops[0].search('other'))",ctx);
+ assert.equal(messageListener({type:'close-shop-tabs'},{url:'https://www.bike24.de/',tab:{id:99}}),undefined);assert.equal(removed.length,0);
+ const result=await messageListener({type:'close-shop-tabs'},{url:'moz-extension://test/home.html',tab:{id:99}});
+ assert.equal(result.closed,4);assert.deepEqual(removed,[1,2,3,4]);assert.ok(tabs.has(5));assert.ok(tabs.has(777));
+ assert.equal((await messageListener({type:'close-shop-tabs'},{url:'moz-extension://test/home.html',tab:{id:99}})).closed,0);
+ await removedListener(100);assert.deepEqual(removed,[1,2,3,4,5]);assert.ok(tabs.has(777));
+ const fresh=await vm.runInContext("shopTab(99,shops[0],shops[0].search('new'))",ctx);assert.equal(fresh.id,6);
+});
+
+test('Closing the owner while a child tab is being created cannot leave a late orphan tab',async()=>{
+ let complete;const removed=[];
+ const browser={browserAction:{onClicked:{addListener(){}}},runtime:{onMessage:{addListener(){}}},tabs:{create:()=>new Promise(resolve=>{complete=resolve;}),async remove(id){removed.push(id);}}};
+ const ctx=vm.createContext({browser,URL,setTimeout,clearTimeout});vm.runInContext(source,ctx);
+ const pending=vm.runInContext("shopTab(99,shops[0],shops[0].search('part'))",ctx);
+ const rejected=assert.rejects(pending,/Shop-Tabs geschlossen/);
+ await ctx.closeShopTabs(99);complete({id:42,url:'https://www.bike24.de/'});await rejected;
+ assert.deepEqual(removed,[42]);assert.equal(vm.runInContext('shopTabs.size',ctx),0);
+});
