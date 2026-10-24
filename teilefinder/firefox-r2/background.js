@@ -40,7 +40,7 @@ browser.runtime.onMessage.addListener((data,sender)=>{
  if(data?.type!=='search'||typeof data.query!=='string'||!data.query.trim()||data.query.length>160||typeof data.id!=='string')return;
  if(data.variant!==undefined&&(typeof data.variant!=='string'||data.variant.length>100))return;
  const job={id:data.id,maxPrice:Number.isFinite(data.maxPrice)&&data.maxPrice>=0?data.maxPrice:null,knownEAN:validEAN(data.ean),useEAN:data.useEAN!==false,query:(data.useEAN===false?'':validEAN(data.ean))||productSearchQuery(data.query,(data.variant||'')),variant:(data.variant||'').trim(),source:sender.tab.id,results:new Map(),counts:new Map(),knownShops:Array.isArray(data.knownShops)?data.knownShops.slice(0,4):[]};jobs.set(job.source,job);
- void searchAll(job).catch(async()=>{if(!jobActive(job))return;for(const shop of shops){const result=job.results.get(shop.id)||{offers:[],suggestions:[],message:'Shopprüfung fehlgeschlagen. Die Liste wird fortgesetzt.'};await browser.runtime.sendMessage({...result,type:'result',target:job.source,id:job.id,query:job.query,shop:shop.name,url:shop.search(job.query)}).catch(()=>{});}}).finally(()=>{if(jobActive(job))jobs.delete(job.source);});
+ void searchAll(job).catch(async()=>{if(!jobActive(job))return;for(const shop of shops){const result=job.results.get(shop.id)||{offers:[],suggestions:[],message:'Shopprüfung fehlgeschlagen.'};await browser.runtime.sendMessage({...result,type:'result',target:job.source,id:job.id,query:job.query,shop:shop.name,url:shop.search(job.query)}).catch(()=>{});}}).finally(()=>{if(jobActive(job))jobs.delete(job.source);});
  return Promise.resolve({accepted:true});
 });
 function exceedsSearchBudget(offer,job){return job.maxPrice!=null&&Number.isFinite(offer.price)&&['exact','from'].includes(offer.priceKind)&&offer.price>job.maxPrice;}
@@ -120,10 +120,10 @@ async function run(job,shop,searchQuery=job.query){
  catch{
   if(jobActive(job)){
    const previous=job.results.get(shop.id);
-   job.results.set(shop.id,{...previous,type:'result',target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(searchQuery),offers:previous?.offers||[],suggestions:previous?.suggestions||[],message:'Zeitlimit oder Shopfehler. Bereits erfasste Ergebnisse bleiben erhalten; die Liste wird fortgesetzt.'});
+   job.results.set(shop.id,{...previous,type:'result',target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(searchQuery),offers:previous?.offers||[],suggestions:previous?.suggestions||[],message:'Zeitlimit oder Shopfehler · bisherige Ergebnisse'});
   }
  }finally{task.cancelled=true;}
- if(jobActive(job)&&!job.results.has(shop.id))job.results.set(shop.id,{type:'result',target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(searchQuery),offers:[],message:'Shopprüfung ohne Abschluss. Die Liste wird fortgesetzt.'});
+ if(jobActive(job)&&!job.results.has(shop.id))job.results.set(shop.id,{type:'result',target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(searchQuery),offers:[],message:'Shopprüfung nicht abgeschlossen.'});
 }
 async function runShop(job,shop,searchQuery=job.query){
  let tab;
@@ -147,12 +147,12 @@ async function runShop(job,shop,searchQuery=job.query){
  try{
   const hints=trustedProductHints(job.knownShops.find(s=>s.name===shop.name)?.offers,shop).filter(o=>!validEAN(searchQuery)||validEAN(o.ean)===searchQuery);
   tab=await shopTab(job.source,shop,hints[0]?.url||shop.search(searchQuery));
-  if(hints.length){await send({type:'status',message:'Bekannte Produktseiten werden direkt aktualisiert…'});const direct=await readKnownProducts(job,shop,tab,searchQuery);if(!jobActive(job))return;if(direct.length){await send({type:'result',offers:direct,message:'Preise und Lagerstatus direkt auf den gespeicherten Produktseiten aktualisiert.'});return;}await browser.tabs.update(tab.id,{url:shop.search(searchQuery)});}
+  if(hints.length){await send({type:'status',message:'Bekannte Produktseiten werden direkt aktualisiert…'});const direct=await readKnownProducts(job,shop,tab,searchQuery);if(!jobActive(job))return;if(direct.length){await send({type:'result',offers:direct,message:''});return;}await browser.tabs.update(tab.id,{url:shop.search(searchQuery)});}
   let previous='',stable=0,last,broadened=false,emptyReads=0;
   for(let i=0;i<12&&jobActive(job);i++){
    await pause(2000);if(!jobActive(job))return;
    try{last=await boundedMessage(tab.id,{type:'extract',query:searchQuery,variant:job.variant,host:shop.host,shopId:shop.id});}catch{try{await browser.tabs.get(tab.id);}catch{throw Error('Tab geschlossen');}continue;}
-   if(last.blocked){emptyReads=0;await send({type:'status',message:'Sicherheitsprüfung: Bitte den '+shop.name+'-Tab öffnen und dort selbst abschließen. Ergebnisse werden danach automatisch übernommen.'});continue;}
+   if(last.blocked){emptyReads=0;await send({type:'status',message:'Sicherheitsprüfung: '+shop.name+'-Tab öffnen und Prüfung abschließen.'});continue;}
    last.offers=Array.isArray(last.offers)?last.offers:[];
    emptyReads=!last.offers.length&&!last.suggestions?.length?emptyReads+1:0;
    const signature=JSON.stringify([last.offers,last.suggestions]);stable=signature===previous?stable+1:0;previous=signature;
@@ -173,15 +173,15 @@ async function runShop(job,shop,searchQuery=job.query){
     }
     const expanded=uniqueOffers(rows.flatMap(row=>variants.get(row)||[row])),matching=expanded.filter(o=>variantMatches(o,job.variant)&&(!validEAN(searchQuery)||validEAN(o.ean)===searchQuery));
     if(validEAN(searchQuery)&&!matching.length){await send({type:'result',offers:[],message:'Kein Treffer mit bestätigter EAN '+searchQuery+'.'});return;}
-    if(job.variant&&!matching.length){await send({type:'result',offers:[],suggestions:expanded.slice(0,12),variantAlternatives:true,message:'Produktname gefunden. Gewünschte Variante „'+job.variant+'“ nicht bestätigt. Gefundene Ausführungen:'});return;}
-    await send({type:'result',offers:matching,message:limited?'Bis zu 24 Variantenkombinationen pro Produkt geprüft. Weitere Ausführungen bitte im Shop prüfen.':''});return;
+    if(job.variant&&!matching.length){await send({type:'result',offers:[],suggestions:expanded.slice(0,12),variantAlternatives:true,message:'Variante „'+job.variant+'“ nicht bestätigt.'});return;}
+    await send({type:'result',offers:matching,message:limited?'Weitere Varianten im Shop prüfen.':''});return;
    }
    if(!validEAN(searchQuery)&&!last.offers.length&&last.suggestions?.length&&stable>=1){
     const suggestions=await suggestionDetails(tab,shop,job,last.suggestions,send);
     const confirmed=suggestions.filter(o=>o.identityConfirmed);
-    await send({type:'result',offers:confirmed,suggestions:confirmed.length?[]:suggestions,message:confirmed.length?'Produkt anhand der EAN und gewünschten Variante bestätigt.':'Kein genauer Treffer. Diese ähnlichen Produkte bitte prüfen.'});return;
+    await send({type:'result',offers:confirmed,suggestions:confirmed.length?[]:suggestions,message:confirmed.length?'':'Kein genauer Treffer.'});return;
    }
-   if(stable>=2&&(last.empty||(emptyReads>=4&&last.ready)||emptyReads>=8)){const broader=validEAN(searchQuery)?null:broaderQuery(searchQuery);if(!broadened&&broader){broadened=true;emptyReads=0;previous='';stable=0;await send({type:'status',message:'Keine genauen Treffer. Ähnliche Produkte werden gesucht…'});await browser.tabs.update(tab.id,{url:shop.search(broader)});continue;}await send({type:'result',offers:[],message:'Keine passenden Angebote in der Shopsuche gefunden.'});return;}
+   if(stable>=2&&(last.empty||(emptyReads>=4&&last.ready)||emptyReads>=8)){const broader=validEAN(searchQuery)?null:broaderQuery(searchQuery);if(!broadened&&broader){broadened=true;emptyReads=0;previous='';stable=0;await send({type:'status',message:'Keine genauen Treffer. Ähnliche Produkte werden gesucht…'});await browser.tabs.update(tab.id,{url:shop.search(broader)});continue;}await send({type:'result',offers:[],message:'Keine passenden Angebote gefunden.'});return;}
   }
   if(jobActive(job))await send({type:'result',offers:last?.offers||[],message:last?.blocked?'Der Shop verlangt weiterhin eine Sicherheitsprüfung. Bitte dort abschließen und erneut suchen.':'Keine Angebote ausgelesen. Bitte Suchbegriff und sichtbare Shop-Ergebnisse prüfen.'});
  }catch{if(jobActive(job))await send({type:'result',offers:[],message:'Shop-Tab wurde geschlossen oder konnte nicht gelesen werden. Bitte erneut suchen.'});}

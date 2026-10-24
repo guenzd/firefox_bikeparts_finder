@@ -87,3 +87,12 @@ test('Saved wishlist shop results remain rendered in their own container during 
  ctx.render();assert.deepEqual(saved.children,[offer]);assert.equal(heading.hidden,false);
  ctx.wishlistDetails=true;ctx.render();assert.deepEqual(saved.children,[offer]);assert.equal(heading.hidden,true);assert.deepEqual(direct.children,[]);
 });
+
+test('Result text hides redundant success notices from older saved results but keeps actionable messages',()=>{
+ const ctx=vm.createContext({});
+ vm.runInContext(home.slice(home.indexOf('function resultMessage('),home.indexOf('function render(){')),ctx);
+ assert.equal(ctx.resultMessage('Preise und Lagerstatus direkt auf den gespeicherten Produktseiten aktualisiert.'),'');
+ assert.equal(ctx.resultMessage('Produkt anhand der EAN und gewünschten Variante bestätigt.'),'');
+ for(const text of ['Zeitlimit überschritten','Sicherheitsprüfung: Shop-Tab öffnen','Variante nicht bestätigt','Weitere Varianten im Shop prüfen.'])assert.equal(ctx.resultMessage(text),text);
+ assert.equal(ctx.resultMessage(undefined),'');
+});
