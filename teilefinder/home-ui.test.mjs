@@ -175,3 +175,15 @@ test('Complete cross-shop EAN consensus hides repeated rows in totals and shop l
  item.shops[0].stale=true;ctx.renderTotal();assert.ok(eanRows>0);
  eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
 });
+
+test('Wishlist button fill follows completed shops and items, never regresses, and resets after a run',()=>{
+ const attrs={},style={},classes=new Set();const button={classList:{toggle(name,on){on?classes.add(name):classes.delete(name);}},style:{setProperty(k,v){style[k]=v;},removeProperty(k){delete style[k];}},setAttribute(k,v){attrs[k]=v;},removeAttribute(k){delete attrs[k];}};
+ const ctx=vm.createContext({wishlistProgress:{completed:0,total:2,percent:0},document:{querySelector:()=>button}});
+ vm.runInContext(home.slice(home.indexOf('function updateWishlistProgress('),home.indexOf("document.querySelector('#check-wishlist').addEventListener")),ctx);
+ ctx.updateWishlistProgress();assert.equal(style['--wishlist-progress'],'0%');assert.equal(button.textContent,'Prüfe 1 / 2…');assert.ok(classes.has('is-checking'));
+ ctx.updateWishlistProgress(2);assert.equal(style['--wishlist-progress'],'25%');assert.match(attrs['aria-label'],/25 Prozent.*Stoppen/);
+ ctx.updateWishlistProgress(1);assert.equal(style['--wishlist-progress'],'25%');
+ ctx.wishlistProgress.completed=1;ctx.updateWishlistProgress();assert.equal(style['--wishlist-progress'],'50%');assert.equal(button.textContent,'Prüfe 2 / 2…');
+ ctx.updateWishlistProgress(4);assert.equal(style['--wishlist-progress'],'100%');
+ ctx.wishlistProgress=null;ctx.updateWishlistProgress();assert.equal(style['--wishlist-progress'],undefined);assert.equal(attrs['aria-label'],undefined);assert.equal(button.textContent,'Wunschliste prüfen');assert.ok(!classes.has('is-checking'));
+});

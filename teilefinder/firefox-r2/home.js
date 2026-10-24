@@ -1,6 +1,7 @@
 let currentTab;browser.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
 const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
 let searchDeadline;
+let wishlistProgress=null;
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
 const saveList=()=>browser.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
@@ -84,7 +85,7 @@ browser.runtime.onMessage.addListener(d=>{
   document.querySelector('#search-ean').value=!useEAN?(activeItem?.ean||document.querySelector('#search-ean').value||shared.ean):shared.ean;shared.shops.forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:item.useEAN===false?(item.ean||shared.ean||''):(shared.ean||item.ean||'')}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
- document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
+ document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress(done);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
 });
 document.querySelector('#max').addEventListener('input',()=>{inputPriceRange(document.querySelector('#max'));render();});
 document.querySelector('#search-variant').addEventListener('input',render);
@@ -232,16 +233,27 @@ async function recheckWishlistItem(itemId){
  finally{checkingList=false;finishSearch=null;renderWishlist();render();}
 }
 
+function updateWishlistProgress(shopsDone=0){
+ const button=document.querySelector('#check-wishlist');
+ button.classList.toggle('is-checking',!!wishlistProgress);
+ if(!wishlistProgress){button.style.removeProperty('--wishlist-progress');button.removeAttribute('aria-label');button.textContent='Wunschliste prüfen';return;}
+ const {completed,total}=wishlistProgress;
+ const fraction=(completed+Math.min(4,Math.max(0,shopsDone))/4)/total;
+ wishlistProgress.percent=Math.max(wishlistProgress.percent,Math.min(100,Math.round(fraction*100)));
+ button.style.setProperty('--wishlist-progress',wishlistProgress.percent+'%');
+ button.textContent='Prüfe '+Math.min(completed+1,total)+' / '+total+'…';
+ button.setAttribute('aria-label','Wunschliste prüfen: '+wishlistProgress.percent+' Prozent abgeschlossen. Klicken zum Stoppen.');
+}
 document.querySelector('#check-wishlist').addEventListener('click',async()=>{
- if(checkingList){stopCurrentSearch();return;}checkingList=true;stopRequested=false;renderWishlist();
+ if(checkingList){stopCurrentSearch();return;}if(!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
  try{
   for(let i=0;i<wishlist.length&&!stopRequested;i++){
    const item=wishlist[i];activeWishlistId=item.id;document.querySelector('#search-ean').value=item.ean||'';document.querySelector('#query').value=item.query;document.querySelector('#max').value=priceRangeText(item);document.querySelector('#search-variant').value=item.variant||'';
-   document.querySelector('#check-wishlist').textContent='Prüfe '+(i+1)+' / '+wishlist.length+'…';
-   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);const found=await pending;wishlist=applyWishlistSearch(wishlist,item.id,found,new Date().toISOString());await saveList();renderTotal();
+   wishlistProgress.completed=i;updateWishlistProgress();
+   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);const found=await pending;if(!stopRequested){wishlistProgress.completed=i+1;updateWishlistProgress();}wishlist=applyWishlistSearch(wishlist,item.id,found,new Date().toISOString());await saveList();renderTotal();
   }
   document.querySelector('#status').textContent=stopRequested?'Suche gestoppt.':'Wunschliste geprüft.';
- }catch{document.querySelector('#status').textContent='Wunschlistenprüfung konnte nicht abgeschlossen werden.';}finally{checkingList=false;finishSearch=null;document.querySelector('#check-wishlist').textContent='Wunschliste prüfen';renderWishlist();render();}
+ }catch{document.querySelector('#status').textContent='Wunschlistenprüfung konnte nicht abgeschlossen werden.';}finally{checkingList=false;finishSearch=null;wishlistProgress=null;updateWishlistProgress();renderWishlist();render();}
 });
 
 function copyListButton(offers,shopName=''){

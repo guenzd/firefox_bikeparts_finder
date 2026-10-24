@@ -213,3 +213,13 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .wish-row .recheck-button:hover{background:var(--hover);color:var(--ink)}
 .wish-row .remove-button:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-line)}
 .wish-row .recheck-button svg,.wish-row .remove-button svg{display:block;width:18px;height:18px;margin:0;flex-shrink:0}
+
+/* Real completed shop checks fill the existing stop button without extra space. */
+#check-wishlist.is-checking{
+ background-color:var(--secondary);color:var(--ink);
+ background-image:linear-gradient(to right,
+  color-mix(in srgb,var(--accent) 38%,var(--secondary)) 0 var(--wishlist-progress,0%),
+  transparent var(--wishlist-progress,0%) 100%);
+}
+#check-wishlist.is-checking:hover{background-color:var(--hover)}
+@media(forced-colors:active){#check-wishlist.is-checking{background-image:none;border:1px solid ButtonBorder}}
