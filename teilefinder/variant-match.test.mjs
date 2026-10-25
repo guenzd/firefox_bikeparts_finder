@@ -1,5 +1,6 @@
+import {readSource} from './test-sources.mjs';
 import {test} from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
-const ctx=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8'),ctx);
+const ctx=vm.createContext({});vm.runInContext(readSource('variant-match.js'),ctx);
 const match=(offer,requested)=>{ctx.offer=offer;ctx.requested=requested;return vm.runInContext('variantMatches(offer,requested)',ctx);};
 test('Width matches separate product names and selected dropdown variants',()=>{
  assert.equal(match({name:'Continental GP 5000 700x30C',variant:'Ausführung im Shop prüfen'},'30 mm'),true);
@@ -29,7 +30,7 @@ test('Aero 111 base name stays separate from a duplicated requested width',()=>{
  assert.equal(vm.runInContext('productSearchQuery(query,variant)',ctx),'Continental Aero 111');
 });
 test('Product matching accepts model name separators',()=>{
- const helpers=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8'),helpers);
+ const helpers=vm.createContext({});vm.runInContext(readSource('extract.js'),helpers);
  assert.equal(vm.runInContext('matches(\'Continental Aero 111 Tubeless Ready 28" Faltreifen\',\'Continental Aero-111\')',helpers),true);
  assert.equal(vm.runInContext('matches(\'DT Swiss ARC 1100\',\'Continental Aero-111\')',helpers),false);
 });
@@ -44,14 +45,14 @@ test('Sealant volumes match liters and milliliters while rejecting other capacit
 });
 
 test('Peatys brand apostrophes normalize identically in all extraction paths',()=>{
- const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({});vm.runInContext(readSource('extract.js'),c);
  c.query="Peaty's Holeshot BioFibre";
  for(const brand of ['PEATYS','PEATY´S','Peaty’s',"Peaty's"]){c.name=brand+' Dichtmittel Holeshot Biofibre Tubeless Sealant | 1000 ml';assert.equal(vm.runInContext('matches(name,query)',c),true);}
  assert.equal(match({name:'PEATY´S Dichtmittel Holeshot Biofibre Tubeless Sealant | 1000 ml'},'1 L'),true);
 });
 
 test('Generic abbreviations, compound suggestions and typos need no product-specific dictionary',()=>{
- const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/suggestions.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({});vm.runInContext(readSource('extract.js')+readSource('suggestions.js'),c);
  assert.equal(c.matches('Acme Ultra Light Cable','Acme UL Cable'),true);
  assert.equal(c.matches('Acme UL Cable','Acme Ultra Light Cable'),true);
  assert.equal(c.matches('Acme Light Cable','Acme UL Cable'),false);
@@ -88,7 +89,7 @@ test('Long variant words allow one generic edit while numeric identifiers stay e
 });
 
 test('Saved URLs drop referral metadata while retaining variant IDs and search queries',()=>{
- const clean=vm.createContext({URL});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8'),clean);
+ const clean=vm.createContext({URL});vm.runInContext(readSource('variant-match.js'),clean);
  const original={shops:[{url:'https://r2-bike.com/suchergebnisse#search?query=8055136020431',offers:[{url:'https://www.bike-components.de/product/?o=123-black&v=456&origin=SRP&utm_source=email&referrer=search&ref=affiliate&gclid=abc'}]}]};
  const saved=clean.cleanSavedUrls(original);
  assert.equal(saved.shops[0].url,original.shops[0].url);
@@ -107,7 +108,7 @@ test('Bare numeric variants match titles and selected values, while selected alt
 });
 
 test('Exact model identifiers bridge shop series names without a product dictionary or loose numeric matching',()=>{
- const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/extract.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/suggestions.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({});vm.runInContext(readSource('extract.js')+readSource('suggestions.js'),c);
  const query='Shimano Kette Dura Ace 12 fach CN-M9100';
  for(const name of ['Shimano XTR CN-M9100 Kette 12-fach - mit Quick Link - silver','Shimano XTR CN-M9100 12-fach Kette mit Quick-Link'])assert.equal(c.matches(name,query),true);
  for(const name of ['Shimano XTR CN-M8100 Kette 12-fach','Shimano XTR CN-M91000 Kette 12-fach','Other XTR CN-M9100 Kette 12-fach','Shimano Kettenschloss für CN-M9100 Kette 12-fach','Shimano Verschleißset CN-M9100 Kette 12-fach'])assert.equal(c.matches(name,query),false,name);

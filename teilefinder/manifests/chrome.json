@@ -1,0 +1,60 @@
+{
+  "manifest_version": 3,
+  "name": "Teilefinder – Fahrradteile vergleichen",
+  "version": "0.8.18",
+  "description": "Vergleicht Fahrradteile in vier Shops direkt in deinem Browser. Ohne lokalen Server.",
+  "permissions": [
+    "storage",
+    "clipboardWrite",
+    "declarativeNetRequest"
+  ],
+  "background": {
+    "service_worker": "platform/chrome-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://r2-bike.com/*",
+        "https://www.r2-bike.com/*",
+        "https://www.bike24.de/*",
+        "https://www.bike-discount.de/*",
+        "https://www.bike-components.de/*"
+      ],
+      "js": [
+        "platform/api.js",
+        "platform/content.js",
+        "core/products.js",
+        "core/variant-match.js",
+        "shops/extract.js",
+        "core/suggestions.js",
+        "shops/variants.js",
+        "core/wishlist.js",
+        "shops/reader.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "assets/icon-16.png",
+    "32": "assets/icon-32.png",
+    "48": "assets/icon-48.png",
+    "128": "assets/icon-128.png"
+  },
+  "minimum_chrome_version": "114",
+  "action": {
+    "default_title": "Teilefinder öffnen",
+    "default_icon": {
+      "16": "assets/icon-16.png",
+      "32": "assets/icon-32.png",
+      "48": "assets/icon-48.png",
+      "128": "assets/icon-128.png"
+    }
+  },
+  "host_permissions": [
+    "https://r2-bike.com/*",
+    "https://www.r2-bike.com/*",
+    "https://www.bike24.de/*",
+    "https://www.bike-discount.de/*",
+    "https://www.bike-components.de/*"
+  ]
+}

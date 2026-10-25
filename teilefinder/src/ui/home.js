@@ -1,11 +1,13 @@
-let currentTab;browser.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
+let currentTab;platform.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
 const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
 let searchDeadline;
+let searchRunning=false;
 let wishlistProgress=null;
+let wishlistEditor=null;
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
-const saveList=()=>browser.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
-browser.storage.local.get('wishlist').then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
+const saveList=()=>platform.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
+platform.storage.local.get('wishlist').then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(tag==='th'){n.scope='col';if(text==='Preis')n.className='price-heading';}return n;};
 function appendTableHead(table,row){const head=el('thead');head.append(row);table.append(head);}
 function resultMessage(message){
@@ -47,7 +49,7 @@ function renderWishlistDetails(root){
  for(const name of names){
   const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
-  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';heading.append(el('h3',name),copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
+  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';table.setAttribute('aria-label',name+' · Wunschliste');
   const head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
   for(const {item,shop} of entries){
@@ -61,11 +63,11 @@ function renderWishlistDetails(root){
 
      if(validEAN(offer.ean)&&!hideEANs.get(item.id))product.append(eanRow(offer.ean,item.id));
      price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);
-     const best=bestOffers.get(item.id),difference=best?Math.round((best.price-offer.price)*100)/100:0;
+     const best=bestOffers.get(item.id),difference=best?Math.round((offer.price-best.price)*100)/100:0;
      if(best&&difference!==0&&!shop.stale&&offer.priceKind==='exact'){
       const comparison=el('small');comparison.className='price-comparison';comparison.title='Bestpreis '+money(best.price)+' bei '+best.shop;
       comparison.append(el('span',(difference>0?'+':'−')+money(Math.abs(difference))));
-      comparison.setAttribute('aria-label','Bestpreis '+money(best.price)+' · dieses Angebot '+money(Math.abs(difference))+(difference<0?' teurer':' günstiger'));price.append(comparison);
+      comparison.setAttribute('aria-label','Bestpreis '+money(best.price)+' · dieses Angebot '+money(Math.abs(difference))+(difference>0?' teurer':' günstiger'));price.append(comparison);
      }
      const availability=el('span',offer.stock);availability.className=deliverable(offer.stock)?'stock-available':(!offer.stock||/nicht auslesbar|unbekannt/i.test(offer.stock)?'stock-unknown':'stock-unavailable');stock.append(availability);
      links.append(resultLinkActions('Öffnen',offer.url));
@@ -83,7 +85,7 @@ function renderWishlistDetails(root){
   wrap.append(table);article.append(wrap);root.append(article);
  }
 }
-browser.runtime.onMessage.addListener(d=>{
+platform.runtime.onMessage.addListener(d=>{
  if(d.target!==currentTab||d.id!==id||!names.includes(d.shop))return;
  const previous=state.get(d.shop);if(d.type==='status')state.set(d.shop,{...previous,message:d.message});
  if(['result','partial-result'].includes(d.type)){
@@ -91,16 +93,17 @@ browser.runtime.onMessage.addListener(d=>{
   const suggestions=(d.suggestions||[]).filter(o=>{try{return new URL(o.url).protocol==='https:'&&new URL(o.url).hostname.replace(/^www\./,'')===new URL(d.url).hostname.replace(/^www\./,'')&&typeof o.name==='string';}catch{return false;}});
   const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||validEAN(o.ean)===requestedEAN);
   const kept=!offers.length&&previousOffers.length;
-  state.set(d.shop,{queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),done:d.type==='result'});
+  state.set(d.shop,{queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
  }
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
   const useEAN=activeItem?activeItem.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
-  const shared=shareVariantEAN([...state.entries()].map(([name,s])=>({name,...s})),searchedVariant,useEAN?document.querySelector('#search-ean').value:'');
-  document.querySelector('#search-ean').value=!useEAN?(activeItem?.ean||document.querySelector('#search-ean').value||shared.ean):shared.ean;filterConflictingEANs(shared.shops,useEAN?shared.ean:'').forEach(s=>state.set(s.name,s));
+  const currentEAN=activeItem?activeItem.ean||'':document.querySelector('#search-ean').value;
+  const shared=shareVariantEAN([...state.entries()].map(([name,s])=>({name,...s})),searchedVariant,useEAN?currentEAN:'');
+  if(!activeItem)document.querySelector('#search-ean').value=!useEAN?(currentEAN||shared.ean):shared.ean;filterConflictingEANs(shared.shops,useEAN?shared.ean:'').forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:item.useEAN===false?(item.ean||shared.ean||''):(shared.ean||item.ean||'')}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
- document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress(done);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
+ document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress([...state.values()].filter(s=>s.checked||s.done).length);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
 });
 document.querySelector('#max').addEventListener('input',()=>{inputPriceRange(document.querySelector('#max'));render();});
 document.querySelector('#search-variant').addEventListener('input',render);
@@ -113,20 +116,27 @@ function setWishlistCollapsed(collapsed){
 }
 document.querySelector('#wishlist-toggle').addEventListener('click',()=>setWishlistCollapsed(document.querySelector('#wishlist-toggle').getAttribute('aria-expanded')==='true'));
 function setSearchRunning(running){
+ searchRunning=running;const busy=running||checkingList;
+ for(const control of document.querySelectorAll?.('#search input, #search button, #add-wish, #import-wishlist, [data-shop-action], .wishlist-editor input, .wishlist-editor button')||[])control.disabled=busy;
+ document.querySelector('#check-wishlist').disabled=!wishlist.length||(running&&!checkingList);
  document.querySelector('#stop-search').hidden=!running;
  const progress=document.querySelector('#status');progress.disabled=!running;progress.title=running?'Suche stoppen':'';
 }
 async function startSearch(q,requested=document.querySelector('#search-variant').value.trim(),savedShops){
+ if(searchRunning)return;
  clearTimeout(searchDeadline);searchDeadline=setTimeout(finishTimedOutSearch,105000);
  wishlistDetails=checkingList;setWishlistCollapsed(!checkingList);
- const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,message:'Shopsuche wird geöffnet…'}));setSearchRunning(true);render();document.querySelector('#status').textContent='Suche läuft…';
- searchedEAN=validEAN(document.querySelector('#search-ean').value);
- const useEAN=checkingList?wishlist.find(item=>item.id===activeWishlistId)?.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
- try{await browser.runtime.sendMessage({type:'search',query,useEAN,nameFallback:!checkingList&&useEAN,...(inputPriceRange(document.querySelector('#max'))||{}),ean:validEAN(document.querySelector('#search-ean').value),variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,validEAN(document.querySelector('#search-ean').value)||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,checked:false,message:'Shopsuche wird geöffnet…'}));setSearchRunning(true);render();document.querySelector('#status').textContent='Suche läuft…';
+ const item=checkingList?wishlist.find(row=>row.id===activeWishlistId):null;
+ const ean=validEAN(item?item.ean:document.querySelector('#search-ean').value);
+ const range=item?{minPrice:item.minPrice,maxPrice:item.maxPrice}:inputPriceRange(document.querySelector('#max'));
+ searchedEAN=ean;
+ const useEAN=item?item.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
+ try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
-document.querySelector('#search').addEventListener('submit',e=>{e.preventDefault();if(checkingList)return;if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity())return;const q=document.querySelector('#query').value.trim();if(q){activeWishlistId='';void startSearch(q);}});
+document.querySelector('#search').addEventListener('submit',e=>{e.preventDefault();if(checkingList||searchRunning)return;if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity())return;const q=document.querySelector('#query').value.trim();if(q){activeWishlistId='';void startSearch(q);}});
 function enableDirectEditing(input,savedValue){
  let selectOnClick=false;
  input.addEventListener('pointerdown',()=>{selectOnClick=document.activeElement!==input;});
@@ -142,35 +152,52 @@ function wishlistActionIcon(path){
  for(const [name,value] of Object.entries({viewBox:'0 0 24 24',width:'18',height:'18',fill:'none',stroke:'currentColor','stroke-width':'2','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))svg.setAttribute(name,value);
  const shape=document.createElementNS(svg.namespaceURI,'path');shape.setAttribute('d',path);svg.append(shape);return svg;
 }
+function wishlistRowActions(item){
+ const actions=el('div');actions.className='wishlist-row-actions';
+ const edit=el('button','Bearbeiten');edit.type='button';edit.className='secondary';edit.disabled=checkingList||searchRunning;edit.dataset.shopAction='';
+ edit.dataset.editItem=item.id;edit.setAttribute('aria-label','Artikel bearbeiten: '+item.query);edit.setAttribute('aria-expanded',String(wishlistEditor?.id===item.id));if(wishlistEditor?.id===item.id)edit.setAttribute('aria-controls','wish-editor-'+item.id);
+ edit.addEventListener('click',()=>{
+  if(wishlistEditor?.id===item.id){wishlistEditor=null;renderTotal();return;}
+  wishlistEditor={id:item.id,query:item.query,ean:item.ean||'',variant:item.variant||'',price:priceRangeText(item),useEAN:item.useEAN!==false};
+  renderTotal();document.querySelector('#wish-editor-'+item.id+' input')?.focus();
+ });actions.append(edit);
+ const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
+ recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.addEventListener('click',()=>{wishlistEditor=null;void recheckWishlistItem(item.id);});
+ const remove=el('button');remove.type='button';remove.className='secondary remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList||searchRunning;remove.dataset.shopAction='';
+ remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.addEventListener('click',()=>{wishlist=wishlist.filter(row=>row.id!==item.id);if(wishlistEditor?.id===item.id)wishlistEditor=null;void saveList();renderWishlist();});
+ actions.append(recheck,remove);return actions;
+}
+function appendWishlistEditor(table,item){
+ if(wishlistEditor?.id!==item.id)return;
+ const draft=wishlistEditor,row=el('tr'),cell=el('td'),form=el('form');row.className='wishlist-editor-row';cell.colSpan=6;form.className='wishlist-editor';form.id='wish-editor-'+item.id;form.setAttribute('aria-label','Artikel bearbeiten: '+item.query);
+ const field=(text,key)=>{const label=el('label',text),input=el('input');input.value=draft[key];input.disabled=checkingList;input.addEventListener('input',()=>{draft[key]=input.value;});label.append(input);if(key==='ean'){const group=el('div');group.className='editor-ean';group.append(label);form.append(group);}else form.append(label);return input;};
+ const name=field('Produktname','query');name.required=true;name.maxLength=160;
+ const ean=field('EAN','ean');ean.inputMode='numeric';ean.pattern='[0-9]{8,14}';ean.maxLength=14;ean.placeholder='Wird automatisch ergänzt';ean.dataset.eanItem=item.id;
+ const toggleLabel=el('label','EAN verwenden'),toggle=el('input');toggle.type='checkbox';toggle.checked=draft.useEAN;toggle.disabled=checkingList;toggle.addEventListener('change',()=>{draft.useEAN=toggle.checked;});toggleLabel.className='editor-ean-toggle';toggleLabel.append(toggle);ean.parentElement.parentElement.append(toggleLabel);
+ const variant=field('Ausführung','variant');variant.maxLength=100;variant.placeholder='Alle Varianten';
+ const price=field('Preis €','price');price.placeholder='10 / 5–10';price.addEventListener('input',()=>inputPriceRange(price));
+ const buttons=el('div');buttons.className='wishlist-editor-actions';
+ const save=el('button','Speichern');save.type='submit';save.disabled=checkingList;
+ const cancel=el('button','Abbrechen');cancel.type='button';cancel.className='secondary';cancel.disabled=checkingList;cancel.addEventListener('click',()=>{wishlistEditor=null;renderTotal();document.querySelector('[data-edit-item="'+item.id+'"]')?.focus();});
+ buttons.append(save,cancel);form.append(buttons);
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();if(checkingList)return;
+  const range=inputPriceRange(price);if(!range){price.reportValidity();return;}if(!form.reportValidity())return;
+  const corrected=name.value.trim();if(!corrected)return;
+  save.disabled=true;cancel.disabled=true;
+  try{
+   const renamed=renameWishlistItem(wishlist,item.id,corrected),newVariant=variant.value.trim(),newEAN=validEAN(ean.value);
+   const updated=renamed.map(value=>value.id===item.id?{...value,...range,variant:newVariant,ean:newVariant!==(item.variant||'')&&newEAN===(item.ean||'')?'':newEAN,useEAN:toggle.checked}:value);
+   await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;wishlistEditor=null;renderWishlist();document.querySelector('[data-edit-item="'+item.id+'"]')?.focus();document.querySelector('#status').textContent='Artikel gespeichert.';
+  }catch{save.disabled=false;cancel.disabled=false;document.querySelector('#status').textContent='Artikel konnte nicht gespeichert werden.';}
+ });
+ form.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();if(!cancel.disabled)cancel.click();}});
+ cell.append(form);row.append(cell);table.append(row);
+}
 function renderWishlist(){
- const root=document.querySelector('#wishlist-items');root.replaceChildren();
- if(!wishlist.length)root.append(el('p','Noch keine Artikel gespeichert.'));
- for(const item of wishlist){
-  const row=el('div');row.className='wish-row';
-  const nameCell=el('div');nameCell.className='wish-name';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));nameCell.append(productButton);
-  const rename=el('button','Bearbeiten');rename.type='button';rename.className='secondary rename-button';rename.title='Name korrigieren';rename.setAttribute('aria-label','Name korrigieren: '+item.query);rename.disabled=checkingList;
-  rename.addEventListener('click',()=>{
-   const form=el('form');form.className='wish-name-editor';const name=el('input');name.value=item.query;name.maxLength=160;name.required=true;name.setAttribute('aria-label','Produktname korrigieren');
-   const save=el('button','Speichern');save.type='submit';const cancel=el('button','Abbrechen');cancel.type='button';cancel.className='secondary';
-   cancel.addEventListener('click',renderWishlist);
-   form.addEventListener('submit',async event=>{
-    event.preventDefault();const corrected=name.value.trim();if(checkingList||!corrected)return;
-    save.disabled=true;cancel.disabled=true;
-    try{const updated=renameWishlistItem(wishlist,item.id,corrected);await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderWishlist();document.querySelector('#status').textContent='Name gespeichert. Artikel erneut prüfen.';}
-    catch{save.disabled=false;cancel.disabled=false;document.querySelector('#status').textContent='Name konnte nicht gespeichert werden.';}
-   });
-   form.append(name,save,cancel);nameCell.replaceChildren(form);name.focus();name.select();
-  });nameCell.append(rename);const history=el('button','Preisverlauf');history.type='button';history.className='history-button';history.addEventListener('click',()=>showPriceHistory(item));nameCell.append(history);const eanLabel=el('div'),eanInput=el('input');eanInput.value=item.ean||'';eanInput.dataset.eanItem=item.id;eanInput.placeholder='Wird automatisch ergänzt';eanInput.inputMode='numeric';eanInput.pattern='[0-9]{8,14}';eanInput.maxLength=14;eanInput.disabled=checkingList;eanInput.addEventListener('change',()=>{if(eanInput.value&&!validEAN(eanInput.value)){eanInput.reportValidity();return;}item.ean=validEAN(eanInput.value);void saveList();});eanInput.id='ean-'+item.id;const eanToggle=el('input');eanToggle.type='checkbox';eanToggle.setAttribute('role','switch');eanToggle.className='ean-toggle';eanToggle.checked=item.useEAN!==false;eanToggle.disabled=checkingList;eanToggle.title='EAN für die Suche verwenden';eanToggle.setAttribute('aria-label','EAN für '+item.query+' verwenden');eanToggle.addEventListener('change',()=>{item.useEAN=eanToggle.checked;void saveList();});const eanHeading=el('div'),eanText=el('label','EAN');eanText.htmlFor=eanInput.id;eanHeading.className='ean-heading';eanHeading.append(eanText,eanToggle);eanLabel.replaceChildren(eanHeading,eanInput);eanLabel.className='wish-ean';row.append(nameCell,eanLabel);
-  const recheck=el('button');recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.type='button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.className='secondary recheck-button';recheck.disabled=checkingList;recheck.addEventListener('click',()=>void recheckWishlistItem(item.id));
-  const priceLabel=el('label','Preis €'),input=el('input');priceLabel.className='wish-price';input.type='text';input.inputMode='text';input.placeholder='10 / 5-10';input.value=priceRangeText(item);input.disabled=checkingList;enableDirectEditing(input,()=>priceRangeText(item));
-  input.addEventListener('input',()=>inputPriceRange(input));
-  input.addEventListener('change',()=>{const range=inputPriceRange(input);if(!range){input.reportValidity();return;}Object.assign(item,range);void saveList();renderTotal();render();});priceLabel.append(input);
-  const variantLabel=el('label','Ausführung'),variant=el('input');variantLabel.className='wish-variant';variant.className='variant-input';variant.placeholder='Alle Varianten';variant.value=item.variant||'';variant.disabled=checkingList;enableDirectEditing(variant,()=>item.variant||'');variant.addEventListener('change',()=>{item.variant=variant.value.trim();item.ean='';eanInput.value='';void saveList();renderTotal();render();});variantLabel.append(variant);row.append(variantLabel,priceLabel,recheck);
-  const remove=el('button');remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.type='button';remove.className='remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList;remove.addEventListener('click',()=>{wishlist=wishlist.filter(i=>i.id!==item.id);void saveList();renderWishlist();});row.append(remove);root.append(row);
- }
  document.querySelector('#check-wishlist').disabled=!wishlist.length;document.querySelector('#check-wishlist').title=checkingList?'Suche stoppen':'';document.querySelector('#add-wish').disabled=checkingList;document.querySelector('#search-submit').disabled=checkingList;
  document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);document.querySelector('#import-wishlist').disabled=checkingList;
- renderTotal();render();
+ setSearchRunning(searchRunning);renderTotal();render();
 }
 function suggestionRow(suggestion,item,variantAlternative=false){
  const row=el('div');row.className='suggestion-row';row.append(el('strong',suggestion.name));
@@ -178,14 +205,14 @@ function suggestionRow(suggestion,item,variantAlternative=false){
  if(suggestion.variant)row.append(el('small',suggestion.variant));
  if(Number.isFinite(suggestion.price))row.append(el('small',(suggestion.priceKind==='from'?'ab ':'')+money(suggestion.price)));
  const link=el('a','Im Shop prüfen');link.href=suggestion.url;link.target='_blank';link.rel='noopener noreferrer';row.append(link,copyButton(suggestion.url));
- const choose=el('button',variantAlternative?'Ohne Variantenfilter suchen':item?'Für diesen Artikel übernehmen':'Mit diesem Namen suchen');choose.disabled=checkingList;
+ const choose=el('button',variantAlternative?'Ohne Variantenfilter suchen':item?'Für diesen Artikel übernehmen':'Mit diesem Namen suchen');choose.disabled=checkingList||searchRunning;choose.dataset.shopAction='';
  choose.addEventListener('click',async()=>{
-  if(checkingList||choose.disabled)return;choose.disabled=true;
+  if(checkingList||searchRunning||choose.disabled)return;choose.disabled=true;
   try{
   if(variantAlternative){document.querySelector('#search-variant').value='';void startSearch(query,'');}
   else if(item){item.query=suggestion.name.slice(0,160);item.shops=[];item.checkedAt=null;await saveList();await recheckWishlistItem(item.id);}
   else{document.querySelector('#search-ean').value='';document.querySelector('#query').value=suggestion.name.slice(0,160);await startSearch(suggestion.name.slice(0,160));}
-  }catch{document.querySelector('#status').textContent='Vorschlag konnte nicht übernommen oder gesucht werden.';}finally{choose.disabled=checkingList;}
+  }catch{document.querySelector('#status').textContent='Vorschlag konnte nicht übernommen oder gesucht werden.';}finally{choose.disabled=checkingList||searchRunning;}
  });row.append(choose);return row;
 }
 function eanRow(value,itemId=activeWishlistId){
@@ -199,30 +226,31 @@ function eanRow(value,itemId=activeWishlistId){
  });button.title='EAN übernehmen und kopieren';button.setAttribute('aria-label','EAN '+value+' übernehmen und kopieren');row.append(button);return row;
 }
 function renderTotal(){
- const root=document.querySelector('#wishlist-total');root.replaceChildren();if(!wishlist.length)return;
+ const root=document.querySelector('#wishlist-total');root.replaceChildren();if(!wishlist.length){root.append(el('p','Noch keine Artikel gespeichert.'));return;}
  const summary=cheapestWishlist(wishlist),box=el('div');box.className='total';
  const heading=el('div');heading.className='total-heading';heading.append(el('strong',(summary.complete?'Günstigster Gesamtpreis: ':'Teilsumme: ')+money(summary.total)),el('small',summary.complete?wishlist.length+' Artikel lieferbar':summary.missing+' Artikel ohne lieferbares Angebot im Preisbereich'));heading.append(copyListButton(summary.rows.flatMap(({best})=>best?[best]:[])));box.append(heading);
  const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='total-results';table.setAttribute('aria-label','Günstigste lieferbare Angebote');
- const head=el('tr');['Artikel / Variante','Günstigster Shop','Preis','Lagerstatus / Stand','Link'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
+ const head=el('tr');['Artikel / Variante','Günstigster Shop','Preis','Lagerstatus / Stand','Link','Aktionen'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
  const previous=[];
- for(const {item,best,missingMessage} of summary.rows){
+ for(const {item,best,availableShops,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));product.append(productButton);
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
 
-  const ean=validEAN(best?.ean)||validEAN(item.ean);if(ean&&!allShopsHaveDisplayedOffers(item.shops||[],item))product.append(eanRow(ean,item.id));
-  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
+
+  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
   else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
+  const history=el('button',price.textContent);history.type='button';history.className='price-history-trigger';history.title='Preisverlauf';history.setAttribute('aria-label','Preisverlauf für '+item.query);history.addEventListener('click',()=>showPriceHistory(item));price.replaceChildren(history);
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));
-  row.append(product,shop,price,stock,links);table.append(row);
+  const actions=el('td');actions.className='wishlist-actions-cell';actions.append(wishlistRowActions(item));row.append(product,shop,price,stock,links,actions);table.append(row);appendWishlistEditor(table,item);
   for(const oldShop of (item.shops||[]).filter(s=>s.stale))for(const offer of oldShop.offers||[])previous.push({item,shop:oldShop,offer});
-  if(!best){const suggestions=priceFilteredSuggestions([...new Map((item.shops||[]).flatMap(s=>s.suggestions||[]).map(s=>[s.url,s])).values()],item).slice(0,5);if(suggestions.length){const extra=el('tr'),cell=el('td'),details=el('details');cell.colSpan=5;details.append(el('summary','Ähnliche Produkte ('+suggestions.length+')'));suggestions.forEach(s=>details.append(suggestionRow(s,item)));cell.append(details);extra.append(cell);table.append(extra);}}
+  if(!best){const suggestions=priceFilteredSuggestions([...new Map((item.shops||[]).flatMap(s=>s.suggestions||[]).map(s=>[s.url,s])).values()],item).slice(0,5);if(suggestions.length){const extra=el('tr'),cell=el('td'),details=el('details');cell.colSpan=6;details.append(el('summary','Ähnliche Produkte ('+suggestions.length+')'));suggestions.forEach(s=>details.append(suggestionRow(s,item)));cell.append(details);extra.append(cell);table.append(extra);}}
  }
  wrap.append(table);box.append(wrap);
  if(previous.length){const details=el('details');details.className='previous-offers';details.append(el('summary','Frühere Angebote · nicht bestätigt ('+previous.length+')'));for(const {item,shop,offer} of previous){const line=el('p');line.append(el('b',item.query),document.createTextNode(' · '+shop.name+' · '+money(offer.price)+' '));const link=el('a','Öffnen');link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';line.append(link,copyButton(offer.url));if(shop.checkedAt)line.append(el('small',' · '+new Date(shop.checkedAt).toLocaleString('de-DE')));details.append(line);}box.append(details);}
  root.append(box);
 }
 document.querySelector('#add-wish').addEventListener('click',async()=>{
- if(checkingList||document.querySelector('#add-wish').disabled)return;
+ if(checkingList||searchRunning||document.querySelector('#add-wish').disabled)return;
  const q=document.querySelector('#query').value.trim(),raw=document.querySelector('#max').value;
  if(!q){document.querySelector('#query').reportValidity();return;}
  if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity()||!document.querySelector('#search-ean').reportValidity())return;
@@ -233,20 +261,19 @@ document.querySelector('#add-wish').addEventListener('click',async()=>{
  const itemId=crypto.randomUUID();
  wishlist.push({id:itemId,query:q,ean,useEAN:document.querySelector('#search-use-ean').checked!==false,...parsePriceRange(raw),variant:requested,shops,checkedAt:shops.reduce((at,shop)=>shop.checkedAt&&(!at||shop.checkedAt>at)?shop.checkedAt:at,null)});
  document.querySelector('#add-wish').disabled=true;
- try{await saveList();if(reuseResults){wishlistDetails=true;setWishlistCollapsed(false);renderWishlist();document.querySelector('#status').textContent='Artikel mit Ergebnissen übernommen.';}else await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList;}
+ try{await saveList();if(reuseResults){wishlistDetails=true;setWishlistCollapsed(false);renderWishlist();document.querySelector('#status').textContent='Artikel mit Ergebnissen übernommen.';}else await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList||searchRunning;}
 });
 async function recheckWishlistItem(itemId){
- if(checkingList)return;const item=wishlist.find(row=>row.id===itemId);if(!item)return;
- checkingList=true;stopRequested=false;activeWishlistId=itemId;renderWishlist();
+ if(checkingList||searchRunning)return;const item=wishlist.find(row=>row.id===itemId);if(!item)return;
+ checkingList=true;stopRequested=false;activeWishlistId=itemId;wishlistProgress={completed:0,total:1,percent:0,single:true};updateWishlistProgress();renderWishlist();
  try{
-  document.querySelector('#search-ean').value=item.ean||'';document.querySelector('#query').value=item.query;document.querySelector('#max').value=priceRangeText(item);document.querySelector('#search-variant').value=item.variant||'';
   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);
   const shops=await pending;
   const updated=applyWishlistSearch(wishlist,itemId,shops,new Date().toISOString());
-  await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderTotal();
+  await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderTotal();
   document.querySelector('#status').textContent='„'+item.query+'“ erneut geprüft.';
  }catch{document.querySelector('#status').textContent='Artikel konnte nicht erneut geprüft werden.';}
- finally{checkingList=false;finishSearch=null;renderWishlist();render();}
+ finally{checkingList=false;finishSearch=null;wishlistProgress=null;updateWishlistProgress();renderWishlist();render();}
 }
 
 function updateWishlistProgress(shopsDone=0){
@@ -257,14 +284,14 @@ function updateWishlistProgress(shopsDone=0){
  const fraction=(completed+Math.min(4,Math.max(0,shopsDone))/4)/total;
  wishlistProgress.percent=Math.max(wishlistProgress.percent,Math.min(100,Math.round(fraction*100)));
  button.style.setProperty('--wishlist-progress',wishlistProgress.percent+'%');
- button.textContent='Prüfe '+Math.min(completed+1,total)+' / '+total+'…';
+ button.textContent=wishlistProgress.single?Math.min(4,Math.max(0,shopsDone))+' / 4 Shops…':'Prüfe '+Math.min(completed+1,total)+' / '+total+'…';
  button.setAttribute('aria-label','Wunschliste prüfen: '+wishlistProgress.percent+' Prozent abgeschlossen. Klicken zum Stoppen.');
 }
 document.querySelector('#check-wishlist').addEventListener('click',async()=>{
- if(checkingList){stopCurrentSearch();return;}if(!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
+ if(checkingList){stopCurrentSearch();return;}if(searchRunning||!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
  try{
   for(let i=0;i<wishlist.length&&!stopRequested;i++){
-   const item=wishlist[i];activeWishlistId=item.id;document.querySelector('#search-ean').value=item.ean||'';document.querySelector('#query').value=item.query;document.querySelector('#max').value=priceRangeText(item);document.querySelector('#search-variant').value=item.variant||'';
+   const item=wishlist[i];activeWishlistId=item.id;
    wishlistProgress.completed=i;updateWishlistProgress();
    const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);const found=await pending;if(!stopRequested){wishlistProgress.completed=i+1;updateWishlistProgress();}wishlist=applyWishlistSearch(wishlist,item.id,found,new Date().toISOString());await saveList();renderTotal();
   }
@@ -311,16 +338,16 @@ document.querySelector('#export-wishlist').addEventListener('click',async()=>{
  const link=el('a');link.href=url;link.download='teilefinder-wunschliste-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
  document.querySelector('#status').textContent='Datei gespeichert.';
 });
-document.querySelector('#import-wishlist').addEventListener('click',()=>{if(!checkingList)document.querySelector('#wishlist-file').click();});
+document.querySelector('#import-wishlist').addEventListener('click',()=>{if(!checkingList&&!searchRunning)document.querySelector('#wishlist-file').click();});
 document.querySelector('#wishlist-file').addEventListener('change',async e=>{
- const file=e.target.files?.[0];e.target.value='';if(!file||checkingList)return;
+ const file=e.target.files?.[0];e.target.value='';if(!file||checkingList||searchRunning)return;
  try{
   if(file.size>20_000_000)throw Error('Die Datei ist zu groß.');
-  const incoming=parseWishlistFile(await file.text());if(checkingList)return;
+  const incoming=parseWishlistFile(await file.text());if(checkingList||searchRunning)return;
   await priceHistoryDB.put(incoming.history||[]);
   const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
-  await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
-  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void browser.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
+  await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
+  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void platform.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
   renderWishlist();
   document.querySelector('#status').textContent=added+' Artikel importiert · Ergebnisse wiederhergestellt.';
  }catch(error){document.querySelector('#status').textContent='Import fehlgeschlagen: '+(error instanceof SyntaxError?'Ungültige JSON-Datei.':error.message);}
@@ -328,7 +355,7 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
 
 
 function stopCurrentSearch(){
- clearTimeout(searchDeadline);stopRequested=true;void browser.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);
+ clearTimeout(searchDeadline);stopRequested=true;void platform.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);
  if(finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,shop])=>({name,...shop})));}
  document.querySelector('#status').textContent='Suche gestoppt.';
 }
@@ -337,7 +364,7 @@ document.querySelector('#status').addEventListener('click',()=>{if(!document.que
 document.querySelector('#close-shop-tabs').addEventListener('click',async()=>{
  const button=document.querySelector('#close-shop-tabs');if(button.disabled)return;button.disabled=true;
  stopCurrentSearch();
- try{await browser.runtime.sendMessage({type:'close-shop-tabs'});document.querySelector('#status').textContent='Shop-Tabs geschlossen.';}
+ try{await platform.runtime.sendMessage({type:'close-shop-tabs'});document.querySelector('#status').textContent='Shop-Tabs geschlossen.';}
  catch{document.querySelector('#status').textContent='Shop-Tabs konnten nicht geschlossen werden.';}
  finally{button.disabled=false;}
 });
@@ -386,7 +413,7 @@ function showWishlistPrices(itemId,trigger){
    const row=el('tr'),product=el('td');product.append(el('strong',shop.name),el('small',offer.variant||offer.name));
    const price=el('td',(offer.priceKind==='from'?'ab ':'')+money(offer.price));price.className='price';
    const stock=el('td',offer.stock||'Lagerstatus nicht auslesbar');if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));
-   const links=el('td');links.className='shop-actions-cell';if(offer.url){const actions=el('div');actions.className='shop-actions';const link=el('a','Zum Shop');link.className='shop-link-button';link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label','Zum Shop: '+shop.name+' · '+offer.name);link.addEventListener('click',event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();void browser.tabs.create({url:offer.url}).catch(()=>{document.querySelector('#status').textContent='Shoplink konnte nicht geöffnet werden.';});});const copy=copyButton(offer.url);copy.title='Produktlink kopieren';copy.setAttribute('aria-label','Produktlink von '+shop.name+' kopieren');actions.append(link,copy);links.append(actions);}
+   const links=el('td');links.className='shop-actions-cell';if(offer.url){const actions=el('div');actions.className='shop-actions';const link=el('a','Zum Shop');link.className='shop-link-button';link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label','Zum Shop: '+shop.name+' · '+offer.name);link.addEventListener('click',event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();void platform.tabs.create({url:offer.url}).catch(()=>{document.querySelector('#status').textContent='Shoplink konnte nicht geöffnet werden.';});});const copy=copyButton(offer.url);copy.title='Produktlink kopieren';copy.setAttribute('aria-label','Produktlink von '+shop.name+' kopieren');actions.append(link,copy);links.append(actions);}
    row.append(product,price,stock,links);table.append(row);
  }
  if(!offers.length)dialog.append(el('p','Keine Ergebnisse für die gewünschte Variante innerhalb des Preisbereichs.'));
@@ -397,7 +424,7 @@ function showWishlistPrices(itemId,trigger){
 
 function finishTimedOutSearch(){
  const unfinished=names.filter(name=>!state.get(name)?.done);if(!unfinished.length)return;
- void browser.runtime.sendMessage({type:'cancel'}).catch(()=>{});id='';
+ void platform.runtime.sendMessage({type:'cancel'}).catch(()=>{});id='';
  for(const name of unfinished){const previous=state.get(name)||{};state.set(name,{...previous,done:true,stale:!!previous.offers?.length,message:'Zeitlimit überschritten · vorherige Ergebnisse'});}
  setSearchRunning(false);document.querySelector('#status').textContent='Zeitlimit überschritten · nächster Artikel';
  render();

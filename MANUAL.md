@@ -2,23 +2,34 @@
 
 ## Signierte Installation (Unlisted)
 
-Die Erweiterung ist noch nicht veröffentlicht und benötigt Firefox Desktop 140 oder neuer. Das erzeugte ZIP ist noch kein signiertes Add-on. Die Einreichung und Installation einer von Mozilla signierten XPI sind in `release/UNLISTED.md` beschrieben.
+Der Firefox-Build benötigt Firefox Desktop 140 oder neuer. Das lokal erzeugte ZIP ist noch kein signiertes Add-on. Die Einreichung und Installation einer von Mozilla signierten XPI sind in `release/UNLISTED.md` beschrieben.
 
-## Installation
+## Installation in Firefox
 
 1. Im Projektordner `npm run build` ausführen.
 2. Firefox öffnen und `about:debugging#/runtime/this-firefox` aufrufen.
 3. „Temporäres Add-on laden“ wählen und `outputs/firefox-addon/manifest.json` öffnen.
 4. Über das Teilefinder-Symbol die Suchoberfläche öffnen.
 
-Die Erweiterung arbeitet vollständig in Firefox; ein lokaler Server ist nicht erforderlich. Temporäre Add-ons müssen nach einem Firefox-Neustart erneut geladen werden.
+Die Erweiterung arbeitet vollständig im Browser; ein lokaler Server ist nicht erforderlich. Temporäre Add-ons müssen nach einem Firefox-Neustart erneut geladen werden.
+
+## Installation in Chrome
+
+1. `npm run build` ausführen (oder nur Chrome: `npm run build:chrome`).
+2. `chrome://extensions` öffnen und den Entwicklermodus aktivieren.
+3. „Entpackte Erweiterung laden“ wählen und den Ordner `outputs/chrome-addon/` auswählen.
+4. Über das Teilefinder-Symbol die Oberfläche öffnen.
+
+Voraussetzung: Chrome 114 oder neuer. Der lokale Build ist keine Veröffentlichung im Chrome Web Store. Zum Aktualisieren wieder in denselben Ausgabeordner bauen und unter `chrome://extensions` bei Teilefinder „Neu laden“ wählen; nicht entfernen und neu installieren.
+
+Firefox und Chrome verwenden jeweils eigenen lokalen Erweiterungsspeicher und eine eigene Preishistorie. Für die Übertragung „Als Datei speichern“ im bisherigen Browser und „Datei laden“ im anderen Browser verwenden. Es gibt keine automatische Browser-Synchronisierung.
 
 ## Aktualisieren
 
 1. Die Wunschliste über „Als Datei speichern“ sichern.
 2. Den neuen Quellcode im selben Projektordner bereitstellen und `npm run build` ausführen.
 3. Unter `about:debugging` bei Teilefinder „Neu laden“ klicken. Die Erweiterung dabei nicht entfernen.
-4. Die Teilefinder-Oberfläche und vorhandene Shop-Tabs neu laden, damit neue Skripte aktiv sind.
+4. Die Teilefinder-Oberfläche schließen und über das Erweiterungssymbol neu öffnen; vorhandene Shop-Tabs neu laden, damit neue Skripte aktiv sind. Beim Umstieg auf 0.8.0 ändert sich die Adresse der Oberfläche, die Firefox-Add-on-ID bleibt erhalten.
 5. Falls die Wunschliste leer ist, über „Datei laden“ die Sicherung auswählen.
 
 Der Ordner `outputs/firefox-addon/` bleibt bei Builds am selben Ort. Ein Entfernen und Neuinstallieren kann lokale Add-on-Daten löschen; deshalb vorher die Datei sichern.
@@ -32,7 +43,7 @@ Der Ordner `outputs/firefox-addon/` bleibt bei Builds am selben Ort. Ein Entfern
 
 Mengenangaben in Liter und Milliliter werden gleichgesetzt (z. B. `1 L` = `1000 ml`). Wird der Produktname gefunden, aber die gewünschte Variante nicht bestätigt, werden die anderen Ausführungen mit ihren Variantenangaben angezeigt. „Ohne Variantenfilter suchen“ sucht denselben Produktnamen erneut mit leerem Variantenfeld.
 
-Bei bekannten Artikeln werden zuerst die gespeicherten Produktseiten direkt geprüft. Die Erweiterung speichert bestätigte Produktlinks pro Shop dauerhaft lokal, mit EAN oder Suchbegriff und Variante als Zuordnung. Preise, Lagerstatus und Produktidentität werden bei jeder Prüfung neu gelesen. Fehlt ein passender Link oder kann die Produktseite nicht bestätigt werden, folgt die normale Shopsuche. Bei dieser werden in allen vier Shops zuerst die Suchtreffer ausgewertet. Bereits bestätigte Ausführung, exakter Preis und Lagerstatus werden direkt übernommen; eindeutig abweichende Varianten werden aussortiert. Produktseiten und Dropdowns werden nur für fehlende Angaben geprüft. Die vier Shop-Tabs werden dabei wiederverwendet. Bei einer Sicherheitsprüfung den betroffenen Tab öffnen und die Prüfung selbst abschließen. Produktlinks öffnen das Angebot; das Symbol mit zwei Quadraten kopiert den Link.
+Bei bekannten Artikeln werden zuerst die gespeicherten Produktseiten direkt geprüft. Die Erweiterung speichert bestätigte Produktlinks pro Shop dauerhaft lokal, mit EAN oder Suchbegriff und Variante als Zuordnung. Zusätzlich werden konkrete Varianten-Auswahlen gespeichert: Dropdown-Werte, Options-IDs und Beschriftungen, auch für mehrere abhängige Dropdowns. Beim nächsten Aktualisieren wird die gespeicherte Kombination gezielt wieder ausgewählt. Sind die Shop-Optionen inzwischen verändert, wird die Ausführung erneut über die normale Variantenprüfung bestimmt. Ältere Einträge erhalten die zusätzlichen Auswahlmetadaten bei der nächsten erfolgreichen Variantenprüfung. Preise, Lagerstatus und Produktidentität werden bei jeder Prüfung neu gelesen. Bei der Wunschlistenprüfung wird ein gespeicherter Produktlink direkt aktualisiert; eine nicht bestätigte Seite startet keine zusätzliche Shopsuche. Der Link bleibt erhalten, frühere Ergebnisse werden als nicht bestätigt gekennzeichnet. Nur Shops ohne passenden Produktlink werden durchsucht. Bei der Einzelteilsuche bleibt die Shopsuche als Rückfall möglich. Bei dieser werden in allen vier Shops zuerst die Suchtreffer ausgewertet. Bereits bestätigte Ausführung, exakter Preis und Lagerstatus werden direkt übernommen; eindeutig abweichende Varianten werden aussortiert. Produktseiten und Dropdowns werden nur für fehlende Angaben geprüft. Die vier Shop-Tabs werden dabei wiederverwendet. In den verwalteten Shop-Tabs werden Bildanfragen standardmäßig blockiert, auch für Produktbilder von CDNs. Zusätzlich begrenzt eine Bildquellen-Richtlinie in der Shopseite die Bildladevorgänge. Die kleine Option „Bilder laden“ schaltet sie wieder frei; die Auswahl wird lokal gespeichert und wirkt beim nächsten Seitenaufruf bzw. Neuladen der Shopseite. Selbst geöffnete Shop-Tabs bleiben unberührt. Skripte, CSS und Datenabfragen bleiben aktiv. Bei einer Sicherheitsprüfung den betroffenen Tab öffnen und die Prüfung selbst abschließen. Produktlinks öffnen das Angebot; das Symbol mit zwei Quadraten kopiert den Link.
 
 Fehlen passende Treffer, schließt die Suche auch ohne ausdrückliches „keine Ergebnisse“-Banner ab. Eine breitere Suche wird einmal versucht. Danach wird der Artikel als ohne passendes Angebot markiert und die Wunschliste läuft weiter. Nicht antwortende Shop-Skripte haben eine begrenzte Wartezeit.
 
@@ -48,7 +59,7 @@ Bei BIKE24 wird auch die GTIN im Datenblatt als EAN gelesen. Bei r2-bike wird di
 
 ## Wunschliste und Dateien
 
-„Zur Wunschliste hinzufügen“ speichert die Suche samt Variante und Maximalpreis. Liegt bereits eine abgeschlossene Ad-hoc-Suche für denselben Artikel, dieselbe Variante und passende EAN vor, werden die vorhandenen Shop-Ergebnisse samt ursprünglichen Abfragezeiten übernommen, ohne erneut zu suchen. Andernfalls startet die Prüfung automatisch. Diese Angaben können anschließend pro Artikel geändert werden. Über „Name korrigieren“ den Suchnamen bearbeiten und mit „Speichern“ übernehmen oder mit „Abbrechen“ verwerfen. Variante und Maximalpreis bleiben erhalten; Suchergebnisse werden bei einer Änderung zurückgesetzt. Danach erneut prüfen. „Erneut suchen“ prüft nur diesen Artikel in allen vier Shops und aktualisiert dessen Ergebnisse und den Gesamtpreis. Die anderen Artikel bleiben erhalten. Eine fehlende EAN wird dabei ergänzt, wenn die gefundenen Angebote eine eindeutige Kennung liefern.
+„Zur Wunschliste hinzufügen“ speichert die Suche samt Variante und Maximalpreis. Liegt bereits eine abgeschlossene Ad-hoc-Suche für denselben Artikel, dieselbe Variante und passende EAN vor, werden die vorhandenen Shop-Ergebnisse samt ursprünglichen Abfragezeiten übernommen, ohne erneut zu suchen. Andernfalls startet die Prüfung automatisch. Wunschliste und günstigste Ergebnisse stehen in einer gemeinsamen Liste. Rechts am Artikel öffnet „Bearbeiten“ die Felder für Produktname, EAN samt Verwendungsschalter, Ausführung und Preisbereich direkt unter der Zeile. „Speichern“ übernimmt alle Änderungen gemeinsam; „Abbrechen“ oder Escape verwirft den Entwurf. Ein Klick auf den Preis öffnet den Preisverlauf. Eine reine Änderung des Preisbereichs erhält die vorhandenen Ergebnisse und erfordert keine Suche. Der runde Pfeil prüft nur diesen Artikel erneut, × entfernt ihn. Während der Einzelprüfung zeigt der obere Prüfbutton den Fortschritt von 0/4 bis 4/4 Shops und kann zum Stoppen angeklickt werden. Weitere Suchen, Aktualisierungen und Vorschlagssuchen sind während einer laufenden Suche gesperrt, da sie dieselben Shop-Tabs verwenden. Beide Aktionen stehen auch bei Artikeln ohne Angebot bereit. Die übrigen Artikel bleiben erhalten. Hinter „Lieferbar“ steht die Anzahl passender lieferbarer Shops, zum Beispiel 3/4. Mehrere Angebote desselben Shops zählen dabei einmal. Die Kopfzeile jedes Shops nennt dessen Summe und die Abdeckung als x/x Produkte. Gezählt wird je Wunschlistenartikel das günstigste bestätigte, lieferbare Angebot im Preisbereich; frühere, nicht bestätigte Ergebnisse zählen nicht. Positive Preisdifferenzen (+) bedeuten einen Aufpreis gegenüber dem Bestpreis. Eine fehlende EAN wird beim Prüfen ergänzt, wenn die gefundenen Angebote eine eindeutige Kennung liefern.
 
 - „Als Datei speichern“ sichert die gesamte aktuelle Ansicht in einer JSON-Datei: Suchfelder, Suchergebnisse, Wunschlistenartikel und deren Angebote einschließlich Preisen, Lagerstatus, EANs, Links und Abfragezeitpunkten. Die Datei liegt außerhalb des Add-ons und kann frei abgelegt oder kopiert werden.
 - „Datei laden“ stellt die gespeicherte Suche mit Ergebnissen wieder her und ergänzt die Wunschliste aus dieser Datei. Identische Kombinationen aus Name, Variante und Preisgrenze werden nicht doppelt angelegt; vorhandene Artikel bleiben erhalten.
@@ -75,7 +86,7 @@ python3 scripts/build-extension.py --test-only
 python3 scripts/build-extension.py
 ```
 
-Quellcode: `teilefinder/firefox-r2/`. Tests: `teilefinder/*.test.mjs` und `teilefinder/local-browser/extract.test.mjs`. Die Build-Version kommt aus dem Erweiterungsmanifest. Generierte Dateien liegen unter `outputs/` und werden nicht in Git aufgenommen.
+Gemeinsamer Quellcode: `teilefinder/src/`. Browser-Manifeste: `teilefinder/manifests/`. Tests: `teilefinder/*.test.mjs` und `teilefinder/local-browser/extract.test.mjs`. Beide Manifeste tragen dieselbe Version; der Build prüft die Übereinstimmung. Generierte Dateien liegen unter `outputs/` und werden nicht in Git aufgenommen.
 
 ## Erneute Suche und Abbruch
 
@@ -83,13 +94,13 @@ Quellcode: `teilefinder/firefox-r2/`. Tests: `teilefinder/*.test.mjs` und `teile
 
 ## Lokaler Preisverlauf
 
-Nach abgeschlossenen Suchen speichert die Erweiterung bestätigte, lieferbare Angebote pro EAN in IndexedDB. Über „Preisverlauf“ beim Wunschlistenartikel erscheint eine Grafik des günstigsten lieferbaren Preises mit Zeitraumauswahl und Tabelle. Maximalpreise begrenzen diese Historie nicht. Die Aufzeichnung beginnt mit zukünftigen Suchen; alte Ergebnisse werden nicht nachträglich als neue Preise erfasst.
+Nach abgeschlossenen Suchen speichert die Erweiterung bestätigte, lieferbare Angebote pro EAN in IndexedDB. Durch Klicken auf den Preis beim Wunschlistenartikel erscheint eine Grafik des günstigsten lieferbaren Preises mit Zeitraumauswahl und Tabelle. Maximalpreise begrenzen diese Historie nicht. Die Aufzeichnung beginnt mit zukünftigen Suchen; alte Ergebnisse werden nicht nachträglich als neue Preise erfasst.
 
 „Als Datei speichern“ exportiert auch die Historie; „Datei laden“ stellt sie wieder her. Beim Deinstallieren werden die lokalen Daten gelöscht.
 
 Das Preisfeld akzeptiert ein Maximum (z. B. `10`) oder einen Bereich (z. B. `5-10`). Beide Grenzen gelten auch für ähnliche Produktvorschläge. Bei gesetzter Preisgrenze werden Vorschläge ohne bestätigten Preis ausgeblendet; die gespeicherten Ergebnisse bleiben erhalten.
 
-Die Oberfläche folgt automatisch dem in Firefox eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen.
+Die Oberfläche folgt automatisch dem im Browser eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen. Das Sonne/Mond-Symbol rechts oben schaltet manuell zwischen Hell und Dunkel um. Die manuelle Auswahl gilt bis zum Neuladen bzw. erneuten Öffnen der Oberfläche; dann wird wieder das Browser-Design verwendet.
 
 Shopprüfungen haben ein Gesamtzeitlimit von 60 Sekunden (EAN-Nachsuche: 30 Sekunden). Bei einem blockierten Shop bleiben abgeschlossene Ergebnisse erhalten und die Wunschliste wird fortgesetzt. Eine zusätzliche Absicherung nach 105 Sekunden pro Artikel verhindert das Warten auf verlorene Abschlussmeldungen. Übersprungene Shops und ältere Ergebnisse werden entsprechend gekennzeichnet.
 
@@ -116,3 +127,21 @@ Liefert eine EAN-Suche mehrere bestätigte Angebote, grenzt der ursprüngliche P
 Bei BIKE24 öffnet die Detailprüfung „Datenblatt“ und wartet auf nachgeladene GTIN-Werte. Ist die gesuchte EAN dort in einer Liste enthalten, aber keiner ausgewählten Ausführung eindeutig zuzuordnen, wird diese Mehrdeutigkeit ausdrücklich angezeigt. Die bloße Listenposition gilt nicht als Zuordnung.
 
 BIKE24 kann ein kombiniertes Ergebnis anzeigen, wenn Produktname/Modell passen, die eingegebene EAN im Datenblatt steht und die gewünschte Dropdown-Ausführung tatsächlich ausgewählt und mit Preis ausgelesen wurde. Diese Ergebnisse werden nicht als variantenspezifische Preisbeobachtung gespeichert oder als EAN-Quelle für andere Shops verwendet. Eine explizit andere EAN der ausgewählten Ausführung wird niemals überschrieben.
+
+## Gemeinsame Architektur und Build-Ziele
+
+- `src/ui/`: gemeinsame Oberfläche, Layout, Dialoge und Zwischenablage.
+- `src/core/`: Produkt-/EAN-/Variantenregeln, Wunschliste, Preisvergleich und gemeinsamer Suchcontroller.
+- `src/shops/`: DOM-Reader und Variantenauswahl für die vier Shops.
+- `src/data/`: IndexedDB-Anbindung für die bestehende Preishistorie.
+- `src/platform/`: native Browser-APIs, lokaler Nachrichtenbus und wiederherstellbare Shop-Tab-Zuordnung.
+- `manifests/firefox.json`: Manifest V2 mit unveränderter Gecko-ID.
+- `manifests/chrome.json`: Manifest V3 mit kleinem Service Worker.
+
+Suchjobs laufen im geöffneten Teilefinder-Tab. Der Hintergrund verwaltet ausschließlich Toolbar-Ereignisse und Tab-Besitzdaten in `storage.session`. Ein Hintergrund-Neustart beendet deshalb keine Listenprüfung. Neu geöffnete Produktlinks über „Zum Shop“ sind manuelle Tabs und werden nicht als Such-Tabs registriert.
+
+`npm run build` prüft und erzeugt beide ZIPs sowie die stabilen Ordner `outputs/firefox-addon/` und `outputs/chrome-addon/`. Einzelziele: `npm run build:firefox` und `npm run build:chrome`. `npm test` führt Syntax- und Regressionstests aus. Nach dem Build: `npm run lint:extension` für Firefox sowie `npm run lint:chrome` für die Chrome-Manifest-/Dateiprüfung. Die Builds enthalten unveränderte, lokal lesbare Quellen, keine Browserprofile oder Zugangsdaten.
+
+Plan, Prüfkriterien und der Stand der Live-Abnahme: [Cross-Browser-Plan](docs/CROSS-BROWSER-PLAN.md).
+
+Für die Bildsperre verwendet die Erweiterung die Browser-Berechtigung `declarativeNetRequest`. Beim Update kann der Browser die neue Berechtigung abfragen. Die Regeln gelten ausschließlich für verwaltete Shop-Tabs; es werden keine Netzwerkprotokolle gespeichert.

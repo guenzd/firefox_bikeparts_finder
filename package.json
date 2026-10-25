@@ -4,7 +4,11 @@
   "scripts": {
     "build": "python3 scripts/build-extension.py",
     "test": "python3 scripts/build-extension.py --test-only",
-    "lint:extension": "web-ext lint --source-dir teilefinder/firefox-r2 --warnings-as-errors"
+    "build:firefox": "python3 scripts/build-extension.py --browser firefox",
+    "build:chrome": "python3 scripts/build-extension.py --browser chrome",
+    "lint:extension": "web-ext lint --source-dir outputs/firefox-addon --warnings-as-errors",
+    "lint:chrome": "python3 scripts/build-extension.py --browser chrome --validate-only",
+    "profile:search": "node scripts/profile-search.mjs"
   },
   "devDependencies": {
     "web-ext": "^10.7.0"

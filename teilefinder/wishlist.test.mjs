@@ -1,24 +1,25 @@
+import {readSource} from './test-sources.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
-const ctx=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),ctx);
+const ctx=vm.createContext({});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),ctx);
 const offer=(price,stock,variant='116 Glieder',priceKind='exact')=>({price,stock,variant,priceKind,url:'https://shop.example/product'});
 const sum=items=>{ctx.items=items;return vm.runInContext('cheapestWishlist(items)',ctx);};
 test('Cheapest deliverable exact variant respects each item price cap and sums across shops',()=>{
- const s=sum([{query:'chain',maxPrice:30,variant:'',shops:[{name:'A',offers:[offer(10,'Nicht lieferbar'),offer(27.99,'Lagernd, Lieferzeit 1-3 Tage')]},{name:'B',offers:[offer(29,'Auf Lager')]}]},{query:'bottle',maxPrice:15,variant:'750',shops:[{name:'A',offers:[offer(5,'Auf Lager','500 ml'),offer(12.99,'Versand in 1-3 Werktagen','750 ml')]}]}]);
- assert.equal(s.complete,true);assert.equal(s.total,40.98);assert.equal(s.rows[0].best.shop,'A');assert.equal(s.rows[1].best.variant,'750 ml');
+ const s=sum([{query:'chain',maxPrice:30,variant:'',shops:[{name:'A',offers:[offer(10,'Nicht lieferbar'),offer(27.99,'Lagernd, Lieferzeit 1-3 Tage'),offer(28,'Auf Lager')]},{name:'B',offers:[offer(29,'Auf Lager')]}]},{query:'bottle',maxPrice:15,variant:'750',shops:[{name:'A',offers:[offer(5,'Auf Lager','500 ml'),offer(12.99,'Versand in 1-3 Werktagen','750 ml')]}]}]);
+ assert.equal(s.complete,true);assert.equal(s.total,40.98);assert.equal(s.rows[0].best.shop,'A');assert.equal(s.rows[1].best.variant,'750 ml');assert.equal(s.rows[0].availableShops,2);assert.equal(s.rows[1].availableShops,1);
 });
 test('Unknown stock, future availability, from-prices and over-budget offers cannot make a complete total',()=>{
  const s=sum([{query:'chain',maxPrice:20,shops:[{name:'A',offers:[offer(19,'Auf Lager','116','from'),offer(10,'Lagerstatus nicht auslesbar'),offer(21,'Auf Lager'),offer(15,'Verfügbar in 2-4 Wochen')]}]},{query:'bottle',maxPrice:null,shops:[{name:'A',offers:[offer(12,'1-2 Arbeitstage')]}]}]);
- assert.equal(s.complete,false);assert.equal(s.missing,1);assert.equal(s.total,12);
+ assert.equal(s.complete,false);assert.equal(s.missing,1);assert.equal(s.total,12);assert.equal(s.rows[0].availableShops,0);assert.equal(s.rows[1].availableShops,1);
 });
 test('Persisted wishlist data produces the same total after reload',()=>{
  const items=[{id:'item',query:'chain',maxPrice:30,variant:'126',shops:[{name:'A',offers:[offer(27.99,'Auf Lager','126 Glieder')]}],checkedAt:'2026-10-02T12:00:00Z'}];assert.equal(sum(JSON.parse(JSON.stringify(items))).total,27.99);assert.equal(sum([]).complete,false);
 });
 
 test('Correcting a wishlist name clears stale results and keeps EAN, variant, cap',()=>{
- const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
  c.items=[{id:'a',query:'Conti Aro',ean:'4019238283907',variant:'29 mm',maxPrice:80,shops:[{name:'old'}],checkedAt:'yesterday'},{id:'b',query:'Chain'}];
  const result=vm.runInContext("renameWishlistItem(items,'a',' Continental Aero 111 ')",c);
  assert.equal(result[0].query,'Continental Aero 111');assert.equal(result[0].ean,'4019238283907');assert.equal(result[0].variant,'29 mm');assert.equal(result[0].maxPrice,80);assert.equal(result[0].shops.length,0);assert.equal(result[0].checkedAt,null);assert.equal(result[1].query,'Chain');assert.equal(c.items[0].query,'Conti Aro');
@@ -26,7 +27,7 @@ test('Correcting a wishlist name clears stale results and keeps EAN, variant, ca
 });
 
 test('Single item recheck updates only its results while retaining settings',()=>{
- const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
  c.items=[{id:'a',query:'Tyre',variant:'29 mm',maxPrice:80,shops:[]},{id:'b',query:'Chain',shops:[{name:'retained'}],checkedAt:'old'}];
  c.shops=[{name:'bike-components',offers:[{price:71.99}]}];
  const result=vm.runInContext("applyWishlistSearch(items,'a',shops,'now')",c);
@@ -34,7 +35,7 @@ test('Single item recheck updates only its results while retaining settings',()=
 });
 
 test('Empty refresh preserves previous offers as stale and excludes them from current totals',()=>{
- const c=vm.createContext({variantMatches:()=>true});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({variantMatches:()=>true});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
  c.items=[{id:'a',maxPrice:null,shops:[{name:'BIKE24',checkedAt:'old',offers:[{price:20,priceKind:'exact',stock:'Auf Lager'}]}]}];
  const rows=vm.runInContext("applyWishlistSearch(items,'a',[{name:'BIKE24',offers:[],message:'Timeout'}],'now')",c);
  assert.equal(rows[0].shops[0].offers[0].price,20);assert.equal(rows[0].shops[0].checkedAt,'old');assert.equal(rows[0].shops[0].stale,true);
@@ -146,4 +147,17 @@ test('Applying a wishlist search never persists conflicting EAN offers when EAN 
   const updated=ctx.applyWishlistSearch([item],'chain',shops,'2026-10-24T12:00:00Z')[0];
   assert.equal(updated.ean,ean);assert.equal(updated.shops[0].offers.length,useEAN?1:2);assert.equal(shops[0].offers.length,2);
  }
+});
+
+test('Shop totals count the cheapest deliverable exact offer once per wishlist item and exclude stale, out-of-range and unmatched variants',()=>{
+ const offer=(price,extra={})=>({price,priceKind:'exact',variant:'black',stock:'Auf Lager',...extra});
+ const item={variant:'black',minPrice:5,maxPrice:20};
+ const entries=[
+  {item,shop:{offers:[offer(12),offer(8),offer(5,{priceKind:'from'}),offer(6,{stock:'Nicht lieferbar'}),offer(4),offer(7,{variant:'white'})]}},
+  {item,shop:{offers:[offer(10.15)]}},
+  {item,shop:{stale:true,offers:[offer(5)]}},
+  {item,shop:{offers:[offer(21)]}},
+  {item,shop:{offers:[]}}
+ ];
+ assert.deepEqual(JSON.parse(JSON.stringify(ctx.shopWishlistSummary(entries))),{total:18.15,available:2,count:5});
 });

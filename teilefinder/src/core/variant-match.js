@@ -113,3 +113,8 @@ function uniqueOffers(offers){
  for(const raw of offers){const offer={...raw,url:cleanShopUrl(raw.url)};const key=offerIdentity(offer),old=rows.get(key);if(!old||quality(offer)>quality(old))rows.set(key,offer);}
  return [...rows.values()];
 }
+
+
+function cleanVariantSelection(selection){
+ return (Array.isArray(selection)?selection:[]).slice(0,20).filter(value=>value&&typeof value==='object').map(value=>({kind:['select','radio','option'].includes(value.kind)?value.kind:'select',...Object.fromEntries(['id','name','label','value','text'].map(key=>[key,String(value[key]||'').slice(0,300)]))})).filter(value=>value.value&&(value.id||value.name||value.label));
+}

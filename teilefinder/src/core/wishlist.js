@@ -32,7 +32,7 @@ function cheapestWishlist(items){
   const inRange=matching.filter(o=>withinPriceRange(o.price,item));
   const candidates=inRange.filter(o=>deliverable(o.stock));candidates.sort((a,b)=>a.price-b.price);
   const missingMessage=inRange.length?(inRange.some(o=>!o.stock||/nicht auslesbar|unbekannt/i.test(o.stock))?'Lagerstatus unbekannt':'Nicht lieferbar'):matching.length?'Kein passendes Angebot im Preisbereich':item.checkedAt?'Kein passendes Angebot':'Noch nicht geprüft';
-  return {item,best:candidates[0]||null,missingMessage};
+  return {item,best:candidates[0]||null,availableShops:new Set(candidates.map(offer=>offer.shop)).size,missingMessage};
  });
  const total=Math.round(rows.reduce((sum,row)=>sum+(row.best?.price||0),0)*100)/100;
  return {rows,total,complete:rows.length>0&&rows.every(row=>!!row.best),missing:rows.filter(row=>!row.best).length};
@@ -74,4 +74,14 @@ function knownSearchShops(current,items,ean){
 
 function wishlistPriceRows(entries,item){
  return entries.flatMap(({shop})=>uniqueOffers(shop?.offers||[]).filter(offer=>withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)).map(offer=>({shop,offer}))).sort((a,b)=>a.offer.price-b.offer.price||a.shop.name.localeCompare(b.shop.name));
+}
+
+
+function shopWishlistSummary(entries){
+ let total=0,available=0;
+ for(const {item,shop} of entries){
+  const prices=(shop.stale?[]:shop.offers||[]).filter(offer=>offer.priceKind==='exact'&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)&&deliverable(offer.stock)).map(offer=>offer.price);
+  if(prices.length){total+=Math.min(...prices);available++;}
+ }
+ return {total:Math.round(total*100)/100,available,count:entries.length};
 }

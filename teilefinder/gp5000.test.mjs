@@ -1,10 +1,11 @@
+import {readSource} from './test-sources.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
-const root=new URL('./firefox-r2/',import.meta.url);
+
 const context=vm.createContext({URL});
-vm.runInContext(readFileSync(new URL('extract.js',root),'utf8')+readFileSync(new URL('variant-match.js',root),'utf8'),context);
+vm.runInContext(readSource('extract.js')+readSource('variant-match.js'),context);
 const search=JSON.parse(readFileSync(new URL('./fixtures/gp5000-search-results.json',import.meta.url)));
 const schema=JSON.parse(readFileSync(new URL('./fixtures/gp5000-bc-schema.json',import.meta.url)));
 const query='Continental Grand Prix 5000 S TR';
@@ -68,36 +69,36 @@ test('Real Aero 111 detail message confirms 29 mm before the product UI has moun
  let listener;
  const document={body:{innerText:''},querySelector:()=>null,querySelectorAll(selector){return selector==='script[type="application/ld+json"]'?[{textContent:JSON.stringify(data)}]:[];}};
  const url='https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/?v=46026-schwarz';
- const c=vm.createContext({document,location:{href:url,hostname:'www.bike-components.de'},URL,browser:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
- for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readFileSync(new URL(file,root),'utf8'),c);
+ const c=vm.createContext({document,location:{href:url,hostname:'www.bike-components.de'},URL,platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
+ for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readSource(file),c);
  const result=await listener({type:'detail',shopId:'bike-components',host:'www.bike-components.de',query:'Continental Aero 111',variant:'29 mm',url,fallback:{name:'Continental Aero 111 Tubeless Ready 28" Faltreifen',variant:'Ausführung im Shop prüfen',price:71.99,priceKind:'from',url}});
  assert.equal(result.ready,true);assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,'4019238283907');assert.equal(result.offers[0].priceKind,'exact');
 });
 test('Product UI that is still loading must not finalize an unconfirmed listing as ready',async()=>{
  let listener;const url='https://www.bike-components.de/de/Continental/Aero-111-Tubeless-Ready-28-Faltreifen-p172556/';
  const document={body:{innerText:''},querySelector:()=>null,querySelectorAll:()=>[]};
- const c=vm.createContext({document,location:{href:url,hostname:'www.bike-components.de'},URL,browser:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
- for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readFileSync(new URL(file,root),'utf8'),c);
+ const c=vm.createContext({document,location:{href:url,hostname:'www.bike-components.de'},URL,platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
+ for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readSource(file),c);
  const result=await listener({type:'detail',shopId:'bike-components',host:'www.bike-components.de',query:'Continental Aero 111',variant:'29 mm',url,fallback:{name:'Continental Aero 111',variant:'Ausführung im Shop prüfen',url}});
  assert.equal(result.ready,false);assert.equal(result.offers.length,0);
 });
 test('BIKE24 datasheet GTIN is read without opening tabs or triggering controls',()=>{
  const label={textContent:'GTIN:',nextElementSibling:{textContent:'4019238283907'}};
  const c=vm.createContext({document:{querySelector:()=>null,querySelectorAll:()=>[label]}});
- vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);
+ vm.runInContext(readSource('extract.js'),c);
  assert.equal(c.currentProductEAN(),'4019238283907');
  label.nextElementSibling.textContent='4019238283907, 4019238283921';assert.equal(c.currentProductEAN(),'');
 });
 test('r2-bike reads description EAN even in collapsed text and ignores unrelated recommendations',()=>{
  const c=vm.createContext({document:{querySelector:s=>s==='#tab-description'?{textContent:'Inhalt: 1000 ml\nEAN: 5060541584983'}:{textContent:'9999999999999',getAttribute:()=>null},querySelectorAll:()=>[]}});
- vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);assert.equal(c.currentProductEAN(),'5060541584983');
+ vm.runInContext(readSource('extract.js'),c);assert.equal(c.currentProductEAN(),'5060541584983');
 });
 test('r2-bike opens only its read-more control if the description EAN loads afterwards',async()=>{
  let text='Beschreibung',clicked=0;
  const toggle={textContent:'mehr lesen weniger Lesen',querySelector:()=>({textContent:'mehr lesen'}),getClientRects:()=>[{}],getAttribute:()=>null,click(){clicked++;text='EAN: 5060541584983';}};
  const description={get textContent(){return text;},querySelectorAll:()=>[toggle]};
  const c=vm.createContext({document:{querySelector:s=>s==='#tab-description'?description:null,querySelectorAll:()=>[]},setTimeout:f=>setImmediate(f)});
- vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);assert.equal(await c.r2DescriptionEAN(),'5060541584983');assert.equal(clicked,1);assert.equal(await c.r2DescriptionEAN(),'5060541584983');assert.equal(clicked,1);
+ vm.runInContext(readSource('extract.js'),c);assert.equal(await c.r2DescriptionEAN(),'5060541584983');assert.equal(clicked,1);assert.equal(await c.r2DescriptionEAN(),'5060541584983');assert.equal(clicked,1);
 });
 test('Different product terms are not silently rewritten into exact matches',()=>{
  assert.equal(context.matches('Powerbar Powergel Hydro 24er Box','Powerbar Hydrogel 24er'),false);
@@ -136,7 +137,7 @@ test('Bike-Discount restock notice means unavailable and ignores notices outside
  const notice='Benachrichtigen Sie mich, sobald der Artikel lieferbar ist.';
  const nodes={'.product-detail-buy':{innerText:notice}};
  const c=vm.createContext({document:{body:{innerText:notice},querySelector:s=>nodes[s]||null}});
- vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);
+ vm.runInContext(readSource('extract.js'),c);
  assert.equal(c.bikeDiscountStock(),'Nicht lieferbar');
  nodes['.product-detail-buy'].innerText='';nodes['.nele-product-availability-info']={innerText:'Lagernd, Lieferzeit 1-3 Tage'};
  assert.equal(c.bikeDiscountStock(),'Lagernd, Lieferzeit 1-3 Tage');
@@ -149,7 +150,7 @@ test('BIKE24 SKU EAN mapping is explicit, independent of GTIN order, and rejects
  const label={textContent:'GTIN:',nextElementSibling:{textContent:'4550170323134, 4524667879572, 4524667879565'}};
  const document={querySelector:s=>s==='#add-to-cart'?{getAttribute:()=>JSON.stringify({skus:records})}:null,querySelectorAll:s=>s.includes('data-sheet')?[label]:[]};
  const c=vm.createContext({document,URL,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html?sku=949136'}});
- vm.runInContext(readFileSync(new URL('extract.js',root),'utf8'),c);
+ vm.runInContext(readSource('extract.js'),c);
  assert.equal(c.currentProductEAN(),'4524667879565');
  assert.equal(c.currentProductEAN({allowURLSKU:false}),'');
  records.push({sku:'949136',gtin13:'4550170323134'});assert.equal(c.currentProductEAN(),'');

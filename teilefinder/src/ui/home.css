@@ -39,10 +39,10 @@ body{font-size:14px}main{max-width:1280px;padding:0 24px}header{padding:12px 0}h
 
 .wish-name>.wish-product-button{flex:1;min-width:0;text-align:left;background:transparent;color:var(--ink,#18303f);padding:0;border:0;font-size:13px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;min-height:26px;border-radius:3px}.wish-name>.wish-product-button:hover{color:#226985;text-decoration:underline}.wish-product-button:focus-visible{outline:2px solid #226985;outline-offset:3px}.item-prices-dialog{width:min(900px,92vw);padding:16px}.item-prices-dialog .shop-heading{gap:16px;align-items:start}.item-prices-dialog .shop-heading h2{flex:1;overflow-wrap:anywhere}.item-prices-dialog td{vertical-align:top;padding:10px 8px}.item-prices-dialog td small{display:block;font-weight:400;font-size:11px;color:var(--muted);margin-top:4px}.item-prices-dialog .price{white-space:nowrap;font-size:14px}.item-prices-dialog th{font-size:11px;color:var(--muted)}.item-prices-dialog .copy-button{margin-left:5px}@media(max-width:760px){.wish-name>.wish-product-button{flex-basis:auto}.item-prices-dialog{padding:12px}.item-prices-dialog table{min-width:580px}}
 
-/* Native Firefox page colour preference; Smyck-inspired dark palette.
+/* Browser colour preference with an optional local override; Smyck-inspired dark palette.
    Palette source: https://github.com/hukl/Smyck-Color-Scheme/blob/master/colors */
 :root{
- color-scheme:light dark;
+ color-scheme:light;
  --page:#f4f7f9;--surface:#fff;--field:#fff;--hover:#e3ebf1;
  --ink:#183244;--muted:#657786;--line:#dce5ea;--field-line:#cbd8e0;
  --accent:#c8f538;--accent-hover:#b9e62b;--accent-ink:#20320a;
@@ -52,8 +52,7 @@ body{font-size:14px}main{max-width:1280px;padding:0 24px}header{padding:12px 0}h
  --success-bg:#eef9d9;--success-line:#9fca68;--backdrop:#18303f55;
  --chart-line:#477934;
 }
-@media(prefers-color-scheme:dark){
- :root{
+:root[data-theme="dark"]{
   color-scheme:dark;
   --page:#242424;--surface:#2b2b2b;--field:#303030;--hover:#3a3a3a;
   --ink:#d8d8d8;--muted:#b0b0b0;--line:#404040;--field-line:#505050;
@@ -63,7 +62,6 @@ body{font-size:14px}main{max-width:1280px;padding:0 24px}header{padding:12px 0}h
   --danger:#e09690;--danger-bg:#44302e;--danger-line:#72504b;
   --success-bg:#333d28;--success-line:#647d3d;--backdrop:#141414aa;
   --chart-line:#8eb33b;
- }
 }
 html{background:var(--page);scrollbar-color:var(--field-line) var(--page)}
 body{background:var(--page);color:var(--ink)}
@@ -110,7 +108,7 @@ input.ean-toggle{accent-color:var(--accent)}
 
 /* Inter is bundled locally; no font service or network request at runtime. */
 @font-face{
- font-family:'Inter';src:url('fonts/InterVariable.woff2') format('woff2');
+ font-family:'Inter';src:url('../assets/fonts/InterVariable.woff2') format('woff2');
  font-weight:100 900;font-style:normal;font-display:swap;
 }
 :root{--font-ui:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
@@ -238,18 +236,61 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .copy-list-button{height:32px;min-height:32px;margin:0;padding:0 10px;gap:7px;border:1px solid var(--field-line);border-radius:7px;background:var(--secondary);color:var(--secondary-ink);font-size:12px;font-weight:500;line-height:1}
 .copy-list-button:hover{background:var(--hover);color:var(--ink)}
 .shop-heading>.copy-list-button{margin-right:8px}
+.shop-results>.shop-heading>.copy-list-button{margin-right:0}
 
 .result-link-actions>.copy-button.copied{background:var(--success-bg);color:var(--available);border-color:var(--success-line)}
 
-/* Quiet accents for shop sections; product rows retain one title and execution. */
-.shop-results>.shop-heading{border-left:3px solid color-mix(in srgb,var(--link) 45%,var(--line));padding-left:9px;min-height:32px}
-.shop-results>.shop-heading>h3{color:var(--link)}
+/* Shop sections use typography and a quiet surface, without decorative rules. */
+.shop-results>.shop-heading{padding:0 8px;min-height:32px;gap:12px;border-radius:6px;background:color-mix(in srgb,var(--link) 4%,var(--surface))}
+.shop-results>.shop-heading>h3{margin:0;color:var(--ink);font-size:16px;font-weight:600;letter-spacing:-.015em;line-height:1.3}
 .wishlist-results tbody:hover{background:color-mix(in srgb,var(--link) 3%,var(--surface))}
 .wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{font-size:inherit}
 .wishlist-results .stock-unavailable{color:#886540}
 .wishlist-results .stock-unknown{color:var(--muted)}
-@media(prefers-color-scheme:dark){.wishlist-results .stock-unavailable{color:#c4ad86}}
-@media(forced-colors:active){.shop-results>.shop-heading{border-left-color:CanvasText}.shop-results>.shop-heading>h3,.wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{color:CanvasText}}
+:root[data-theme="dark"] .wishlist-results .stock-unavailable{color:#c4ad86}
+@media(forced-colors:active){.shop-results>.shop-heading{background:Canvas}.shop-results>.shop-heading>h3,.wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{color:CanvasText}}
 
 .wishlist-results td.price .price-comparison{display:grid;justify-items:end;gap:1px;margin-top:4px;color:var(--muted);font-size:11px;font-weight:400;line-height:1.35;letter-spacing:0}
 .price-comparison>span{white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* Small native controls share the existing title row. */
+.page-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 14px}
+.page-heading h1{margin:0;min-width:0}
+.theme-controls{display:flex;align-items:center;gap:6px;flex-shrink:0}
+#theme-toggle{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:6px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:7px}
+#theme-toggle:hover{background:var(--hover);color:var(--ink)}
+#theme-toggle svg{width:18px;height:18px}
+:root[data-theme="dark"] .theme-moon,:root:not([data-theme="dark"]) .theme-sun{display:none}
+#theme-toggle:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+@media(max-width:480px){.page-heading{gap:6px}.page-heading h1{font-size:19px}.theme-controls{gap:2px}}
+
+.image-setting{display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:var(--muted);font-size:12px;font-weight:400;cursor:pointer}.image-setting input{width:14px;height:14px;padding:0;margin:0;accent-color:var(--focus)}
+
+/* One wishlist row combines the offer and its actions; inputs appear on demand. */
+.total-results .wishlist-actions-cell{width:1%;white-space:nowrap;vertical-align:middle}
+.wishlist-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.wishlist-row-actions button,.wishlist-editor-actions button{height:32px;min-height:32px;padding:0 10px;font-size:12px;font-weight:500;line-height:1;white-space:nowrap}
+.wishlist-row-actions .recheck-button,.wishlist-row-actions .remove-button{display:inline-flex;align-items:center;justify-content:center;width:32px;padding:0;flex-shrink:0}
+.wishlist-row-actions svg{display:block;width:18px;height:18px}
+.wishlist-row-actions .remove-button:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-line)}
+.total-results .wishlist-editor-row>td{padding:12px;background:var(--page)}
+.wishlist-editor{display:grid;grid-template-columns:minmax(200px,2fr) minmax(150px,1fr) minmax(120px,1fr) 100px;gap:12px;align-items:start;margin:0}
+.wishlist-editor>label,.wishlist-editor .editor-ean>label:not(.editor-ean-toggle){display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:var(--muted)}
+.wishlist-editor input:not([type=checkbox]){width:100%;height:32px;padding:5px 8px;font-size:13px}
+.wishlist-editor .editor-ean-toggle{display:flex;flex-direction:row-reverse;justify-content:flex-end;align-items:center;gap:5px;font-size:11px;font-weight:400}
+.editor-ean-toggle input{width:14px;height:14px;margin:0;accent-color:var(--muted)}
+.wishlist-editor-actions{display:flex;align-items:center;gap:6px;grid-column:1 / -1}
+@media(max-width:760px){.wishlist-editor{grid-template-columns:minmax(160px,1fr) minmax(140px,1fr)}.wishlist-editor>label:first-child{grid-column:1 / -1}}
+
+.total-results{table-layout:auto;min-width:860px}
+.total-results th:first-child{width:auto}
+.total-results th:nth-child(2),.total-results th:nth-child(3),.total-results th:nth-child(4){width:auto}
+.total-results th:nth-child(5),.total-results th:last-child{width:1%;white-space:nowrap}
+.total-results .wishlist-editor-row>td{min-width:0}
+
+.total-results .price-history-trigger{display:inline-flex;align-items:center;min-height:32px;margin:0;padding:0;border:0;border-radius:3px;background:transparent;color:inherit;font:inherit;white-space:nowrap;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--field-line);text-underline-offset:4px}
+.total-results .price-history-trigger:hover{color:var(--link);text-decoration-color:currentColor}
+
+.shop-summary{margin-left:auto;color:var(--muted);font-size:12px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}
+.shop-results>.shop-heading>.shop-summary+.copy-list-button{margin-left:0}
+@media(max-width:760px){.shop-results>.shop-heading{flex-wrap:wrap;row-gap:6px}.shop-summary{white-space:normal}}
