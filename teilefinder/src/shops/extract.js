@@ -62,6 +62,15 @@ function currentProductEAN({allowURLSKU=true}={}){
  return identifiers.size===1?[...identifiers][0]:'';
 }
 function productColor(){
+ // Product property tables can be collapsed; their labelled text remains in DOM.
+ const colors=new Set(),add=value=>{const text=String(value||'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/\s+/g,' ').trim();if(text&&text.length<=100)colors.add(text);};
+ for(const row of document.querySelectorAll('table tr')){
+  const cells=[...(row.querySelectorAll?.('th, td')||[])];
+  if(cells.length===2&&/^(?:farbe|colou?r)\s*:?$/i.test(cells[0].textContent?.trim()||''))add(cells[1].textContent);
+ }
+ for(const term of document.querySelectorAll('dt'))if(/^(?:farbe|colou?r)\s*:?$/i.test(term.textContent?.trim()||'')&&term.nextElementSibling?.tagName==='DD')add(term.nextElementSibling.textContent);
+ for(const node of document.querySelectorAll('[itemprop="color"]'))add(node.getAttribute?.('content')||node.textContent);
+ if(colors.size===1)return [...colors][0];if(colors.size>1)return '';
  const text=document.body?.innerText||'';
  return text.match(/(?:^|\n)Farbe\s*:?\s*\n?\s*(schwarz(?:\s*\/\s*transparent)?|black|weiß|weiss|white)\b/i)?.[1]||'';
 }

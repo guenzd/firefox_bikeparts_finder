@@ -641,3 +641,19 @@ test('Bike-Discount returns a completed empty inspection after checking real opt
   assert.equal(result.ready,complete);assert.equal(result.offers.length,0);assert.equal(result.readIssue,rows.readIssue);
  }
 });
+
+test('Bike-Discount combines size radio options with an explicit collapsed product color property, never descriptive color mentions',async()=>{
+ for(const [property,wanted,expected] of [['black','black, M',1],['blackSeries','black, M',1],['black','black, L',0],['edge green','black, M',0]]){
+  let now=0,selected='';const input={id:'medium',checked:false,disabled:false};
+  const label={innerText:'M',click(){input.checked=true;selected='M';}};input.parentElement={querySelector:()=>label};
+  const picker={getAttribute:()=> 'true',get innerText(){return selected;}};
+  const propertyRow={querySelectorAll:()=>[{textContent:'Farbe:'},{textContent:property}]};
+  const document={body:{innerText:'Generic bib shorts. Description: black fabric. Other sizes S M L.'},
+   querySelectorAll:selector=>selector==='table tr'?[propertyRow]:selector.includes('configurator-option')?[input]:[],
+   getElementById:()=>input,querySelector:selector=>({'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':input,'.product-detail-price':{innerText:'159,99 €*'},'.nele-product-availability-info':{innerText:'Auf Lager'},h1:{innerText:'Generic bib shorts'}}[selector]||null)};
+  const ctx=vm.createContext({document,URL,location:{href:'https://www.bike-discount.de/de/generic-bib-shorts'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);}});
+  vm.runInContext(readSource('extract.js')+readSource('variant-match.js')+readSource('variants.js'),ctx);
+  const rows=await ctx.bikeDiscountVariants({name:'Generic bib shorts'},wanted);assert.equal(rows.length,expected,property+' / '+wanted);
+  if(expected){assert.equal(rows[0].selection[0].id,'medium');assert.equal(rows[0].price,159.99);assert.ok(ctx.variantMatches(rows[0],wanted));}
+ }
+});
