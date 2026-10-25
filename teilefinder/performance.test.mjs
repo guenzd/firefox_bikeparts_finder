@@ -14,7 +14,7 @@ test('Delayed listings still wait for real results; saved product pages skip lis
 });
 test('Repeated checks reuse exactly four shop tabs, serialise each tab and bound local profiling history',async()=>{
  const result=await profileSearch({cached:true,runs:22});assert.equal(result.createdTabs,4);assert.equal(result.navigations,88);assert.equal(result.maxInFlightPerTab,1);assert.equal(result.phases.length,20);
- assert.doesNotMatch(JSON.stringify(result.phases),/1234567890128|Example Model|https:/);
+ assert.equal(result.phases[0].productName,'Example Model 123');assert.doesNotMatch(JSON.stringify(result.phases),/https:/);
 });
 test('Content retries share the in-progress DOM read; different requests queue and failures release the queue',async()=>{
  const ctx=vm.createContext({});const reader=readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8');vm.runInContext(reader.split('platform.runtime.onMessage')[0],ctx);
@@ -106,4 +106,20 @@ test('Already interactive and complete documents can be read immediately',async(
  const ctx=vm.createContext({platform:{runtime:{onMessage:{addListener(){}}}}});vm.runInContext(readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
  for(const readyState of ['interactive','complete'])await ctx.waitForShopDocument({readyState,addEventListener(){throw Error('No extra wait required');}});
  for(const name of ['firefox','chrome']){const manifest=JSON.parse(readFileSync(new URL('./manifests/'+name+'.json',import.meta.url),'utf8'));assert.ok(manifest.content_scripts.every(group=>group.run_at==='document_start'));}
+});
+
+
+test('Profiles keep the requested product identity through query refinement and distinguish a disabled EAN',async()=>{
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');let listener;
+ const ctx=vm.createContext({searchPlatform:{runtime:{getURL:path=>'extension://unit/'+path,onMessage:{addListener(fn){listener=fn;}}}},setTimeout,clearTimeout});
+ vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
+ ctx.searchAll=async job=>{job.query='internally refined query';job.nameQuery='normalized name';};
+ for(const useEAN of [true,false]){
+  await listener({type:'search',id:'identity-'+useEAN,query:'  Example Model 123  ',ean:'1234567890128',variant:' black ',useEAN},{url:'extension://unit/ui/home.html',tab:{id:99}});
+  await new Promise(setImmediate);
+ }
+ const profiles=ctx.getSearchProfiles();assert.equal(profiles.length,2);
+ for(const [index,useEAN] of [true,false].entries()){
+  const profile=profiles[index];assert.equal(profile.productName,'Example Model 123');assert.equal(profile.ean,'1234567890128');assert.equal(profile.variant,'black');assert.equal(profile.useEAN,useEAN);
+ }
 });

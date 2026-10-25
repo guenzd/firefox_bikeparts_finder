@@ -51,7 +51,7 @@ Die Einträge enthalten Gesamtzeit und je Shop Aufrufzahl sowie aufsummierte Dau
 - `detail`: Antwortzeiten für Produktdetails, einschließlich Dropdown- und Datenblattwartezeiten.
 - `cache.read`: Laden bekannter Produktlinks, einschließlich Warten auf ausstehende Cache-Schreibvorgänge.
 
-Die Phasen messen verstrichene Zeit, keine reine CPU-Zeit. Shops laufen parallel, deshalb die Summen verschiedener Shops nicht als Gesamtzeit addieren. Die Übersicht enthält keine Suchbegriffe, EANs oder Produktlinks. Ein Neuladen leert sie.
+Die Phasen messen verstrichene Zeit, keine reine CPU-Zeit. Shops laufen parallel, deshalb die Summen verschiedener Shops nicht als Gesamtzeit addieren. Die Übersicht enthält ab 0.8.9 auch den eingegebenen Produktnamen (`productName`), die hinterlegte EAN (`ean`), die Variante (`variant`) und die EAN-Einstellung (`useEAN`). Produktlinks werden nicht aufgenommen. Ein Neuladen leert sie.
 
 ## Weitere mögliche Engpässe
 
@@ -150,3 +150,10 @@ Das sind Browser-Ladebeschränkungen, kein nachträgliches Verstecken per CSS. E
 „Bilder laden“ entfernt beide Sitzungsregeln. Ein bereits geladenes Dokument behält seine empfangene Richtlinie bis zum nächsten Neuladen bzw. einer neuen Navigation. Daher nach dem Update und auch beim Wiederfreigeben von Bildern die Shopseiten neu laden bzw. die nächste Suche abwarten. Normale Shop-Tabs bleiben über die Tab-ID-Begrenzung ausgeschlossen; die Headerregel hat zusätzlich eine Begrenzung auf die vier Shop-Domains und `main_frame`. Es kommen keine neuen Berechtigungen hinzu.
 
 Tests für Firefox und Chrome prüfen Installation beider Regeln vor dem ersten Shop-Aufruf, Erhalt vorhandener Shop-CSP durch `append`, die reine `img-src`-Vorgabe, Beschränkung auf registrierte Tab-IDs/Hauptdokumente/Shop-Domains sowie Entfernen beider Regeln beim Opt-out und Schließen.
+
+
+## Artikelzuordnung / 0.8.9
+
+Jeder Profil-Eintrag enthält den ursprünglichen Produktnamen, die eingegebene EAN, Variante und EAN-Einstellung. Der Produktname bleibt auch dann erhalten, wenn intern mit EAN oder einem vereinfachten Suchbegriff gesucht wird. Eine hinterlegte, aber deaktivierte EAN bleibt mit `useEAN: false` nachvollziehbar. Die Angaben bleiben zusammen mit den letzten 20 Profilen ausschließlich im Arbeitsspeicher der Teilefinder-Seite; ein Neuladen leert sie. Bereits vorhandene Profile werden nicht nachträglich ergänzt.
+
+Für einen neuen Durchlauf die aktualisierte Erweiterung und anschließend die Teilefinder-Seite neu laden, die Wunschliste prüfen und danach `JSON.stringify(getSearchProfiles(), null, 2)` in `tmp.log` übernehmen. Produktnamen müssen nicht mehr manuell ergänzt werden.
