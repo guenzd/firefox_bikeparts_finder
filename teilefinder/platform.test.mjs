@@ -159,16 +159,16 @@ for(const kind of ['firefox','chrome'])test(`${kind} image rules cover only owne
  const api=e.ctx.createNativePlatform(e.native),registry=e.ctx.createTabRegistry(api);
  e.native.runtime.sendMessage=data=>registry.lookup(data,e.sender)??registry.register(data,e.sender);
  const update=e.native.tabs.update;
- e.native.tabs.update=async(id,options)=>{assert.ok(rules.get(840001)?.condition.tabIds.includes(id),'Images blocked before shop navigation');return update(id,options);};
+ e.native.tabs.update=async(id,options)=>{assert.ok(rules.get(840001)?.condition.tabIds.includes(id),'Images blocked before shop navigation');assert.ok(rules.get(840002)?.condition.tabIds.includes(id),'Document image policy installed before shop navigation');return update(id,options);};
  vm.runInContext(source('page.js').split('var pagePlatforms=')[0],e.ctx);const page=e.ctx.createPagePlatforms(api);
  const owned=await page.search.tabs.create({url:'https://r2-bike.com/product',active:false});
  const manual=await page.ui.tabs.create({url:'https://r2-bike.com/manual'});
- const rule=rules.get(840001);assert.equal(rule.action.type,'block');assert.deepEqual(Array.from(rule.condition.resourceTypes),['image']);assert.deepEqual(Array.from(rule.condition.tabIds),[owned.id]);assert.ok(!rule.condition.tabIds.includes(manual.id));
+ assert.equal(rules.size,2);const rule=rules.get(840001);assert.equal(rule.action.type,'block');assert.deepEqual(Array.from(rule.condition.resourceTypes),['image']);assert.deepEqual(Array.from(rule.condition.tabIds),[owned.id]);assert.ok(!rule.condition.tabIds.includes(manual.id));
  assert.ok(rule.condition.initiatorDomains.includes('r2-bike.com'));assert.ok(rule.condition.excludedRequestDomains.includes('challenges.cloudflare.com'));
  assert.equal((await page.ui.runtime.sendMessage({type:'shop-image-settings'})).loadImages,false);
  await page.ui.runtime.sendMessage({type:'shop-image-settings',loadImages:true});assert.equal(rules.size,0);assert.equal(e.local.loadShopImages,true);
  await page.ui.runtime.sendMessage({type:'shop-image-settings',loadImages:false});assert.equal(rules.get(840001).condition.tabIds.length,1);
- rules.clear();await e.ctx.createTabRegistry(api).restore();assert.ok(rules.get(840001).condition.tabIds.includes(owned.id));
+ rules.clear();await e.ctx.createTabRegistry(api).restore();assert.ok(rules.get(840001).condition.tabIds.includes(owned.id));assert.ok(rules.get(840002).condition.tabIds.includes(owned.id));
  const before=calls.length;assert.equal(registry.lookup({type:'shop-image-settings',owner:1,loadImages:true},{...e.sender,url:'https://r2-bike.com/'}),undefined);assert.equal(calls.length,before);
  await registry.removed(1);assert.equal(rules.size,0);assert.ok(e.tabs.has(manual.id));
 });
@@ -202,4 +202,15 @@ test('Image rules retain other owners and restore the old rule when saving the p
  e.api.storage.local.set=async()=>{throw Error('Storage unavailable');};
  await assert.rejects(registry.lookup({type:'shop-image-settings',owner:2,loadImages:true},{...e.sender,tab:{id:2}}),/Storage unavailable/);
  assert.deepEqual(applied.slice(-2),[[],[21]]);assert.equal(e.local.loadShopImages,undefined);
+});
+
+for(const kind of ['firefox','chrome'])test(`${kind} adds only an image CSP to owned shop main frames and removes both rules on opt-out`,async()=>{
+ const e=environment(kind);let change;e.native.declarativeNetRequest={async updateSessionRules(data){change=data;}};
+ const api=e.ctx.createNativePlatform(e.native);await api.images.setTabIds([17,9,17]);
+ const rule=change.addRules.find(rule=>rule.id===840002);assert.ok(rule);assert.equal(rule.action.type,'modifyHeaders');
+ assert.deepEqual(Array.from(rule.condition.tabIds),[9,17]);assert.deepEqual(Array.from(rule.condition.resourceTypes),['main_frame']);assert.equal(rule.condition.initiatorDomains,undefined);
+ assert.ok(rule.condition.requestDomains.includes('bike24.de'));assert.ok(!rule.condition.requestDomains.includes('images.bike24.com'));
+ const headers=rule.action.responseHeaders;assert.equal(headers.length,1);assert.equal(headers[0].header,'content-security-policy');assert.equal(headers[0].operation,'append');
+ assert.match(headers[0].value,/^img-src /);assert.doesNotMatch(headers[0].value,/default-src|script-src|style-src|connect-src|data:|blob:|bike24\.com/);assert.ok(headers[0].value.includes('https://challenges.cloudflare.com'));
+ await api.images.setTabIds([]);assert.deepEqual(Array.from(change.removeRuleIds),[840001,840002]);assert.equal(change.addRules.length,0);
 });
