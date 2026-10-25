@@ -1,0 +1,66 @@
+# Suchlauf-Profiling (0.8.3)
+
+## Messung und Grenzen
+
+Die native Browsersteuerung lieferte am 25.10.2026 erneut `Sky Computer Use native pipe startup failed`, ohne erreichbare Browser. Deshalb gibt es hier **keine Messung realer Shop- oder Netzwerkzeiten**. Gemessen wurde der echte Suchcontroller mit deterministischer virtueller Uhr und simulierten Shopantworten. Matching, Cache-Auswahl, Wartezeiten, Wiederverwendung und Ergebnisabschluss laufen durch den produktiven Code.
+
+`npm run profile:search` erzeugt einen JSON-Bericht. Die Szenarien liefern vier gültige Angebote; ein fehlendes Ergebnis lässt den Lauf fehlschlagen. Erfasst werden Controller-Laufzeit, Navigationen, Listing-/Detail-Auslesungen, erstellte Tabs und gleichzeitige Auslesungen pro Tab.
+
+## Vorher / nachher
+
+Ausgangsstand: Commit `0fdab45` (0.8.2). Zeiten sind simulierte Controller-Laufzeiten, keine prognostizierten Shop-Ladezeiten.
+
+| Szenario | Vorher | Nachher | Tabs | Navigationen vorher / nachher |
+| --- | ---: | ---: | ---: | ---: |
+| Listing sofort verfügbar | 4.000 ms | 2.500 ms | 4 | 4 / 4 |
+| Listing nach 2.500 ms verfügbar | 6.000 ms | 4.500 ms | 4 | 4 / 4 |
+| Gespeicherte Produktseite sofort verfügbar | 750 ms | 750 ms | 4 | 4 / 4 |
+| Drei Prüfungen gespeicherter Seiten | 2.250 ms | 2.250 ms | 4 insgesamt | 12 / 12 |
+| Gespeicherte Seite: Laden 1.500 ms, Auslesen 600 ms | 2.700 ms | 2.700 ms | 4 | 4 / 4 |
+
+In allen Szenarien bleibt höchstens eine Auslesung pro Tab gleichzeitig aktiv. Die Listing-Auslesezahl bleibt in den ersten beiden Fällen bei 8 bzw. 12 insgesamt. Es gibt keine zusätzlichen Shopseitenaufrufe.
+
+Die Ausgangsmessung lässt sich reproduzieren:
+
+```sh
+git show 0fdab45:teilefinder/src/core/search-controller.js > /tmp/teilefinder-controller-before.js
+node scripts/profile-search.mjs --controller /tmp/teilefinder-controller-before.js
+npm run profile:search
+```
+
+## Befunde und Änderungen
+
+1. Der Controller wartete vor jedem Listing-Auslesen zwei Sekunden. Selbst fertige Treffer benötigten dadurch mindestens vier Sekunden für zwei identische Auslesungen. Die erste Ladepause bleibt bei zwei Sekunden; nur die Stabilitätsprüfung bereits vorhandener Treffer oder Vorschläge erfolgt nach 500 ms. Das spart im sofort verfügbaren Listing-Szenario 37,5 %. Leere Seiten und Sicherheitsprüfungen behalten den langsameren Takt.
+2. Ein Nachrichten-Timeout beendet die asynchrone Auslesung im Shop nicht. Dropdowns können deutlich länger dauern: bis zu 24 Kombinationen, jeweils Auswahlpause und Stabilitätsprüfung, bei mehreren Dropdowns zusätzliche Zwischenstufen. Ein Retry konnte daher erneut gleichzeitig Optionen auswählen. Eine Queue pro Shopdokument serialisiert verschiedene Auslesungen und teilt identische laufende Requests mit Wiederholungsversuchen. Abgeschlossene Ergebnisse werden nicht zwischengespeichert; erneute Prüfungen lesen frische Daten. Fehler geben die Queue wieder frei.
+3. BIKE24-Verweise auf weitere Ausführungen verwendeten bisher eine unbegrenzte einzelne Nachrichtenwartezeit. Diese Auslesungen verwenden jetzt ebenfalls den begrenzten Nachrichtenpfad und prüfen nach der Wartepause erneut, ob der Suchjob noch aktiv ist.
+4. Bekannte Produktseiten umgehen die Suche bereits. Ihre Lade- und Variantenwartezeiten wurden nicht pauschal verkürzt: ohne Live-Messung wäre die Gefahr zu groß, veraltete Preise oder Lagerstände zu übernehmen.
+
+## Messungen im laufenden Add-on
+
+Der Suchcontroller hält für die letzten 20 abgeschlossenen/abgebrochenen Suchjobs lokale Timing-Zusammenfassungen im Arbeitsspeicher. Keine Speicherung auf Disk und keine Übertragung. Nach einem Suchlauf in der Entwicklerkonsole der Teilefinder-Seite:
+
+```js
+getSearchProfiles()
+```
+
+Die Einträge enthalten Gesamtzeit und je Shop Aufrufzahl sowie aufsummierte Dauer für:
+
+- `navigation`: Dauer der Tab-API-Aufrufe; **nicht** die vollständige Netzwerk-Ladezeit.
+- `wait`: explizite Controller-Wartepausen.
+- `listing`: Antwortzeiten für das Listing-Auslesen.
+- `detail`: Antwortzeiten für Produktdetails, einschließlich Dropdown- und Datenblattwartezeiten.
+- `cache.read`: Laden bekannter Produktlinks, einschließlich Warten auf ausstehende Cache-Schreibvorgänge.
+
+Die Phasen messen verstrichene Zeit, keine reine CPU-Zeit. Shops laufen parallel, deshalb die Summen verschiedener Shops nicht als Gesamtzeit addieren. Die Übersicht enthält keine Suchbegriffe, EANs oder Produktlinks. Ein Neuladen leert sie.
+
+## Weitere mögliche Engpässe
+
+Wunschlistenartikel werden weiterhin nacheinander geprüft; die vier Shops eines Artikels laufen parallel. Ein langsamer Shop kann deshalb den nächsten Artikel verzögern. Eine Umstellung auf unabhängige Warteschlangen pro Shop würde mehr Ablaufänderungen erfordern, insbesondere bei nachträglich entdeckten EANs, Abbruch und Zwischenergebnissen. Sie ist hier nicht enthalten.
+
+Für weitere gezielte Optimierung sind reale Timing-Zusammenfassungen entscheidend: hohe `detail`-Zeiten sprechen für Varianten/Datenblatt-Auslesung; hohe `wait`-Zeiten bei wenig Detailarbeit für Readiness-Erkennung. Die Rendering-Kosten der echten Browser-DOMs wurden mangels Browserzugriff nicht gemessen.
+
+## Verifikation
+
+Regressionen prüfen identische Treffer, schnellere stabile Listings, verzögertes Laden, direkte Produktseiten, Wiederverwendung von exakt vier Tabs über mehrere Suchen, unveränderte Sicherheitsprüfungs-Intervalle, begrenzte Profilhistorie sowie Queue-Deduplizierung, Serialisierung und Fehlerbehandlung.
+
+Stand 0.8.3: 166 Tests bestanden; Firefox-Lint ohne Fehler/Warnungen; Chrome-Manifest-/Asset-Prüfung bestanden. Beide Pakete werden im Test auf reproduzierbare Inhalte geprüft. Eine echte Browser-/Shop-Abnahme steht weiter aus.

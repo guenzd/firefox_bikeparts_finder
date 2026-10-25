@@ -28,7 +28,19 @@ function confirmBike24ProductMatch(result,data,productName){
  if(!ean||!data.variant?.trim()||!data.nameQuery||validEAN(data.nameQuery)||!matches(productName,data.nameQuery)||!result.eanCandidates?.includes(ean))return result;
  return {...result,offers:(result.offers||[]).map(offer=>!validEAN(offer.ean)&&offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.selection?.length&&offer.selection.every(option=>option.value)&&variantMatches(offer,data.variant)?{...offer,ean,eanEvidence:'datasheet'}:offer)};
 }
-platform.runtime.onMessage.addListener(async data=>{const result=await readShopPage(data);if(data?.type==='detail'&&result){const productName=document.querySelector('h1')?.innerText?.trim()||'';return {...confirmBike24ProductMatch(result,data,productName),productName};}return result;});
+// A timed-out message does not cancel DOM work. Share duplicate retries and
+// serialize different reads so asynchronous dropdown changes cannot overlap.
+function createShopReadQueue(read){
+ const pending=new Map();let tail=Promise.resolve();
+ return data=>{
+  if(!['extract','detail'].includes(data?.type))return undefined;
+  const key=JSON.stringify(data);if(pending.has(key))return pending.get(key);
+  const result=tail.then(()=>read(data));pending.set(key,result);
+  tail=result.then(()=>{pending.delete(key);},()=>{pending.delete(key);});
+  return result;
+ };
+}
+platform.runtime.onMessage.addListener(createShopReadQueue(async data=>{const result=await readShopPage(data);if(data?.type==='detail'&&result){const productName=document.querySelector('h1')?.innerText?.trim()||'';return {...confirmBike24ProductMatch(result,data,productName),productName};}return result;}));
 async function readShopPage(data){
  if(!['extract','detail'].includes(data?.type)||(['extract','detail'].includes(data.type)&&typeof data.query!=='string')||location.hostname.replace(/^www\./,'')!==data.host?.replace(/^www\./,''))return;
  const body=document.body?.innerText||'';

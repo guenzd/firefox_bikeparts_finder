@@ -97,7 +97,7 @@ test('Unrelated results without a no-results banner finish and permit the next w
  let listener,created=0;const messages=[],reads=new Map(),home='moz-extension://unit/home.html';
  const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(data){messages.push(data);}},tabs:{async create({url}){return {id:++created,url};},async update(id,{url}){return {id,url};},async get(){return {url:'https://example.invalid/'};},async sendMessage(tab){reads.set(tab,(reads.get(tab)||0)+1);return {offers:[],suggestions:[],empty:false,ready:true};}}};
  // Only accelerate polling; response deadline timers must remain real timers.
- vm.runInNewContext(source+readSource('suggestions.js'),{platform,URL,clearTimeout,setTimeout:(f,ms)=>ms===2000?setImmediate(f):setTimeout(f,ms)});
+ vm.runInNewContext(source+readSource('suggestions.js'),{platform,URL,clearTimeout,setTimeout:(f,ms)=>ms<10000?setImmediate(f):setTimeout(f,ms)});
  for(const id of ['missing-1','next-article']){
   await listener({type:'search',id,query:'imaginary model 123'},{url:home,tab:{id:99}});
   for(let n=0;n<40;n++)await new Promise(setImmediate);
