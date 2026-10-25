@@ -86,7 +86,7 @@ python3 scripts/build-extension.py --test-only
 python3 scripts/build-extension.py
 ```
 
-Gemeinsamer Quellcode: `teilefinder/src/`. Browser-Manifeste: `teilefinder/manifests/`. Tests: `teilefinder/*.test.mjs` und `teilefinder/local-browser/extract.test.mjs`. Beide Manifeste tragen dieselbe Version; der Build prüft die Übereinstimmung. Generierte Dateien liegen unter `outputs/` und werden nicht in Git aufgenommen.
+Gemeinsamer Quellcode: `teilefinder/src/`. Browser-Manifeste: `teilefinder/manifests/`. Tests: `teilefinder/*.test.mjs` und `teilefinder/local-browser/extract.test.mjs`. Beide Manifeste tragen dieselbe Version; der Build prüft die Übereinstimmung. Generierte Dateien liegen unter `outputs/` und werden nicht in Git aufgenommen. Nach einem erfolgreichen Build werden ältere versionierte ZIPs des gebauten Browsers automatisch entfernt. Die aktuelle versionierte ZIP und die ZIP ohne Versionsnummer bleiben erhalten; Einzelbrowser-Builds lassen die ZIPs des anderen Browsers unverändert.
 
 ## Erneute Suche und Abbruch
 

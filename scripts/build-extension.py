@@ -83,6 +83,11 @@ def write_bundle(target, manifest, output=OUTPUT):
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, dest)
     (unpacked / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+    # Remove only versioned browser bundles, after this target is fully built.
+    versioned_name = re.compile(r'teilefinder-' + re.escape(target) + r'-\d+(?:\.\d+){0,3}\.zip')
+    for old in output.iterdir():
+        if old.is_file() and old.name != versioned.name and versioned_name.fullmatch(old.name):
+            old.unlink()
     print(f'{target} {manifest["version"]}: {versioned}\nEntpackt: {unpacked}')
     return archive
 
