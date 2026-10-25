@@ -40,7 +40,13 @@ function createShopReadQueue(read){
   return result;
  };
 }
-platform.runtime.onMessage.addListener(createShopReadQueue(async data=>{const result=await readShopPage(data);if(data?.type==='detail'&&result){const productName=document.querySelector('h1')?.innerText?.trim()||'';return {...confirmBike24ProductMatch(result,data,productName),productName,pageMatchesRequested:new URL(location.href).pathname===new URL(data.url).pathname};}return result;}));
+// Register the receiver at document_start, but never select variants or read
+// incomplete markup before the page's deferred scripts and DOM are ready.
+function waitForShopDocument(doc){
+ if(doc.readyState!=='loading')return Promise.resolve();
+ return new Promise(resolve=>doc.addEventListener('DOMContentLoaded',resolve,{once:true}));
+}
+platform.runtime.onMessage.addListener(createShopReadQueue(async data=>{await waitForShopDocument(document);const result=await readShopPage(data);if(data?.type==='detail'&&result){const productName=document.querySelector('h1')?.innerText?.trim()||'';return {...confirmBike24ProductMatch(result,data,productName),productName,pageMatchesRequested:new URL(location.href).pathname===new URL(data.url).pathname};}return result;}));
 async function readShopPage(data){
  if(!['extract','detail'].includes(data?.type)||(['extract','detail'].includes(data.type)&&typeof data.query!=='string')||location.hostname.replace(/^www\./,'')!==data.host?.replace(/^www\./,''))return;
  const body=document.body?.innerText||'';

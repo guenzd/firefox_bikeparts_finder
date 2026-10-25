@@ -124,3 +124,16 @@ Neue Shop-Tabs werden zunächst als leere Kinder des Teilefinder-Tabs angelegt, 
 Diese Änderung ist ein Ladeversuch, kein belegter Fix für die im letzten Profil beobachteten 218 Fehler. Eine echte Vorher-/Nachher-Messung mit aktuellen Profilen bleibt erforderlich. Live-Browsersteuerung ist weiterhin nicht verfügbar. Automatische Tests prüfen beide API-Modi, Registrierung vor der ersten Navigation, manuelle Tabs, Regelbereinigung, Worker-Neustart, Einstellungswechsel und Fehlerbehandlung.
 
 Referenzen: [Mozilla DNR-Berechtigungen](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/declarativeNetRequest#permissions), [Tab-bezogene Sitzungsregeln](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/declarativeNetRequest/RuleCondition), [Tab-URL-Berechtigungen](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabs).
+
+
+## Vollständiger Lauf aus `tmp.log` / 0.8.7
+
+Lokale Profiling-Ausgaben werden künftig aus `tmp.log` im Repository-Verzeichnis gelesen. Diese Datei ist in `.gitignore` eingetragen und wird nicht veröffentlicht.
+
+Der vorliegende Lauf enthält zwölf Profile mit insgesamt 294,061 Sekunden (4:54 Minuten), Median 20,806 Sekunden. Alle 187 klassifizierten Fehler sind `noReceiver`; kein `readerError` wurde gemeldet. Das grenzt den Fehler ein: Der Nachrichtenempfänger ist bei diesen Versuchen noch nicht installiert/erreichbar, statt dass die eigentliche Auslesefunktion eine Ausnahme zurückmeldet. Der sechste Lauf bleibt mit 60,057 Sekunden der langsamste; Bike-Discount benötigt dort über 44 Sekunden für abgeschlossene Detailantworten.
+
+Die bisherigen Content-Skripte wurden erst bei `document_idle` angemeldet. In 0.8.7 werden sie bei `document_start` angemeldet. Eingehende Ausleseanfragen warten innerhalb der vorhandenen serialisierten Queue auf `DOMContentLoaded`, bevor DOM-Felder gelesen oder Optionen ausgewählt werden. Identische Wiederholungen teilen weiterhin dieselbe ausstehende Anfrage. Ein schon interaktives oder vollständig geladenes Dokument benötigt diese zusätzliche DOM-Wartephase nicht. Es kommen keine weiteren Tabs oder Shop-Seitenaufrufe hinzu.
+
+Die Änderung adressiert die verspätete Anmeldung des Empfängers. Sie beseitigt weder die HTML-Ladezeit vor dem Start eines Dokuments noch lange Variantenprüfungen oder kanonische Weiterleitungen. Die tatsächliche Beschleunigung benötigt einen erneuten Live-Lauf. Tests prüfen die früh erreichbare Anmeldung, Aufschub bis `DOMContentLoaded`, Deduplizierung während des Wartens und frische Daten bei späteren Aufrufen.
+
+Zur Bildsperre: Die vom Nutzer gelesene Sitzungsregel 840001 war für genau vier Tab-IDs installiert. Firefox-Version 157 enthält die in [Bug 1949623](https://bugzilla.mozilla.org/show_bug.cgi?id=1949623) ab Firefox 149 markierte Korrektur des In-Memory-Cache-Problems. Deshalb wird dieser alte Cache-Fehler nicht als belegte Ursache der weiterhin sichtbaren Produktfotos herangezogen. Eine konkrete Bildadresse bzw. der zugehörige Request ist zur weiteren Eingrenzung erforderlich; bloßes Ausblenden wäre kein Nachweis eingesparter Bilddownloads.

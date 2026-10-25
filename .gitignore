@@ -20,3 +20,6 @@ work/
 
 **/__pycache__/
 **/*.pyc
+
+# Local user-provided profiling output
+/tmp.log

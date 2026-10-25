@@ -92,3 +92,18 @@ test('Profiles classify transport failures, timeouts and reader exceptions witho
  assert.equal(entry.readerErrors['ReferenceError · shops/reader.js:52:19 · missingReader is not defined'],1);
  assert.doesNotMatch(JSON.stringify(entry),/Secret|1234567890128|https:/);
 });
+
+test('Early shop receiver accepts requests before DOMContentLoaded and postpones DOM reads without duplicating retries',async()=>{
+ let listener,release,reads=0;const doc={readyState:'loading',addEventListener(type,fn,options){assert.equal(type,'DOMContentLoaded');assert.equal(options.once,true);release=fn;}};
+ const ctx=vm.createContext({document:doc,platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
+ vm.runInContext(readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
+ ctx.readShopPage=async()=>{reads++;return {ready:true,offers:[]};};
+ const request={type:'extract',query:'Example product'},first=listener(request),retry=listener({...request});assert.equal(first,retry);
+ await new Promise(setImmediate);assert.equal(reads,0);doc.readyState='interactive';release();assert.equal((await first).ready,true);assert.equal(reads,1);
+ await listener(request);assert.equal(reads,2,'A new completed request reads fresh data');
+});
+test('Already interactive and complete documents can be read immediately',async()=>{
+ const ctx=vm.createContext({platform:{runtime:{onMessage:{addListener(){}}}}});vm.runInContext(readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
+ for(const readyState of ['interactive','complete'])await ctx.waitForShopDocument({readyState,addEventListener(){throw Error('No extra wait required');}});
+ for(const name of ['firefox','chrome']){const manifest=JSON.parse(readFileSync(new URL('./manifests/'+name+'.json',import.meta.url),'utf8'));assert.ok(manifest.content_scripts.every(group=>group.run_at==='document_start'));}
+});
