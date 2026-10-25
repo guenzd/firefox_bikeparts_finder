@@ -64,3 +64,25 @@ Für weitere gezielte Optimierung sind reale Timing-Zusammenfassungen entscheide
 Regressionen prüfen identische Treffer, schnellere stabile Listings, verzögertes Laden, direkte Produktseiten, Wiederverwendung von exakt vier Tabs über mehrere Suchen, unveränderte Sicherheitsprüfungs-Intervalle, begrenzte Profilhistorie sowie Queue-Deduplizierung, Serialisierung und Fehlerbehandlung.
 
 Stand 0.8.3: 166 Tests bestanden; Firefox-Lint ohne Fehler/Warnungen; Chrome-Manifest-/Asset-Prüfung bestanden. Beide Pakete werden im Test auf reproduzierbare Inhalte geprüft. Eine echte Browser-/Shop-Abnahme steht weiter aus.
+
+## Auswertung echter Nutzer-Messwerte / 0.8.4
+
+Zwölf übermittelte Suchprofile: insgesamt 267,744 Sekunden (4:28 Minuten), Median 20,202 Sekunden, langsamster Lauf 60,129 Sekunden. Die folgenden Werte sind jeweils über alle zwölf Läufe **innerhalb eines Shops** aufsummiert; die Shops laufen parallel, daher die Shopzeiten nicht zur Gesamtlaufzeit addieren.
+
+| Shop | Explizite Wartepausen | Detail-Antwortzeit | Detail-Aufrufe |
+| --- | ---: | ---: | ---: |
+| BIKE24 | 53,622 s | 42,756 s | 56 |
+| Bike-Discount | 68,511 s | 82,964 s | 47 |
+| bike-components | 110,147 s | 0,689 s | 57 |
+| r2-bike | 175,269 s | 0,835 s | 105 |
+
+Cache-Lesezeit insgesamt: 69 ms. Der 60-Sekunden-Lauf fällt mit 48,739 Sekunden Bike-Discount-Detail-Antwortzeit auf. Die Daten allein unterscheiden noch nicht, ob eine schnelle erfolglose Antwort durch Sicherheitsprüfung, noch nicht fertige Seite, umgeleitete URL oder fehlende Elemente verursacht wird. Hintergrund-Timer und asynchrone Leser können zusätzlich die expliziten Wartezeiten verlängern; das ist aus den Summen nicht eindeutig zuzuordnen.
+
+Konkrete Korrekturen nach Codeprüfung:
+
+- Eine in diesem Shoplauf bereits direkt geprüfte gespeicherte Produkt-URL wird nicht erneut als letzter EAN-Fallback geöffnet. Die normale Shopsuche und das Prüfen ihrer aktuellen Treffer bleiben erhalten. Neue Suchläufe prüfen die gespeicherten URLs wieder frisch.
+- bike-components verlangt für feste Produkte ohne Variantenauswahl kein Dropdown mehr. Die aktuelle Preisangabe `auto-product-price` wird auch beim direkten Aktualisieren berücksichtigt. Fehlende frische Preise werden weiterhin nicht durch gespeicherte Preise ersetzt.
+- Profiling zählt unter `outcomes` zusätzlich `ready`, `notReady`, `blocked`, `noResponse`, `errors` und bei Detailantworten `pageMismatch`. `pageMismatch` kann etwa eine kanonische Weiterleitung bedeuten, nicht automatisch einen Fehler. Alle Werte sind Anzahlen, keine Zeiten.
+- Fertige Profile sind unveränderliche Momentaufnahmen. Nach einem Job-Timeout noch auslaufende Operationen verändern ihre Summen nicht nachträglich. Beim Abschluss noch nicht beendete Operationen können deshalb in den abgeschlossenen Phasenmessungen fehlen.
+
+Die Regressionstests prüfen das Vermeiden doppelter Fallbacks, den aktuellen Preis/Lagerstatus fester bike-components-Produkte, das Ablehnen veralteter Preise, die Rückgabe-Klassifikation und unveränderliche Profil-Snapshots. Für diese Korrekturen wird keine neue Gesamtbeschleunigung aus den alten Messwerten behauptet; dafür ist ein erneuter realer Lauf erforderlich.

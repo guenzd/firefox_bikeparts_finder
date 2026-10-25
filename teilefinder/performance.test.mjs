@@ -33,3 +33,51 @@ test('Cancelled linked-variant checks stop after the pending wait instead of iss
  const source=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('async function bike24Linked(')),ctx);
  await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'Example product'},{},{offers:[],linkedVariants:[{url:'https://www.bike24.de/p1.html'}]});assert.equal(reads,0);
 });
+
+test('A saved URL already checked in this shop run is not revisited by the empty-EAN fallback',async()=>{
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
+ const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}}}},setTimeout:(fn,ms)=>ms<10000?setImmediate(fn):setTimeout(fn,ms),clearTimeout,URL});
+ vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/catalog.js',import.meta.url),'utf8')+controller,ctx);
+ let navigations=0,details=0;const url='https://r2-bike.com/example-product',ean='1234567890128';
+ const shop={id:'r2-bike',name:'r2-bike',host:'r2-bike.com',search:q=>'https://r2-bike.com/suchergebnisse#search?query='+q};
+ const hint={url,name:'Example Model 123',ean,variant:'black',price:25,priceKind:'exact',stock:'Auf Lager'};
+ const job={id:'check',source:99,query:ean,nameQuery:hint.name,variant:'black',knownShops:[{name:shop.name,offers:[hint]}],results:new Map(),counts:new Map()};
+ ctx.job=job;vm.runInContext('jobs.set(job.source,job)',ctx);
+ ctx.searchPlatform.tabs={async update(){navigations++;},async sendMessage(_tab,data){if(data.type==='extract')return {ready:true,empty:true,offers:[]};details++;return {ready:true,offers:[{...hint,ean:'9999999999999'}],productName:hint.name};}};
+ ctx.shopTab=async()=>({id:1});ctx.searchPlatform.runtime.sendMessage=async()=>{};
+ await ctx.runShop(job,shop,ean);
+ assert.equal(details,1);assert.equal(navigations,1,'Only the move from the checked product to search is needed');assert.equal(job.results.get(shop.id).offers.length,0);
+});
+
+test('bike-components products without a selector read current price and stock instead of waiting for a nonexistent dropdown',async()=>{
+ const url='https://www.bike-components.de/de/Example/Fixed-product-p123/';let priceAvailable=true;
+ const document={readyState:'complete',body:{innerText:''},querySelectorAll:()=>[],querySelector(selector){
+  if(selector==='h1')return {innerText:'Example Model 123'};
+  if(selector==='main')return {innerText:'Example Model 123 Auf Lager'};
+  if(selector.includes('[data-test="auto-product-price"]'))return priceAvailable?{innerText:'29,99 €',getAttribute:()=>null}:null;
+  if(selector.includes('.stock-status'))return {innerText:'Auf Lager'};
+  return null;
+ }};
+ const ctx=vm.createContext({URL,document,location:{hostname:'www.bike-components.de',href:url},platform:{runtime:{onMessage:{addListener(){}}}},dedupe:rows=>rows,productDropdowns:()=>[],currentProductEAN:()=> '1234567890128',productColor:()=>''});
+ vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
+ const result=await ctx.readShopPage({type:'detail',query:'Example Model 123',shopId:'bike-components',host:'www.bike-components.de',url,direct:true,fallback:{name:'Old product',price:999,variant:'Old variant',ean:'9999999999999'}});
+ assert.equal(result.ready,true);assert.equal(result.offers[0].price,29.99);assert.equal(result.offers[0].ean,'1234567890128');assert.equal(result.offers[0].stock,'Auf Lager');
+ priceAvailable=false;const missing=await ctx.readShopPage({type:'detail',query:'Example Model 123',shopId:'bike-components',host:'www.bike-components.de',url,direct:true,fallback:{name:'Old product',price:999}});assert.equal(missing.ready,false);assert.equal(missing.offers[0].price,null);
+});
+
+test('Runtime profiling distinguishes pending, blocked and failed reads without retaining product identifiers',async()=>{
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');let result;
+ const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}}}},setTimeout,clearTimeout});vm.runInContext(controller,ctx);
+ const job={},shop={id:'r2-bike'};ctx.boundedMessage=async()=>{if(result instanceof Error)throw result;return result;};
+ for(const response of [{ready:false,pageMatchesRequested:false},{blocked:true},{ready:true},undefined,Error('Failure')]){
+  result=response;try{ctx.testJob=job;ctx.testShop=shop;await vm.runInContext("shopMessage(testJob,testShop,1,{type:'detail'})",ctx);}catch{}
+ }
+ assert.deepEqual(JSON.parse(JSON.stringify(job.profile.shops['r2-bike'].outcomes)),{notReady:1,pageMismatch:1,blocked:1,ready:1,noResponse:1,errors:1});
+});
+test('Finished profiling snapshots stay unchanged when timed-out background work completes later',()=>{
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
+ const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}}}},setTimeout,clearTimeout});vm.runInContext(controller,ctx);
+ const job={profile:{started:Date.now(),shops:{'r2-bike':{detail:{calls:1,ms:10},outcomes:{notReady:1}}}}};
+ ctx.finishSearchProfile(job);job.profile.shops['r2-bike'].detail.ms=99999;job.profile.shops['r2-bike'].outcomes.notReady++;
+ const saved=ctx.getSearchProfiles()[0];assert.equal(saved.shops['r2-bike'].detail.ms,10);assert.equal(saved.shops['r2-bike'].outcomes.notReady,1);
+});

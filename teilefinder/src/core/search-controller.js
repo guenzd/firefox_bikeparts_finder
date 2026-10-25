@@ -7,9 +7,13 @@ async function profileStep(job,shop,phase,work){
  const profile=searchProfile(job),entry=profile.shops[shop.id]||(profile.shops[shop.id]={});
  const timer=profileNow();try{return await work();}finally{const row=entry[phase]||(entry[phase]={calls:0,ms:0});row.calls++;row.ms=Math.round((row.ms+profileNow()-timer)*100)/100;}
 }
-function finishSearchProfile(job){const profile=searchProfile(job);searchProfiles.push({elapsedMs:Math.round(profileNow()-profile.started),shops:profile.shops});if(searchProfiles.length>20)searchProfiles.shift();}
+function finishSearchProfile(job){const profile=searchProfile(job);searchProfiles.push({elapsedMs:Math.round(profileNow()-profile.started),shops:JSON.parse(JSON.stringify(profile.shops))});if(searchProfiles.length>20)searchProfiles.shift();}
 const shopPause=(job,shop,ms)=>profileStep(job,shop,'wait',()=>pause(ms));
-const shopMessage=(job,shop,tab,data,ms)=>profileStep(job,shop,data.type==='extract'?'listing':'detail',()=>boundedMessage(tab,data,ms));
+const shopMessage=(job,shop,tab,data,ms)=>profileStep(job,shop,data.type==='extract'?'listing':'detail',async()=>{
+ const entry=searchProfile(job).shops[shop.id],outcomes=entry.outcomes||(entry.outcomes={});
+ try{const result=await boundedMessage(tab,data,ms);const status=!result?'noResponse':result.blocked?'blocked':result.ready?'ready':'notReady';outcomes[status]=(outcomes[status]||0)+1;if(result?.pageMatchesRequested===false)outcomes.pageMismatch=(outcomes.pageMismatch||0)+1;return result;}
+ catch(error){outcomes.errors=(outcomes.errors||0)+1;throw error;}
+});
 const navigateShop=(job,shop,tab,url)=>profileStep(job,shop,'navigation',()=>searchPlatform.tabs.update(tab,{url}));
 const jobs=new Map(),shopTabs=new Map(),tabSessions=new Map();
 async function shopTab(source,shop,url,active=false){
@@ -94,9 +98,11 @@ async function readKnownProducts(job,shop,tab,searchQuery){
  const known=job.knownShops.find(s=>s.name===shop.name),ean=validEAN(searchQuery);
  const hints=trustedProductHints(known?.offers,shop).filter(o=>!ean||validEAN(o.ean)===ean);
  const unique=[...new Map(hints.map(o=>[o.url,o])).values()].slice(0,3);const offers=[];
+ job.checkedKnownUrls ||= new Set();
  for(const [index,hint] of unique.entries()){
   if(!jobActive(job))break;
   if(index)await navigateShop(job,shop,tab.id,hint.url);
+  job.checkedKnownUrls.add(hint.url);
   for(let attempt=0;attempt<6&&jobActive(job);attempt++){
    await shopPause(job,shop,750);if(!jobActive(job))return;
    try{const result=await shopMessage(job,shop,tab.id,{type:'detail',nameQuery:job.nameQuery,query:searchQuery,variant:job.variant,host:shop.host,shopId:shop.id,url:hint.url,direct:true,followLinked:false,fallback:{...hint,variant:'',stock:'',price:null,ean:''}},20000);
@@ -160,7 +166,7 @@ async function runShop(job,shop,searchQuery=job.query){
  const send=async data=>{if(!jobActive(job))return;const requestedEAN=validEAN(searchQuery);if(requestedEAN){data={...data,offers:narrowEANResults((data.offers||[]).filter(o=>validEAN(o.ean)===requestedEAN),job.nameQuery),suggestions:[]};
   if(data.type==='result'&&!data.offers.length&&tab&&jobActive(job)){
    const known=job.knownShops.find(s=>s.name===shop.name);
-   const candidates=(Array.isArray(known?.offers)?known.offers:[]).filter(o=>{try{const u=new URL(o.url);return !exceedsSearchBudget(o,job)&&validEAN(o.ean)===requestedEAN&&u.protocol==='https:'&&u.hostname.replace(/^www\./,'')===shop.host.replace(/^www\./,'');}catch{return false;}}).slice(0,3);
+   const candidates=(Array.isArray(known?.offers)?known.offers:[]).filter(o=>{try{const u=new URL(o.url);return !job.checkedKnownUrls?.has(cleanShopUrl(o.url))&&!exceedsSearchBudget(o,job)&&validEAN(o.ean)===requestedEAN&&u.protocol==='https:'&&u.hostname.replace(/^www\./,'')===shop.host.replace(/^www\./,'');}catch{return false;}}).slice(0,3);
    for(const offer of candidates){
     if(!jobActive(job))return;
     try{await navigateShop(job,shop,tab.id,offer.url);
