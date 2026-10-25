@@ -136,3 +136,14 @@ test('A completed but unconfirmed saved variant is checked once, retains its dia
  shop.search=()=> 'https://www.bike-discount.de/de/search';
  await ctx.runShop(job,shop,ean);assert.equal(details,1);assert.equal(job.results.get(shop.id).offers.length,0);assert.equal(job.profile.shops[shop.id].readIssues.selectionUnconfirmed,1);
 });
+
+test('Known variants sharing one URL are restored separately without revisiting the product page or trusting cached prices',async()=>{
+ const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}}}},URL,setTimeout:(fn,ms)=>ms<10000?setImmediate(fn):setTimeout(fn,ms),clearTimeout});
+ for(const file of ['core/products.js','core/variant-match.js','core/search-controller.js'])vm.runInContext(readFileSync(new URL('./src/'+file,import.meta.url),'utf8'),ctx);
+ const url='https://www.bike-discount.de/de/generic-product',shop={id:'bike-discount',name:'Bike-Discount',host:'www.bike-discount.de'};
+ const hints=['A','B'].map(value=>({url,name:'Generic product',variant:value,price:999,selection:[{kind:'radio',id:value,value,text:value}]}));
+ const job={source:99,query:'Generic product',nameQuery:'Generic product',variant:'',knownShops:[{name:shop.name,offers:hints}]};ctx.job=job;vm.runInContext('jobs.set(job.source,job)',ctx);ctx.matches=(name,query)=>name===query;
+ let navigations=0;const selected=[];
+ ctx.searchPlatform.tabs={async update(){navigations++;},async sendMessage(_id,data){assert.equal(data.fallback.price,null);assert.equal(data.fallback.selection.length,0);const value=data.savedSelection[0].value;selected.push(value);return {ready:true,productName:'Generic product',offers:[{url,name:'Generic product',variant:value,price:value==='A'?10:20,priceKind:'exact',selection:data.savedSelection}]};}};
+ const offers=await ctx.readKnownProducts(job,shop,{id:1},job.query);assert.deepEqual(selected,['A','B']);assert.equal(navigations,0);assert.deepEqual(Array.from(offers,row=>row.price),[10,20]);
+});

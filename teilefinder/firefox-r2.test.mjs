@@ -30,6 +30,7 @@ test('Bike-Discount dropdown reads separate prices and stock after selecting eac
  const context=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/chain'},Date:{now:()=>now},setTimeout(f,ms){now+=ms;setImmediate(f);},euro:s=>Number(s.trim().replace(',','.')),stockText:s=>s});
  vm.runInContext(source,context);const rows=await vm.runInContext("bikeDiscountVariants({name:'Shimano XT CN-M8100',variant:'Ausführung im Shop prüfen',price:27.99,priceKind:'from'})",context);
  assert.equal(rows.length,2);assert.equal(rows[0].variant,'116 Glieder');assert.equal(rows[0].price,27.99);assert.equal(rows[1].variant,'126 Glieder');assert.equal(rows[1].price,29.99);assert.equal(rows[1].stock,'Nicht lieferbar');assert.equal(rows[1].priceKind,'exact');
+ const restored=await context.bikeDiscountVariants({name:'Shimano XT CN-M8100'},'',rows[0].selection);assert.equal(restored.length,1);assert.equal(restored[0].variant,'116 Glieder');assert.equal(restored[0].selection[0].kind,'radio');
 });
 test('Generic dropdowns enumerate size and capacity combinations without sorting or quantity controls',async()=>{
  const code=readSource('variants.js');let now=0;
@@ -48,6 +49,7 @@ test('bike-components custom dropdown reads variant-specific price and delivery 
  const context=vm.createContext({document,location:{href:'https://www.bike-components.de/de/chain/'},Date:{now:()=>now},setTimeout(f,ms){now+=ms;setImmediate(f);},euro:s=>Number(s.replace(',','.')),stockText:s=>s,dedupe:rows=>rows});vm.runInContext(code,context);
  const result=await vm.runInContext("bikeComponentsVariants({name:'Shimano CN-M8100',variant:'Ausführung im Shop prüfen'})",context);
  assert.equal(result.offers.length,2);assert.equal(result.offers[0].variant,'silber | 116');assert.equal(result.offers[0].price,27.99);assert.equal(result.offers[0].stock,'Versand in 1-3 Werktagen');assert.equal(result.offers[1].stock,'Nicht lieferbar');assert.equal(result.offers[1].price,29.99);
+ const restored=await context.bikeComponentsVariants({name:'Shimano CN-M8100'},'',result.offers[0].selection);assert.equal(restored.offers.length,1);assert.equal(restored.offers[0].variant,'silber | 116');assert.equal(restored.offers[0].selection[0].kind,'option');
 });
 test('Extension reuses its own shop tab and replaces a closed tab',async()=>{
  const tabs=new Map();let created=0,updated=0;
@@ -67,6 +69,8 @@ test('Dependent BIKE24 color and length dropdowns enumerate only valid combinati
  const ctx=vm.createContext({document,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html'},Event:class{constructor(type){this.type=type;}},Date:{now:()=>now},setTimeout(f,ms){now+=ms;setImmediate(f);},euro:s=>Number(s.replace(',','.')),stockText:s=>s,dedupe:rows=>rows});vm.runInContext(code,ctx);
  const result=await vm.runInContext("dropdownVariants({name:'Tubolito',variant:'Ausführung im Shop prüfen'})",ctx);
  assert.ok(events.length>0);assert.ok(events.every(type=>type==='change'));assert.equal(listeners.size,0);assert.equal(result.offers.length,4);assert.equal(result.offers[0].variant,'Farbe: orange · Länge: 60mm');assert.equal(result.offers[1].price,20.59);assert.equal(result.offers[2].variant,'Farbe: schwarz · Länge: 40mm');assert.equal(result.offers[2].stock,'Nicht lieferbar');assert.ok(!result.offers.some(o=>o.variant.includes('schwarz')&&o.variant.includes('80mm')));
+ events.length=0;const saved=result.offers[2].selection;const restored=await ctx.dropdownVariants({name:'Tubolito'},'',saved);assert.equal(restored.offers.length,1);assert.equal(restored.offers[0].variant,'Farbe: schwarz · Länge: 40mm');assert.equal(events.length,2);assert.equal(listeners.size,0);
+ events.length=0;const outdated=saved.map(value=>({...value,value:'removed',text:'Removed option'}));const fallback=await ctx.dropdownVariants({name:'Tubolito'},'',outdated);assert.equal(fallback.offers.length,4);assert.ok(events.length>2);assert.equal(listeners.size,0);
 });
 
 test('bike-components Aero 111 is read from live cards without embedded props',()=>{
@@ -369,7 +373,7 @@ test('Bike-Discount confirms UPC-labelled 12-digit identifiers and rejects diffe
 
 test('Persistent product URL cache bypasses searches after restart and falls back on a mismatching EAN',async()=>{
  const data={},home='moz-extension://unit/home.html',ean='1234567890128';
- const initial={name:'Example item',ean,variant:'silver',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike-discount.de/de/example'};
+ const initial={name:'Example item',ean,selection:[{kind:'select',id:'color',value:'silver',text:'silver'}],variant:'silver',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike-discount.de/de/example'};
  const createSession=(wrong=false,refreshKnown=false)=>{
   let listener;const urls=[],reads=[],messages=[];
   const platform={storage:{local:{async get(){return structuredClone(data);},async set(update){Object.assign(data,structuredClone(update));}}},browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(d){messages.push(d);}},tabs:{async create(o){urls.push(o.url);return {id:new URL(o.url).hostname,url:o.url};},async update(id,o){urls.push(o.url);return {id,url:o.url};},async get(){return {};},async sendMessage(id,d){reads.push(d);const url='https://'+d.host+'/de/example';return d.type==='detail'?{ready:true,productName:'Example item',offers:[{...initial,url,price:25,stock:'Nicht lieferbar',ean:wrong?'9999999999999':ean}]}:{ready:true,offers:[{...initial,url,price:30}]};}}};
@@ -377,7 +381,7 @@ test('Persistent product URL cache bypasses searches after restart and falls bac
   return {urls,reads,messages,async search(){await listener({type:'search',id:'cache-job',query:'Example item',ean,variant:'silver',refreshKnown},{url:home,tab:{id:99}});for(let i=0;i<150;i++)await new Promise(setImmediate);}};
  };
  const first=createSession();await first.search();assert.ok(first.reads.some(d=>d.type==='extract'));assert.ok(data.productUrlCache['ean:'+ean]['Bike-Discount'].length);
- const second=createSession();await second.search();assert.ok(second.urls.length);assert.ok(second.urls.every(url=>!url.includes('search')&&!url.includes('keywords')&&!url.includes('?qs=')));assert.ok(second.reads.every(d=>d.type==='detail'&&d.direct&&d.fallback.price===null&&d.fallback.ean===''));
+ const second=createSession();await second.search();assert.ok(second.urls.length);assert.ok(second.urls.every(url=>!url.includes('search')&&!url.includes('keywords')&&!url.includes('?qs=')));assert.ok(second.reads.every(d=>d.type==='detail'&&d.direct&&d.fallback.price===null&&d.fallback.ean===''&&d.fallback.selection.length===0&&d.savedSelection.length===1&&d.savedSelection[0].value==='silver'));
  assert.ok(second.messages.filter(d=>d.type==='result').every(d=>d.offers[0].price===25&&d.offers[0].stock==='Nicht lieferbar'));
  const third=createSession(true);await third.search();assert.ok(third.reads.some(d=>d.type==='extract'));assert.ok(third.urls.some(url=>url.includes('search')));assert.ok(third.messages.filter(d=>d.type==='result').every(d=>d.offers.every(o=>o.ean===ean)));
  const fourth=createSession(true,true);await fourth.search();assert.ok(fourth.reads.length);assert.ok(fourth.reads.every(d=>d.type==='detail'));assert.ok(fourth.urls.every(url=>!url.includes('search')&&!url.includes('keywords')));

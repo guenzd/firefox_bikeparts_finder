@@ -106,16 +106,17 @@ function saveProductHints(job,shop,offers){
 }
 async function readKnownProducts(job,shop,tab,searchQuery){
  const known=job.knownShops.find(s=>s.name===shop.name),ean=validEAN(searchQuery);
- const hints=trustedProductHints(known?.offers,shop).filter(o=>!ean||!validEAN(o.ean)||validEAN(o.ean)===ean);
- const unique=[...new Map(hints.map(o=>[o.url,o])).values()].slice(0,3);const offers=[];
+ const candidates=trustedProductHints(known?.offers,shop).filter(o=>!ean||!validEAN(o.ean)||validEAN(o.ean)===ean);
+ const hints=candidates.filter(o=>o.selection?.length||!candidates.some(other=>other.url===o.url&&other.selection?.length&&variantMatches(other,job.variant)));
+ const unique=[...new Map(hints.map(o=>[JSON.stringify([o.url,o.variant,o.selection||[]]),o])).values()].slice(0,3);const offers=[];
  job.checkedKnownUrls ||= new Set();
  for(const [index,hint] of unique.entries()){
   if(!jobActive(job))break;
-  if(index)await navigateShop(job,shop,tab.id,hint.url);
+  if(index&&hint.url!==unique[index-1].url)await navigateShop(job,shop,tab.id,hint.url);
   job.checkedKnownUrls.add(hint.url);
   for(let attempt=0;attempt<6&&jobActive(job);attempt++){
    await shopPause(job,shop,750);if(!jobActive(job))return;
-   try{const result=await shopMessage(job,shop,tab.id,{type:'detail',nameQuery:job.nameQuery,query:searchQuery,variant:job.variant,host:shop.host,shopId:shop.id,url:hint.url,direct:true,followLinked:false,fallback:{...hint,variant:'',stock:'',price:null,ean:''}},20000);
+   try{const result=await shopMessage(job,shop,tab.id,{type:'detail',nameQuery:job.nameQuery,query:searchQuery,variant:job.variant,host:shop.host,shopId:shop.id,url:hint.url,direct:true,followLinked:false,savedSelection:variantMatches(hint,job.variant)?cleanVariantSelection(hint.selection):[],fallback:{...hint,selection:[],variant:'',stock:'',price:null,ean:''}},20000);
     if(result.blocked)continue;
     if(!result.ready)continue;
     const title=result.productName||'';

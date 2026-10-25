@@ -60,3 +60,12 @@ test('Product-level EAN evidence survives saved results without becoming a SKU c
  const shops=ctx.snapshotShops([{name:'BIKE24',offers:[{name:'Chain',price:40,ean:'4524667879565',eanEvidence:'datasheet',url:'https://www.bike24.de/p1271583.html'}]}]);
  assert.equal(shops[0].offers[0].eanEvidence,'datasheet');
 });
+
+test('Export and import retain bounded concrete selections for native, radio and custom options',()=>{
+ const selection=[{kind:'select',id:'color',name:'color',label:'Farbe',value:'black',text:'schwarz'},{kind:'radio',id:'size-1',value:'size-1',text:'1 L'},{kind:'option',id:'width-30',value:'width-30',text:'30 mm'}];
+ const item={query:'Generic product',variant:'',maxPrice:null,shops:[{name:'BIKE24',offers:[{name:'Generic product',price:20,url:'https://www.bike24.de/p1.html',selection}]}]};
+ const imported=ctx.parseWishlistFile(ctx.wishlistFile([item]));const saved=imported[0].shops[0].offers[0].selection;
+ assert.equal(saved.length,3);assert.equal(saved[0].name,'color');assert.equal(saved[0].label,'Farbe');assert.equal(saved[1].kind,'radio');assert.equal(saved[2].text,'30 mm');
+ assert.ok(ctx.cleanVariantSelection([null,{kind:'submit',id:'cart',value:'anything'}]).every(value=>value.kind==='select'));
+ assert.equal(ctx.cleanVariantSelection(Array(30).fill(selection[0])).length,20);
+});
