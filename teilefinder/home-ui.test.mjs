@@ -246,16 +246,17 @@ test('Unified wishlist keeps actions on unmatched rows and exposes a cancellable
   append(...nodes){for(const node of nodes){node.parentElement=this;this.children.push(node);}},replaceChildren(...nodes){this.children=[];this.append(...nodes);},
   setAttribute(key,value){this.attrs[key]=value;},addEventListener(type,fn){this.listeners[type]=fn;},reportValidity(){return true;},
   click(){if(!this.disabled)return this.listeners.click?.({preventDefault(){}});},focus(){}});
- const all=node=>[node,...node.children.flatMap(all)],root=make('div'),status=make('div');let writes=0,rechecks=[],renders=0;
+ const all=node=>[node,...node.children.flatMap(all)],root=make('div'),status=make('div');let writes=0,rechecks=[],renders=0,histories=[];
  const item={id:'one',query:'Example product',ean:'1234567890128',useEAN:false,variant:'black',minPrice:5,maxPrice:10,shops:[{name:'BIKE24',offers:[{name:'Example product',variant:'black',price:7,priceKind:'exact',stock:'Nicht lieferbar',url:'https://www.bike24.de/p123.html'}]}]};
- const ctx=vm.createContext({wishlistEditor:null,el:make,wishlist:[item],checkingList:false,wishlistActionIcon:()=>make('svg'),document:{querySelector:selector=>selector==='#wishlist-total'?root:selector==='#status'?status:null},money:String,copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),async saveList(){writes++;},async recheckWishlistItem(id){rechecks.push(id);},renderWishlist(){renders++;},cleanSavedUrls:value=>value,platform:{storage:{local:{async set(){writes++;}}}}});
+ const ctx=vm.createContext({showPriceHistory:item=>histories.push(item.id),wishlistEditor:null,el:make,wishlist:[item],checkingList:false,wishlistActionIcon:()=>make('svg'),document:{querySelector:selector=>selector==='#wishlist-total'?root:selector==='#status'?status:null},money:String,copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),async saveList(){writes++;},async recheckWishlistItem(id){rechecks.push(id);},renderWishlist(){renders++;},cleanSavedUrls:value=>value,platform:{storage:{local:{async set(){writes++;}}}}});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
  ctx.inputPriceRange=input=>{try{return ctx.parsePriceRange(input.value);}catch{return null;}};
  vm.runInContext(home.slice(home.indexOf('function wishlistRowActions('),home.indexOf('function renderWishlist(){')),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
  ctx.renderTotal();assert.equal(all(root).filter(n=>n.tag==='input').length,0);
+ await all(root).find(n=>n.className==='price-history-trigger').click();assert.deepEqual(histories,['one']);
  const actions=()=>all(root).find(n=>n.className==='wishlist-row-actions');assert.equal(actions().children.length,3);assert.equal(actions().children[0].textContent,'Bearbeiten');
- await actions().children[0].click();let form=all(root).find(n=>n.tag==='form');assert.ok(form);assert.equal(actions().children[0].attrs['aria-expanded'],'true');
+ await actions().children[0].click();let form=all(root).find(n=>n.tag==='form');assert.ok(form);assert.ok(!all(form).some(n=>n.textContent==='Preisverlauf'));assert.equal(actions().children[0].attrs['aria-expanded'],'true');
  let fields=all(form).filter(n=>n.tag==='input');assert.deepEqual(fields.map(n=>n.type==='checkbox'?n.checked:n.value),['Example product','1234567890128',false,'black','5-10']);
  assert.ok(!all(form).some(n=>n.tag==='label'&&all(n).slice(1).some(child=>child.tag==='label')),'No nested labels');
  fields[0].value='Unsaved name';fields[0].listeners.input();await all(form).find(n=>n.textContent==='Abbrechen').click();assert.equal(writes,0);assert.equal(item.query,'Example product');assert.equal(all(root).filter(n=>n.tag==='input').length,0);

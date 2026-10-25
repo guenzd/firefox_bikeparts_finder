@@ -174,8 +174,7 @@ function appendWishlistEditor(table,item){
  const buttons=el('div');buttons.className='wishlist-editor-actions';
  const save=el('button','Speichern');save.type='submit';save.disabled=checkingList;
  const cancel=el('button','Abbrechen');cancel.type='button';cancel.className='secondary';cancel.disabled=checkingList;cancel.addEventListener('click',()=>{wishlistEditor=null;renderTotal();document.querySelector('[data-edit-item="'+item.id+'"]')?.focus();});
- const history=el('button','Preisverlauf');history.type='button';history.className='secondary';history.addEventListener('click',()=>showPriceHistory(item));
- buttons.append(save,cancel,history);form.append(buttons);
+ buttons.append(save,cancel);form.append(buttons);
  form.addEventListener('submit',async event=>{
   event.preventDefault();if(checkingList)return;
   const range=inputPriceRange(price);if(!range){price.reportValidity();return;}if(!form.reportValidity())return;
@@ -235,6 +234,7 @@ function renderTotal(){
 
   if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
   else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
+  const history=el('button',price.textContent);history.type='button';history.className='price-history-trigger';history.title='Preisverlauf';history.setAttribute('aria-label','Preisverlauf für '+item.query);history.addEventListener('click',()=>showPriceHistory(item));price.replaceChildren(history);
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));
   const actions=el('td');actions.className='wishlist-actions-cell';actions.append(wishlistRowActions(item));row.append(product,shop,price,stock,links,actions);table.append(row);appendWishlistEditor(table,item);
   for(const oldShop of (item.shops||[]).filter(s=>s.stale))for(const offer of oldShop.offers||[])previous.push({item,shop:oldShop,offer});
