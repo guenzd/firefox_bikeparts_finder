@@ -165,7 +165,7 @@ test('Displayed four-shop matches hide repeated EAN rows in totals and shop list
  const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},setAttribute(){},addEventListener(){}});
  const root=make('div'),names=['BIKE24','Bike-Discount','bike-components','r2-bike'],ean='4524667879565';let eanRows=0;
  const item={id:'one',query:'Different wishlist wording',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
- const ctx=vm.createContext({el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
+ const ctx=vm.createContext({wishlistRowActions:()=>make('div'),appendWishlistEditor(){},el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
  vm.runInContext(home.slice(home.indexOf('function resultLinkActions('),home.indexOf('function render(){')),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
@@ -183,7 +183,7 @@ test('Displayed four-shop matches hide repeated EAN rows in totals and shop list
  item.shops[1].offers[0].ean='';eanRows=0;
  item.shops[0].stale=true;ctx.renderTotal();assert.equal(eanRows,0);
  ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
- item.shops[0].offers=[];ctx.renderTotal();assert.ok(eanRows>0);
+ item.shops[0].offers=[];ctx.renderTotal();assert.equal(eanRows,0);
  eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
 });
 
@@ -208,7 +208,7 @@ test('Shop prices show a muted best-price comparison only for unequal current ex
   {name:names[1],offers:[offer(25),offer(40)]},
   {name:names[2],stale:true,offers:[offer(15)]},
   {name:names[3],offers:[offer(18,{stock:'Nicht lieferbar'})]}]};
- const ctx=vm.createContext({el:make,names,wishlist:[item],checkingList:false,state:new Map(),money:String,copyListButton:()=>make('button'),resultLinkActions:()=>make('div'),eanRow:()=>make('small'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
+ const ctx=vm.createContext({wishlistRowActions:()=>make('div'),appendWishlistEditor(){},el:make,names,wishlist:[item],checkingList:false,state:new Map(),money:String,copyListButton:()=>make('button'),resultLinkActions:()=>make('div'),eanRow:()=>make('small'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderWishlistDetails('),home.indexOf('platform.runtime.onMessage.addListener')),ctx);
  ctx.renderWishlistDetails(root);
@@ -239,4 +239,29 @@ test('Wishlist result propagation updates saved EANs without overwriting manual 
  const message={type:'result',target:1,id:'job',shop:'BIKE24',query:item.ean,url:'https://www.bike24.de/search',offers:[{name:'Saved product',price:30,ean:item.ean,url:'https://www.bike24.de/p1.html'}]};
  listener(message);assert.equal(sharedEAN,item.ean);assert.equal(node('#search-ean').value,'manual draft');assert.equal(ctx.wishlist[0].ean,item.ean);
  ctx.checkingList=false;listener(message);assert.equal(node('#search-ean').value,'manual draft');
+});
+
+test('Unified wishlist keeps actions on unmatched rows and exposes a cancellable editor only on demand',async()=>{
+ const make=(tag,text)=>({tag,textContent:text||'',children:[],dataset:{},attrs:{},listeners:{},disabled:false,
+  append(...nodes){for(const node of nodes){node.parentElement=this;this.children.push(node);}},replaceChildren(...nodes){this.children=[];this.append(...nodes);},
+  setAttribute(key,value){this.attrs[key]=value;},addEventListener(type,fn){this.listeners[type]=fn;},reportValidity(){return true;},
+  click(){if(!this.disabled)return this.listeners.click?.({preventDefault(){}});},focus(){}});
+ const all=node=>[node,...node.children.flatMap(all)],root=make('div'),status=make('div');let writes=0,rechecks=[],renders=0;
+ const item={id:'one',query:'Example product',ean:'1234567890128',useEAN:false,variant:'black',minPrice:5,maxPrice:10,shops:[{name:'BIKE24',offers:[{name:'Example product',variant:'black',price:7,priceKind:'exact',stock:'Nicht lieferbar',url:'https://www.bike24.de/p123.html'}]}]};
+ const ctx=vm.createContext({wishlistEditor:null,el:make,wishlist:[item],checkingList:false,wishlistActionIcon:()=>make('svg'),document:{querySelector:selector=>selector==='#wishlist-total'?root:selector==='#status'?status:null},money:String,copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),async saveList(){writes++;},async recheckWishlistItem(id){rechecks.push(id);},renderWishlist(){renders++;},cleanSavedUrls:value=>value,platform:{storage:{local:{async set(){writes++;}}}}});
+ for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
+ ctx.inputPriceRange=input=>{try{return ctx.parsePriceRange(input.value);}catch{return null;}};
+ vm.runInContext(home.slice(home.indexOf('function wishlistRowActions('),home.indexOf('function renderWishlist(){')),ctx);
+ vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
+ ctx.renderTotal();assert.equal(all(root).filter(n=>n.tag==='input').length,0);
+ const actions=()=>all(root).find(n=>n.className==='wishlist-row-actions');assert.equal(actions().children.length,3);assert.equal(actions().children[0].textContent,'Bearbeiten');
+ await actions().children[0].click();let form=all(root).find(n=>n.tag==='form');assert.ok(form);assert.equal(actions().children[0].attrs['aria-expanded'],'true');
+ let fields=all(form).filter(n=>n.tag==='input');assert.deepEqual(fields.map(n=>n.type==='checkbox'?n.checked:n.value),['Example product','1234567890128',false,'black','5-10']);
+ assert.ok(!all(form).some(n=>n.tag==='label'&&all(n).slice(1).some(child=>child.tag==='label')),'No nested labels');
+ fields[0].value='Unsaved name';fields[0].listeners.input();await all(form).find(n=>n.textContent==='Abbrechen').click();assert.equal(writes,0);assert.equal(item.query,'Example product');assert.equal(all(root).filter(n=>n.tag==='input').length,0);
+ await actions().children[0].click();form=all(root).find(n=>n.tag==='form');fields=all(form).filter(n=>n.tag==='input');fields.at(-1).value='12-6';await form.listeners.submit({preventDefault(){}});assert.equal(writes,0);assert.ok(ctx.wishlistEditor);fields.at(-1).value='6-12';
+ await form.listeners.submit({preventDefault(){}});assert.equal(writes,1);assert.equal(ctx.wishlist[0].minPrice,6);assert.equal(ctx.wishlist[0].maxPrice,12);assert.equal(ctx.wishlist[0].ean,item.ean);assert.equal(ctx.wishlist[0].useEAN,false);assert.equal(JSON.stringify(ctx.wishlist[0].shops),JSON.stringify(item.shops));assert.deepEqual(rechecks,[]);assert.equal(ctx.wishlistEditor,null);
+ ctx.renderTotal();await actions().children[1].click();assert.deepEqual(rechecks,['one']);
+ ctx.checkingList=true;ctx.renderTotal();assert.ok(actions().children.every(n=>n.disabled));
+ ctx.checkingList=false;ctx.renderTotal();await actions().children[2].click();assert.equal(ctx.wishlist.length,0);assert.equal(writes,2);assert.ok(renders>=2);
 });

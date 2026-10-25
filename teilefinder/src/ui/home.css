@@ -264,3 +264,26 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 @media(max-width:480px){.page-heading{gap:6px}.page-heading h1{font-size:19px}.theme-controls{gap:2px}}
 
 .image-setting{display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:var(--muted);font-size:12px;font-weight:400;cursor:pointer}.image-setting input{width:14px;height:14px;padding:0;margin:0;accent-color:var(--focus)}
+
+/* One wishlist row combines the offer and its actions; inputs appear on demand. */
+.total-results .wishlist-actions-cell{width:1%;white-space:nowrap;vertical-align:middle}
+.wishlist-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.wishlist-row-actions button,.wishlist-editor-actions button{height:32px;min-height:32px;padding:0 10px;font-size:12px;font-weight:500;line-height:1;white-space:nowrap}
+.wishlist-row-actions .recheck-button,.wishlist-row-actions .remove-button{display:inline-flex;align-items:center;justify-content:center;width:32px;padding:0;flex-shrink:0}
+.wishlist-row-actions svg{display:block;width:18px;height:18px}
+.wishlist-row-actions .remove-button:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-line)}
+.total-results .wishlist-editor-row>td{padding:12px;background:var(--page)}
+.wishlist-editor{display:grid;grid-template-columns:minmax(200px,2fr) minmax(150px,1fr) minmax(120px,1fr) 100px;gap:12px;align-items:start;margin:0}
+.wishlist-editor>label,.wishlist-editor .editor-ean>label:not(.editor-ean-toggle){display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:500;color:var(--muted)}
+.wishlist-editor input:not([type=checkbox]){width:100%;height:32px;padding:5px 8px;font-size:13px}
+.wishlist-editor .editor-ean-toggle{display:flex;flex-direction:row-reverse;justify-content:flex-end;align-items:center;gap:5px;font-size:11px;font-weight:400}
+.editor-ean-toggle input{width:14px;height:14px;margin:0;accent-color:var(--muted)}
+.wishlist-editor-actions{display:flex;align-items:center;gap:6px;grid-column:1 / -1}
+.wishlist-editor-actions button:last-child{margin-left:auto}
+@media(max-width:760px){.wishlist-editor{grid-template-columns:minmax(160px,1fr) minmax(140px,1fr)}.wishlist-editor>label:first-child{grid-column:1 / -1}}
+
+.total-results{table-layout:auto;min-width:860px}
+.total-results th:first-child{width:auto}
+.total-results th:nth-child(2),.total-results th:nth-child(3),.total-results th:nth-child(4){width:auto}
+.total-results th:nth-child(5),.total-results th:last-child{width:1%;white-space:nowrap}
+.total-results .wishlist-editor-row>td{min-width:0}

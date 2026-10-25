@@ -2,6 +2,7 @@ let currentTab;platform.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
 const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
 let searchDeadline;
 let wishlistProgress=null;
+let wishlistEditor=null;
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
 const saveList=()=>platform.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
@@ -146,32 +147,50 @@ function wishlistActionIcon(path){
  for(const [name,value] of Object.entries({viewBox:'0 0 24 24',width:'18',height:'18',fill:'none',stroke:'currentColor','stroke-width':'2','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))svg.setAttribute(name,value);
  const shape=document.createElementNS(svg.namespaceURI,'path');shape.setAttribute('d',path);svg.append(shape);return svg;
 }
+function wishlistRowActions(item){
+ const actions=el('div');actions.className='wishlist-row-actions';
+ const edit=el('button','Bearbeiten');edit.type='button';edit.className='secondary';edit.disabled=checkingList;
+ edit.dataset.editItem=item.id;edit.setAttribute('aria-label','Artikel bearbeiten: '+item.query);edit.setAttribute('aria-expanded',String(wishlistEditor?.id===item.id));if(wishlistEditor?.id===item.id)edit.setAttribute('aria-controls','wish-editor-'+item.id);
+ edit.addEventListener('click',()=>{
+  if(wishlistEditor?.id===item.id){wishlistEditor=null;renderTotal();return;}
+  wishlistEditor={id:item.id,query:item.query,ean:item.ean||'',variant:item.variant||'',price:priceRangeText(item),useEAN:item.useEAN!==false};
+  renderTotal();document.querySelector('#wish-editor-'+item.id+' input')?.focus();
+ });actions.append(edit);
+ const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList;
+ recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.addEventListener('click',()=>{wishlistEditor=null;void recheckWishlistItem(item.id);});
+ const remove=el('button');remove.type='button';remove.className='secondary remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList;
+ remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.addEventListener('click',()=>{wishlist=wishlist.filter(row=>row.id!==item.id);if(wishlistEditor?.id===item.id)wishlistEditor=null;void saveList();renderWishlist();});
+ actions.append(recheck,remove);return actions;
+}
+function appendWishlistEditor(table,item){
+ if(wishlistEditor?.id!==item.id)return;
+ const draft=wishlistEditor,row=el('tr'),cell=el('td'),form=el('form');row.className='wishlist-editor-row';cell.colSpan=6;form.className='wishlist-editor';form.id='wish-editor-'+item.id;form.setAttribute('aria-label','Artikel bearbeiten: '+item.query);
+ const field=(text,key)=>{const label=el('label',text),input=el('input');input.value=draft[key];input.disabled=checkingList;input.addEventListener('input',()=>{draft[key]=input.value;});label.append(input);if(key==='ean'){const group=el('div');group.className='editor-ean';group.append(label);form.append(group);}else form.append(label);return input;};
+ const name=field('Produktname','query');name.required=true;name.maxLength=160;
+ const ean=field('EAN','ean');ean.inputMode='numeric';ean.pattern='[0-9]{8,14}';ean.maxLength=14;ean.placeholder='Wird automatisch ergänzt';ean.dataset.eanItem=item.id;
+ const toggleLabel=el('label','EAN verwenden'),toggle=el('input');toggle.type='checkbox';toggle.checked=draft.useEAN;toggle.disabled=checkingList;toggle.addEventListener('change',()=>{draft.useEAN=toggle.checked;});toggleLabel.className='editor-ean-toggle';toggleLabel.append(toggle);ean.parentElement.parentElement.append(toggleLabel);
+ const variant=field('Ausführung','variant');variant.maxLength=100;variant.placeholder='Alle Varianten';
+ const price=field('Preis €','price');price.placeholder='10 / 5–10';price.addEventListener('input',()=>inputPriceRange(price));
+ const buttons=el('div');buttons.className='wishlist-editor-actions';
+ const save=el('button','Speichern');save.type='submit';save.disabled=checkingList;
+ const cancel=el('button','Abbrechen');cancel.type='button';cancel.className='secondary';cancel.disabled=checkingList;cancel.addEventListener('click',()=>{wishlistEditor=null;renderTotal();document.querySelector('[data-edit-item="'+item.id+'"]')?.focus();});
+ const history=el('button','Preisverlauf');history.type='button';history.className='secondary';history.addEventListener('click',()=>showPriceHistory(item));
+ buttons.append(save,cancel,history);form.append(buttons);
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();if(checkingList)return;
+  const range=inputPriceRange(price);if(!range){price.reportValidity();return;}if(!form.reportValidity())return;
+  const corrected=name.value.trim();if(!corrected)return;
+  save.disabled=true;cancel.disabled=true;
+  try{
+   const renamed=renameWishlistItem(wishlist,item.id,corrected),newVariant=variant.value.trim(),newEAN=validEAN(ean.value);
+   const updated=renamed.map(value=>value.id===item.id?{...value,...range,variant:newVariant,ean:newVariant!==(item.variant||'')&&newEAN===(item.ean||'')?'':newEAN,useEAN:toggle.checked}:value);
+   await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;wishlistEditor=null;renderWishlist();document.querySelector('[data-edit-item="'+item.id+'"]')?.focus();document.querySelector('#status').textContent='Artikel gespeichert.';
+  }catch{save.disabled=false;cancel.disabled=false;document.querySelector('#status').textContent='Artikel konnte nicht gespeichert werden.';}
+ });
+ form.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();if(!cancel.disabled)cancel.click();}});
+ cell.append(form);row.append(cell);table.append(row);
+}
 function renderWishlist(){
- const root=document.querySelector('#wishlist-items');root.replaceChildren();
- if(!wishlist.length)root.append(el('p','Noch keine Artikel gespeichert.'));
- for(const item of wishlist){
-  const row=el('div');row.className='wish-row';
-  const nameCell=el('div');nameCell.className='wish-name';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));nameCell.append(productButton);
-  const rename=el('button','Bearbeiten');rename.type='button';rename.className='secondary rename-button';rename.title='Name korrigieren';rename.setAttribute('aria-label','Name korrigieren: '+item.query);rename.disabled=checkingList;
-  rename.addEventListener('click',()=>{
-   const form=el('form');form.className='wish-name-editor';const name=el('input');name.value=item.query;name.maxLength=160;name.required=true;name.setAttribute('aria-label','Produktname korrigieren');
-   const save=el('button','Speichern');save.type='submit';const cancel=el('button','Abbrechen');cancel.type='button';cancel.className='secondary';
-   cancel.addEventListener('click',renderWishlist);
-   form.addEventListener('submit',async event=>{
-    event.preventDefault();const corrected=name.value.trim();if(checkingList||!corrected)return;
-    save.disabled=true;cancel.disabled=true;
-    try{const updated=renameWishlistItem(wishlist,item.id,corrected);await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderWishlist();document.querySelector('#status').textContent='Name gespeichert. Artikel erneut prüfen.';}
-    catch{save.disabled=false;cancel.disabled=false;document.querySelector('#status').textContent='Name konnte nicht gespeichert werden.';}
-   });
-   form.append(name,save,cancel);nameCell.replaceChildren(form);name.focus();name.select();
-  });nameCell.append(rename);const history=el('button','Preisverlauf');history.type='button';history.className='history-button';history.addEventListener('click',()=>showPriceHistory(item));nameCell.append(history);const eanLabel=el('div'),eanInput=el('input');eanInput.value=item.ean||'';eanInput.dataset.eanItem=item.id;eanInput.placeholder='Wird automatisch ergänzt';eanInput.inputMode='numeric';eanInput.pattern='[0-9]{8,14}';eanInput.maxLength=14;eanInput.disabled=checkingList;eanInput.addEventListener('change',()=>{if(eanInput.value&&!validEAN(eanInput.value)){eanInput.reportValidity();return;}item.ean=validEAN(eanInput.value);void saveList();});eanInput.id='ean-'+item.id;const eanToggle=el('input');eanToggle.type='checkbox';eanToggle.setAttribute('role','switch');eanToggle.className='ean-toggle';eanToggle.checked=item.useEAN!==false;eanToggle.disabled=checkingList;eanToggle.title='EAN für die Suche verwenden';eanToggle.setAttribute('aria-label','EAN für '+item.query+' verwenden');eanToggle.addEventListener('change',()=>{item.useEAN=eanToggle.checked;void saveList();});const eanHeading=el('div'),eanText=el('label','EAN');eanText.htmlFor=eanInput.id;eanHeading.className='ean-heading';eanHeading.append(eanText,eanToggle);eanLabel.replaceChildren(eanHeading,eanInput);eanLabel.className='wish-ean';row.append(nameCell,eanLabel);
-  const recheck=el('button');recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.type='button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.className='secondary recheck-button';recheck.disabled=checkingList;recheck.addEventListener('click',()=>void recheckWishlistItem(item.id));
-  const priceLabel=el('label','Preis €'),input=el('input');priceLabel.className='wish-price';input.type='text';input.inputMode='text';input.placeholder='10 / 5-10';input.value=priceRangeText(item);input.disabled=checkingList;enableDirectEditing(input,()=>priceRangeText(item));
-  input.addEventListener('input',()=>inputPriceRange(input));
-  input.addEventListener('change',()=>{const range=inputPriceRange(input);if(!range){input.reportValidity();return;}Object.assign(item,range);void saveList();renderTotal();render();});priceLabel.append(input);
-  const variantLabel=el('label','Ausführung'),variant=el('input');variantLabel.className='wish-variant';variant.className='variant-input';variant.placeholder='Alle Varianten';variant.value=item.variant||'';variant.disabled=checkingList;enableDirectEditing(variant,()=>item.variant||'');variant.addEventListener('change',()=>{item.variant=variant.value.trim();item.ean='';eanInput.value='';void saveList();renderTotal();render();});variantLabel.append(variant);row.append(variantLabel,priceLabel,recheck);
-  const remove=el('button');remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.type='button';remove.className='remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList;remove.addEventListener('click',()=>{wishlist=wishlist.filter(i=>i.id!==item.id);void saveList();renderWishlist();});row.append(remove);root.append(row);
- }
  document.querySelector('#check-wishlist').disabled=!wishlist.length;document.querySelector('#check-wishlist').title=checkingList?'Suche stoppen':'';document.querySelector('#add-wish').disabled=checkingList;document.querySelector('#search-submit').disabled=checkingList;
  document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);document.querySelector('#import-wishlist').disabled=checkingList;
  renderTotal();render();
@@ -203,23 +222,23 @@ function eanRow(value,itemId=activeWishlistId){
  });button.title='EAN übernehmen und kopieren';button.setAttribute('aria-label','EAN '+value+' übernehmen und kopieren');row.append(button);return row;
 }
 function renderTotal(){
- const root=document.querySelector('#wishlist-total');root.replaceChildren();if(!wishlist.length)return;
+ const root=document.querySelector('#wishlist-total');root.replaceChildren();if(!wishlist.length){root.append(el('p','Noch keine Artikel gespeichert.'));return;}
  const summary=cheapestWishlist(wishlist),box=el('div');box.className='total';
  const heading=el('div');heading.className='total-heading';heading.append(el('strong',(summary.complete?'Günstigster Gesamtpreis: ':'Teilsumme: ')+money(summary.total)),el('small',summary.complete?wishlist.length+' Artikel lieferbar':summary.missing+' Artikel ohne lieferbares Angebot im Preisbereich'));heading.append(copyListButton(summary.rows.flatMap(({best})=>best?[best]:[])));box.append(heading);
  const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='total-results';table.setAttribute('aria-label','Günstigste lieferbare Angebote');
- const head=el('tr');['Artikel / Variante','Günstigster Shop','Preis','Lagerstatus / Stand','Link'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
+ const head=el('tr');['Artikel / Variante','Günstigster Shop','Preis','Lagerstatus / Stand','Link','Aktionen'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
  const previous=[];
  for(const {item,best,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));product.append(productButton);
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
 
-  const ean=validEAN(best?.ean)||validEAN(item.ean);if(ean&&!allShopsHaveDisplayedOffers(item.shops||[],item))product.append(eanRow(ean,item.id));
+
   if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
   else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));
-  row.append(product,shop,price,stock,links);table.append(row);
+  const actions=el('td');actions.className='wishlist-actions-cell';actions.append(wishlistRowActions(item));row.append(product,shop,price,stock,links,actions);table.append(row);appendWishlistEditor(table,item);
   for(const oldShop of (item.shops||[]).filter(s=>s.stale))for(const offer of oldShop.offers||[])previous.push({item,shop:oldShop,offer});
-  if(!best){const suggestions=priceFilteredSuggestions([...new Map((item.shops||[]).flatMap(s=>s.suggestions||[]).map(s=>[s.url,s])).values()],item).slice(0,5);if(suggestions.length){const extra=el('tr'),cell=el('td'),details=el('details');cell.colSpan=5;details.append(el('summary','Ähnliche Produkte ('+suggestions.length+')'));suggestions.forEach(s=>details.append(suggestionRow(s,item)));cell.append(details);extra.append(cell);table.append(extra);}}
+  if(!best){const suggestions=priceFilteredSuggestions([...new Map((item.shops||[]).flatMap(s=>s.suggestions||[]).map(s=>[s.url,s])).values()],item).slice(0,5);if(suggestions.length){const extra=el('tr'),cell=el('td'),details=el('details');cell.colSpan=6;details.append(el('summary','Ähnliche Produkte ('+suggestions.length+')'));suggestions.forEach(s=>details.append(suggestionRow(s,item)));cell.append(details);extra.append(cell);table.append(extra);}}
  }
  wrap.append(table);box.append(wrap);
  if(previous.length){const details=el('details');details.className='previous-offers';details.append(el('summary','Frühere Angebote · nicht bestätigt ('+previous.length+')'));for(const {item,shop,offer} of previous){const line=el('p');line.append(el('b',item.query),document.createTextNode(' · '+shop.name+' · '+money(offer.price)+' '));const link=el('a','Öffnen');link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';line.append(link,copyButton(offer.url));if(shop.checkedAt)line.append(el('small',' · '+new Date(shop.checkedAt).toLocaleString('de-DE')));details.append(line);}box.append(details);}
