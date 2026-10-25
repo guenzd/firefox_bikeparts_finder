@@ -77,7 +77,7 @@ test('Individual search collapses the wishlist while retaining its saved results
  node('#search-use-ean').checked=false;await ctx.startSearch('Individual item','');assert.equal(sent.at(-1).useEAN,false);assert.equal(sent.at(-1).nameFallback,false);
  assert.equal(node('#wishlist-content').hidden,true);assert.equal(node('#wishlist-toggle').attrs['aria-expanded'],'false');assert.equal(ctx.wishlistDetails,false);assert.equal(JSON.stringify(wishlist),before);
  node('#wishlist-toggle').click();assert.equal(node('#wishlist-content').hidden,false);assert.equal(JSON.stringify(wishlist),before);
- ctx.setWishlistCollapsed(true);ctx.checkingList=true;await ctx.startSearch('Saved item','',wishlist[0].shops);
+ ctx.setWishlistCollapsed(true);ctx.checkingList=true;ctx.activeWishlistId='saved';await ctx.startSearch('Saved item','',wishlist[0].shops);
  assert.equal(sent.at(-1).useEAN,true);assert.equal(sent.at(-1).nameFallback,false);
  assert.equal(node('#wishlist-content').hidden,false);assert.equal(node('#wishlist-toggle').attrs['aria-expanded'],'true');assert.equal(ctx.wishlistDetails,true);assert.equal(JSON.stringify(wishlist),before);
 });
@@ -216,4 +216,27 @@ test('Shop prices show a muted best-price comparison only for unequal current ex
  assert.equal(comparisons.length,2);assert.ok(comparisons.every(node=>node.children.length===1&&node.title==='Bestpreis 20 bei BIKE24'));
  assert.equal(comparisons[0].children[0].text,'−5');assert.equal(comparisons[1].children[0].text,'+2');
  assert.ok(!nodes.some(node=>typeof node.text==='string'&&/^\d+ Artikel$/.test(node.text)));
+});
+
+test('Wishlist searches use saved EAN and price filters without reading or changing manual search fields',async()=>{
+ const nodes={};const node=s=>nodes[s]||(nodes[s]={value:'manual draft',checked:false,setAttribute(){},getAttribute(){},addEventListener(){}});
+ const item={id:'saved',query:'Saved product',ean:'4524667879565',variant:'116',minPrice:15,maxPrice:40,useEAN:true,shops:[]};
+ const sent=[];const ctx=vm.createContext({document:{querySelector:node},wishlist:[item],checkingList:true,activeWishlistId:'saved',state:new Map(),names:[],query:'',searchedVariant:'',searchDeadline:null,crypto:{randomUUID:()=> 'job'},setTimeout(){},clearTimeout(){},finishTimedOutSearch(){},render(){},validEAN:value=>value||'',inputPriceRange(){throw Error('Manual price must not be read');},knownSearchShops:()=>[],platform:{runtime:{async sendMessage(data){sent.push(data);}}}});
+ vm.runInContext(home.slice(home.indexOf('function setWishlistCollapsed('),home.indexOf("document.querySelector('#query').addEventListener")),ctx);
+ await ctx.startSearch(item.query,item.variant,item.shops);
+ assert.equal(sent[0].ean,item.ean);assert.equal(sent[0].variant,'116');assert.equal(sent[0].minPrice,15);assert.equal(sent[0].maxPrice,40);assert.equal(sent[0].useEAN,true);
+ for(const selector of ['#query','#search-ean','#search-variant','#max'])assert.equal(node(selector).value,'manual draft');
+ // Neither single-item nor full-list orchestration may use the manual form as scratch storage.
+ const orchestration=home.slice(home.indexOf('async function recheckWishlistItem('),home.indexOf('function copyListButton('));
+ assert.doesNotMatch(orchestration,/querySelector\('#(?:query|search-ean|search-variant|max)'\)\.value\s*=/);
+});
+
+test('Wishlist result propagation updates saved EANs without overwriting manual drafts, including late completion',()=>{
+ const nodes={};const node=s=>nodes[s]||(nodes[s]={value:'manual draft'});let listener,sharedEAN;
+ const item={id:'saved',query:'Saved product',ean:'4524667879565',variant:'116'};
+ const ctx=vm.createContext({URL,platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}},currentTab:1,id:'job',names:['BIKE24'],state:new Map(),wishlist:[item],activeWishlistId:'saved',query:item.query,searchedVariant:'116',checkingList:true,document:{querySelector:node,querySelectorAll:()=>[]},validEAN:value=>/^\d{13}$/.test(value)?value:'',uniqueOffers:offers=>offers,shareVariantEAN(shops,_variant,ean){sharedEAN=ean;return {ean,shops};},filterConflictingEANs:shops=>shops,saveList(){},render(){},updateWishlistProgress(){}});
+ vm.runInContext(home.slice(home.indexOf('platform.runtime.onMessage.addListener(d=>'),home.indexOf("document.querySelector('#max').addEventListener")),ctx);
+ const message={type:'result',target:1,id:'job',shop:'BIKE24',query:item.ean,url:'https://www.bike24.de/search',offers:[{name:'Saved product',price:30,ean:item.ean,url:'https://www.bike24.de/p1.html'}]};
+ listener(message);assert.equal(sharedEAN,item.ean);assert.equal(node('#search-ean').value,'manual draft');assert.equal(ctx.wishlist[0].ean,item.ean);
+ ctx.checkingList=false;listener(message);assert.equal(node('#search-ean').value,'manual draft');
 });

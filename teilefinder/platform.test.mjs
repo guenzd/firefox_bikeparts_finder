@@ -118,3 +118,28 @@ test('Registry accepts owned tabs while Chrome reports a pending navigation rath
  assert.equal((await registry.lookup({type:'find-shop-tab',owner:1,host:'www.bike24.de'},e.sender)).tab.id,11);
  await registry.removed(1);assert.deepEqual(e.removed,[11]);
 });
+
+test('Firefox blank initial tabs wait for navigation before registration and remain open for searches',async()=>{
+ const e=environment('firefox'),registry=e.ctx.createTabRegistry(e.api);
+ e.native.tabs.onUpdated=event();const api=e.ctx.createNativePlatform(e.native);
+ e.native.runtime.sendMessage=data=>registry.lookup(data,e.sender)??registry.register(data,e.sender);
+ const create=e.native.tabs.create;e.native.tabs.create=async options=>{const tab=await create({...options,url:'about:blank'});return tab;};
+ const ctx=vm.createContext({URL,setTimeout,clearTimeout});vm.runInContext(source('page.js').split('var pagePlatforms=')[0],ctx);
+ const page=ctx.createPagePlatforms(api);let finished=false;
+ const pending=page.search.tabs.create({url:'https://www.bike24.de/search',active:false}).then(tab=>{finished=true;return tab;});
+ await new Promise(setImmediate);assert.equal(finished,false);assert.deepEqual(e.removed,[]);
+ const tab=[...e.tabs.values()].find(tab=>tab.id>100);tab.url='https://www.bike24.de/search';e.native.tabs.onUpdated.emit(tab.id,{url:tab.url},{...tab});
+ await pending;assert.equal(finished,true);assert.deepEqual(e.session.ownedShopTabs['1'],[tab.id]);assert.deepEqual(e.removed,[]);
+ const reused=await page.search.tabs.create({url:'https://www.bike24.de/next',active:false});assert.equal(reused.id,tab.id);
+ assert.equal(e.native.tabs.onUpdated.listeners.size,0);
+});
+
+for(const kind of ['firefox','chrome'])test(`${kind} shop content scripts initialise and answer reader messages without the privileged tabs API`,async()=>{
+ const e=environment(kind);delete e.native.tabs;delete e.native.action;delete e.native.browserAction;delete e.native.storage.session;
+ const ctx=vm.createContext({[kind==='firefox'?'browser':'chrome']:e.native});
+ vm.runInContext(source('api.js')+source('content.js'),ctx);
+ vm.runInContext("platform.runtime.onMessage.addListener(async data=>data.type==='detail'?{ready:true,offers:[{price:42}]}:undefined)",ctx);
+ const listener=[...e.native.runtime.onMessage.listeners][0];let reply;
+ assert.equal(listener({type:'detail'},e.sender,value=>{reply=value;}),true);await new Promise(setImmediate);
+ assert.equal(reply.ready,true);assert.equal(reply.offers[0].price,42);
+});

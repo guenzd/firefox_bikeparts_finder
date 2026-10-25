@@ -100,7 +100,7 @@ Nach abgeschlossenen Suchen speichert die Erweiterung bestätigte, lieferbare An
 
 Das Preisfeld akzeptiert ein Maximum (z. B. `10`) oder einen Bereich (z. B. `5-10`). Beide Grenzen gelten auch für ähnliche Produktvorschläge. Bei gesetzter Preisgrenze werden Vorschläge ohne bestätigten Preis ausgeblendet; die gespeicherten Ergebnisse bleiben erhalten.
 
-Die Oberfläche folgt automatisch dem im Browser eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen.
+Die Oberfläche folgt automatisch dem im Browser eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen. Das Sonne/Mond-Symbol rechts oben schaltet manuell zwischen Hell und Dunkel um. Die Auswahl wird lokal gespeichert; „Automatisch“ stellt die Anpassung an das Browser-Design wieder her.
 
 Shopprüfungen haben ein Gesamtzeitlimit von 60 Sekunden (EAN-Nachsuche: 30 Sekunden). Bei einem blockierten Shop bleiben abgeschlossene Ergebnisse erhalten und die Wunschliste wird fortgesetzt. Eine zusätzliche Absicherung nach 105 Sekunden pro Artikel verhindert das Warten auf verlorene Abschlussmeldungen. Übersprungene Shops und ältere Ergebnisse werden entsprechend gekennzeichnet.
 

@@ -96,8 +96,9 @@ platform.runtime.onMessage.addListener(d=>{
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
   const useEAN=activeItem?activeItem.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
-  const shared=shareVariantEAN([...state.entries()].map(([name,s])=>({name,...s})),searchedVariant,useEAN?document.querySelector('#search-ean').value:'');
-  document.querySelector('#search-ean').value=!useEAN?(activeItem?.ean||document.querySelector('#search-ean').value||shared.ean):shared.ean;filterConflictingEANs(shared.shops,useEAN?shared.ean:'').forEach(s=>state.set(s.name,s));
+  const currentEAN=activeItem?activeItem.ean||'':document.querySelector('#search-ean').value;
+  const shared=shareVariantEAN([...state.entries()].map(([name,s])=>({name,...s})),searchedVariant,useEAN?currentEAN:'');
+  if(!activeItem)document.querySelector('#search-ean').value=!useEAN?(currentEAN||shared.ean):shared.ean;filterConflictingEANs(shared.shops,useEAN?shared.ean:'').forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:item.useEAN===false?(item.ean||shared.ean||''):(shared.ean||item.ean||'')}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
  document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress(done);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
@@ -120,9 +121,12 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  clearTimeout(searchDeadline);searchDeadline=setTimeout(finishTimedOutSearch,105000);
  wishlistDetails=checkingList;setWishlistCollapsed(!checkingList);
  const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,message:'Shopsuche wird geöffnet…'}));setSearchRunning(true);render();document.querySelector('#status').textContent='Suche läuft…';
- searchedEAN=validEAN(document.querySelector('#search-ean').value);
- const useEAN=checkingList?wishlist.find(item=>item.id===activeWishlistId)?.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
- try{await platform.runtime.sendMessage({type:'search',query,useEAN,nameFallback:!checkingList&&useEAN,...(inputPriceRange(document.querySelector('#max'))||{}),ean:validEAN(document.querySelector('#search-ean').value),variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,validEAN(document.querySelector('#search-ean').value)||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ const item=checkingList?wishlist.find(row=>row.id===activeWishlistId):null;
+ const ean=validEAN(item?item.ean:document.querySelector('#search-ean').value);
+ const range=item?{minPrice:item.minPrice,maxPrice:item.maxPrice}:inputPriceRange(document.querySelector('#max'));
+ searchedEAN=ean;
+ const useEAN=item?item.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
+ try{await platform.runtime.sendMessage({type:'search',query,useEAN,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
@@ -239,7 +243,6 @@ async function recheckWishlistItem(itemId){
  if(checkingList)return;const item=wishlist.find(row=>row.id===itemId);if(!item)return;
  checkingList=true;stopRequested=false;activeWishlistId=itemId;renderWishlist();
  try{
-  document.querySelector('#search-ean').value=item.ean||'';document.querySelector('#query').value=item.query;document.querySelector('#max').value=priceRangeText(item);document.querySelector('#search-variant').value=item.variant||'';
   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);
   const shops=await pending;
   const updated=applyWishlistSearch(wishlist,itemId,shops,new Date().toISOString());
@@ -264,7 +267,7 @@ document.querySelector('#check-wishlist').addEventListener('click',async()=>{
  if(checkingList){stopCurrentSearch();return;}if(!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
  try{
   for(let i=0;i<wishlist.length&&!stopRequested;i++){
-   const item=wishlist[i];activeWishlistId=item.id;document.querySelector('#search-ean').value=item.ean||'';document.querySelector('#query').value=item.query;document.querySelector('#max').value=priceRangeText(item);document.querySelector('#search-variant').value=item.variant||'';
+   const item=wishlist[i];activeWishlistId=item.id;
    wishlistProgress.completed=i;updateWishlistProgress();
    const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);const found=await pending;if(!stopRequested){wishlistProgress.completed=i+1;updateWishlistProgress();}wishlist=applyWishlistSearch(wishlist,item.id,found,new Date().toISOString());await saveList();renderTotal();
   }

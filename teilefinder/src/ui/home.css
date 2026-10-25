@@ -39,10 +39,10 @@ body{font-size:14px}main{max-width:1280px;padding:0 24px}header{padding:12px 0}h
 
 .wish-name>.wish-product-button{flex:1;min-width:0;text-align:left;background:transparent;color:var(--ink,#18303f);padding:0;border:0;font-size:13px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;min-height:26px;border-radius:3px}.wish-name>.wish-product-button:hover{color:#226985;text-decoration:underline}.wish-product-button:focus-visible{outline:2px solid #226985;outline-offset:3px}.item-prices-dialog{width:min(900px,92vw);padding:16px}.item-prices-dialog .shop-heading{gap:16px;align-items:start}.item-prices-dialog .shop-heading h2{flex:1;overflow-wrap:anywhere}.item-prices-dialog td{vertical-align:top;padding:10px 8px}.item-prices-dialog td small{display:block;font-weight:400;font-size:11px;color:var(--muted);margin-top:4px}.item-prices-dialog .price{white-space:nowrap;font-size:14px}.item-prices-dialog th{font-size:11px;color:var(--muted)}.item-prices-dialog .copy-button{margin-left:5px}@media(max-width:760px){.wish-name>.wish-product-button{flex-basis:auto}.item-prices-dialog{padding:12px}.item-prices-dialog table{min-width:580px}}
 
-/* Native Firefox page colour preference; Smyck-inspired dark palette.
+/* Browser colour preference with an optional local override; Smyck-inspired dark palette.
    Palette source: https://github.com/hukl/Smyck-Color-Scheme/blob/master/colors */
 :root{
- color-scheme:light dark;
+ color-scheme:light;
  --page:#f4f7f9;--surface:#fff;--field:#fff;--hover:#e3ebf1;
  --ink:#183244;--muted:#657786;--line:#dce5ea;--field-line:#cbd8e0;
  --accent:#c8f538;--accent-hover:#b9e62b;--accent-ink:#20320a;
@@ -52,8 +52,7 @@ body{font-size:14px}main{max-width:1280px;padding:0 24px}header{padding:12px 0}h
  --success-bg:#eef9d9;--success-line:#9fca68;--backdrop:#18303f55;
  --chart-line:#477934;
 }
-@media(prefers-color-scheme:dark){
- :root{
+:root[data-theme="dark"]{
   color-scheme:dark;
   --page:#242424;--surface:#2b2b2b;--field:#303030;--hover:#3a3a3a;
   --ink:#d8d8d8;--muted:#b0b0b0;--line:#404040;--field-line:#505050;
@@ -63,7 +62,6 @@ body{font-size:14px}main{max-width:1280px;padding:0 24px}header{padding:12px 0}h
   --danger:#e09690;--danger-bg:#44302e;--danger-line:#72504b;
   --success-bg:#333d28;--success-line:#647d3d;--backdrop:#141414aa;
   --chart-line:#8eb33b;
- }
 }
 html{background:var(--page);scrollbar-color:var(--field-line) var(--page)}
 body{background:var(--page);color:var(--ink)}
@@ -248,8 +246,21 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{font-size:inherit}
 .wishlist-results .stock-unavailable{color:#886540}
 .wishlist-results .stock-unknown{color:var(--muted)}
-@media(prefers-color-scheme:dark){.wishlist-results .stock-unavailable{color:#c4ad86}}
+:root[data-theme="dark"] .wishlist-results .stock-unavailable{color:#c4ad86}
 @media(forced-colors:active){.shop-results>.shop-heading{border-left-color:CanvasText}.shop-results>.shop-heading>h3,.wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{color:CanvasText}}
 
 .wishlist-results td.price .price-comparison{display:grid;justify-items:end;gap:1px;margin-top:4px;color:var(--muted);font-size:11px;font-weight:400;line-height:1.35;letter-spacing:0}
 .price-comparison>span{white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* Small native controls share the existing title row. */
+.page-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:18px 0 14px}
+.page-heading h1{margin:0;min-width:0}
+.theme-controls{display:flex;align-items:center;gap:6px;flex-shrink:0}
+#theme-toggle{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:6px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:7px}
+#theme-toggle:hover,#theme-auto:hover{background:var(--hover);color:var(--ink)}
+#theme-toggle svg{width:18px;height:18px}
+:root[data-theme="dark"] .theme-moon,:root:not([data-theme="dark"]) .theme-sun{display:none}
+#theme-auto{margin:0;padding:5px 7px;min-height:32px;background:transparent;color:var(--muted);font-size:11px;font-weight:500}
+#theme-auto[hidden]{display:none}
+#theme-toggle:focus-visible,#theme-auto:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+@media(max-width:480px){.page-heading{gap:6px}.page-heading h1{font-size:19px}.theme-controls{gap:2px}}

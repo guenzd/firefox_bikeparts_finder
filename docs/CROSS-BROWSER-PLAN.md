@@ -77,3 +77,13 @@ Automatisierter Stand: 152 Tests bestanden; Firefox-Lint ohne Fehler/Warnungen; 
 Referenzen: [Chrome Service-Worker-Migration](https://developer.chrome.com/docs/extensions/develop/migrate/to-service-workers), [Chrome-Nachrichten und asynchrone Antworten](https://developer.chrome.com/docs/extensions/develop/concepts/messaging), [Mozilla storage.session](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage/session).
 
 Umsetzungsversion: **0.8.0**. Commits: eigener Plan-Commit, gemeinsame Plattform/Core-/Build-Umsetzung und Dokumentations-/Abnahme-Commit. Der Branch wird separat gepusht und nicht nach `main` gemergt; Tag `v0.8.0` markiert diesen Entwicklungsstand, keine Store-Freigabe.
+
+
+### Nachprüfung 0.8.1
+
+- Content-Skripte werden jetzt mit realistischem API-Umfang getestet: `tabs`, Toolbar-Aktion und `storage.session` fehlen dort. Der Adapter setzt nur `runtime` voraus und initialisiert deshalb auch auf Shopseiten korrekt.
+- Firefox-Tabs dürfen zunächst `about:blank` ohne `pendingUrl` melden. Vor der Registrierung wartet die Seitenplattform auf die Shop-Adresse, mit Ereignissen, erneuter Zustandsprüfung und begrenztem Zeitlimit. Registrierung, Wiederverwendung und Listener-Aufräumen sind abgedeckt.
+- Wunschlistenprüfung und Einzelpostenprüfung lesen EAN/Preisgrenzen direkt vom Listenartikel. Die manuellen Suchfelder bleiben unverändert, auch beim Übernehmen gefundener EANs und bei späten Ergebnissen.
+- Sonne/Mond-Schalter mit lokaler Auswahl, Rückkehr zu „Automatisch“, laufenden Browser-Theme-Wechseln und Tests für verzögerte/fehlgeschlagene Speicherung.
+
+Automatisierter Stand 0.8.1: 161 Tests bestanden, Firefox-Lint ohne Fehler/Warnungen und Chrome-Paketvalidierung bestanden. Die Live-Abnahme bleibt offen.
