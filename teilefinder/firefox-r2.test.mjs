@@ -370,16 +370,21 @@ test('Bike-Discount confirms UPC-labelled 12-digit identifiers and rejects diffe
 test('Persistent product URL cache bypasses searches after restart and falls back on a mismatching EAN',async()=>{
  const data={},home='moz-extension://unit/home.html',ean='1234567890128';
  const initial={name:'Example item',ean,variant:'silver',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike-discount.de/de/example'};
- const createSession=(wrong=false)=>{
+ const createSession=(wrong=false,refreshKnown=false)=>{
   let listener;const urls=[],reads=[],messages=[];
   const platform={storage:{local:{async get(){return structuredClone(data);},async set(update){Object.assign(data,structuredClone(update));}}},browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(f){listener=f;}},async sendMessage(d){messages.push(d);}},tabs:{async create(o){urls.push(o.url);return {id:new URL(o.url).hostname,url:o.url};},async update(id,o){urls.push(o.url);return {id,url:o.url};},async get(){return {};},async sendMessage(id,d){reads.push(d);const url='https://'+d.host+'/de/example';return d.type==='detail'?{ready:true,productName:'Example item',offers:[{...initial,url,price:25,stock:'Nicht lieferbar',ean:wrong?'9999999999999':ean}]}:{ready:true,offers:[{...initial,url,price:30}]};}}};
   const ctx=vm.createContext({platform,URL,clearTimeout,setTimeout:fastTimeout});vm.runInContext(readSource('extract.js')+source,ctx);
-  return {urls,reads,messages,async search(){await listener({type:'search',id:'cache-job',query:'Example item',ean,variant:'silver'},{url:home,tab:{id:99}});for(let i=0;i<150;i++)await new Promise(setImmediate);}};
+  return {urls,reads,messages,async search(){await listener({type:'search',id:'cache-job',query:'Example item',ean,variant:'silver',refreshKnown},{url:home,tab:{id:99}});for(let i=0;i<150;i++)await new Promise(setImmediate);}};
  };
  const first=createSession();await first.search();assert.ok(first.reads.some(d=>d.type==='extract'));assert.ok(data.productUrlCache['ean:'+ean]['Bike-Discount'].length);
  const second=createSession();await second.search();assert.ok(second.urls.length);assert.ok(second.urls.every(url=>!url.includes('search')&&!url.includes('keywords')&&!url.includes('?qs=')));assert.ok(second.reads.every(d=>d.type==='detail'&&d.direct&&d.fallback.price===null&&d.fallback.ean===''));
  assert.ok(second.messages.filter(d=>d.type==='result').every(d=>d.offers[0].price===25&&d.offers[0].stock==='Nicht lieferbar'));
  const third=createSession(true);await third.search();assert.ok(third.reads.some(d=>d.type==='extract'));assert.ok(third.urls.some(url=>url.includes('search')));assert.ok(third.messages.filter(d=>d.type==='result').every(d=>d.offers.every(o=>o.ean===ean)));
+ const fourth=createSession(true,true);await fourth.search();assert.ok(fourth.reads.length);assert.ok(fourth.reads.every(d=>d.type==='detail'));assert.ok(fourth.urls.every(url=>!url.includes('search')&&!url.includes('keywords')));
+ const failed=fourth.messages.filter(d=>d.type==='result');assert.equal(failed.length,4);assert.ok(failed.every(d=>!d.offers.length&&/Gespeicherte Produktseite/.test(d.message)));
+ // Existing URLs without EAN metadata must still be opened and verified fresh.
+ for(const rows of Object.values(data.productUrlCache['ean:'+ean]))for(const offer of rows)delete offer.ean;
+ const fifth=createSession(false,true);await fifth.search();assert.ok(fifth.reads.length);assert.ok(fifth.reads.every(d=>d.type==='detail'));assert.ok(fifth.messages.filter(d=>d.type==='result').every(d=>d.offers.length&&d.offers.every(o=>o.ean===ean&&o.price===25)));
 });
 
 test('Direct product reads cannot reuse old prices and variants from the cached fallback',async()=>{

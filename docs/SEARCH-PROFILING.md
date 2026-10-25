@@ -157,3 +157,8 @@ Tests für Firefox und Chrome prüfen Installation beider Regeln vor dem ersten 
 Jeder Profil-Eintrag enthält den ursprünglichen Produktnamen, die eingegebene EAN, Variante und EAN-Einstellung. Der Produktname bleibt auch dann erhalten, wenn intern mit EAN oder einem vereinfachten Suchbegriff gesucht wird. Eine hinterlegte, aber deaktivierte EAN bleibt mit `useEAN: false` nachvollziehbar. Die Angaben bleiben zusammen mit den letzten 20 Profilen ausschließlich im Arbeitsspeicher der Teilefinder-Seite; ein Neuladen leert sie. Bereits vorhandene Profile werden nicht nachträglich ergänzt.
 
 Für einen neuen Durchlauf die aktualisierte Erweiterung und anschließend die Teilefinder-Seite neu laden, die Wunschliste prüfen und danach `JSON.stringify(getSearchProfiles(), null, 2)` in `tmp.log` übernehmen. Produktnamen müssen nicht mehr manuell ergänzt werden.
+
+
+## Gespeicherte Wunschlistenlinks / 0.8.10
+
+Wunschlistenprüfungen setzen `refreshKnown`. Ist eine passende Produkt-URL bekannt, wird ausschließlich diese direkt aktualisiert; eine fehlgeschlagene Bestätigung löst keine Shopsuche aus. Frühere Ergebnisse bleiben über die vorhandene Zusammenführung als nicht bestätigt erhalten. Shops ohne bekannten Link werden weiterhin durchsucht. Die Einzelteilsuche behält ihren Such-Fallback. Gespeicherte Links ohne EAN werden auch bei später ergänzter EAN direkt geprüft; die EAN muss auf der frisch gelesenen Seite weiterhin bestätigt werden. Explizit abweichende gespeicherte EANs werden ausgeschlossen.

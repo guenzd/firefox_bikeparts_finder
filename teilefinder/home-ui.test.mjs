@@ -224,7 +224,7 @@ test('Wishlist searches use saved EAN and price filters without reading or chang
  const sent=[];const ctx=vm.createContext({document:{querySelector:node},wishlist:[item],checkingList:true,activeWishlistId:'saved',state:new Map(),names:[],query:'',searchedVariant:'',searchDeadline:null,crypto:{randomUUID:()=> 'job'},setTimeout(){},clearTimeout(){},finishTimedOutSearch(){},render(){},validEAN:value=>value||'',inputPriceRange(){throw Error('Manual price must not be read');},knownSearchShops:()=>[],platform:{runtime:{async sendMessage(data){sent.push(data);}}}});
  vm.runInContext(home.slice(home.indexOf('function setWishlistCollapsed('),home.indexOf("document.querySelector('#query').addEventListener")),ctx);
  await ctx.startSearch(item.query,item.variant,item.shops);
- assert.equal(sent[0].ean,item.ean);assert.equal(sent[0].variant,'116');assert.equal(sent[0].minPrice,15);assert.equal(sent[0].maxPrice,40);assert.equal(sent[0].useEAN,true);
+ assert.equal(sent[0].refreshKnown,true);assert.equal(sent[0].ean,item.ean);assert.equal(sent[0].variant,'116');assert.equal(sent[0].minPrice,15);assert.equal(sent[0].maxPrice,40);assert.equal(sent[0].useEAN,true);
  for(const selector of ['#query','#search-ean','#search-variant','#max'])assert.equal(node(selector).value,'manual draft');
  // Neither single-item nor full-list orchestration may use the manual form as scratch storage.
  const orchestration=home.slice(home.indexOf('async function recheckWishlistItem('),home.indexOf('function copyListButton('));

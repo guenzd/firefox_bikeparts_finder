@@ -126,7 +126,7 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  const range=item?{minPrice:item.minPrice,maxPrice:item.maxPrice}:inputPriceRange(document.querySelector('#max'));
  searchedEAN=ean;
  const useEAN=item?item.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
- try{await platform.runtime.sendMessage({type:'search',query,useEAN,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
