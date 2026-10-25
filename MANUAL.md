@@ -2,23 +2,34 @@
 
 ## Signierte Installation (Unlisted)
 
-Die Erweiterung ist noch nicht veröffentlicht und benötigt Firefox Desktop 140 oder neuer. Das erzeugte ZIP ist noch kein signiertes Add-on. Die Einreichung und Installation einer von Mozilla signierten XPI sind in `release/UNLISTED.md` beschrieben.
+Der Firefox-Build benötigt Firefox Desktop 140 oder neuer. Das lokal erzeugte ZIP ist noch kein signiertes Add-on. Die Einreichung und Installation einer von Mozilla signierten XPI sind in `release/UNLISTED.md` beschrieben.
 
-## Installation
+## Installation in Firefox
 
 1. Im Projektordner `npm run build` ausführen.
 2. Firefox öffnen und `about:debugging#/runtime/this-firefox` aufrufen.
 3. „Temporäres Add-on laden“ wählen und `outputs/firefox-addon/manifest.json` öffnen.
 4. Über das Teilefinder-Symbol die Suchoberfläche öffnen.
 
-Die Erweiterung arbeitet vollständig in Firefox; ein lokaler Server ist nicht erforderlich. Temporäre Add-ons müssen nach einem Firefox-Neustart erneut geladen werden.
+Die Erweiterung arbeitet vollständig im Browser; ein lokaler Server ist nicht erforderlich. Temporäre Add-ons müssen nach einem Firefox-Neustart erneut geladen werden.
+
+## Installation in Chrome
+
+1. `npm run build` ausführen (oder nur Chrome: `npm run build:chrome`).
+2. `chrome://extensions` öffnen und den Entwicklermodus aktivieren.
+3. „Entpackte Erweiterung laden“ wählen und den Ordner `outputs/chrome-addon/` auswählen.
+4. Über das Teilefinder-Symbol die Oberfläche öffnen.
+
+Voraussetzung: Chrome 114 oder neuer. Der lokale Build ist keine Veröffentlichung im Chrome Web Store. Zum Aktualisieren wieder in denselben Ausgabeordner bauen und unter `chrome://extensions` bei Teilefinder „Neu laden“ wählen; nicht entfernen und neu installieren.
+
+Firefox und Chrome verwenden jeweils eigenen lokalen Erweiterungsspeicher und eine eigene Preishistorie. Für die Übertragung „Als Datei speichern“ im bisherigen Browser und „Datei laden“ im anderen Browser verwenden. Es gibt keine automatische Browser-Synchronisierung.
 
 ## Aktualisieren
 
 1. Die Wunschliste über „Als Datei speichern“ sichern.
 2. Den neuen Quellcode im selben Projektordner bereitstellen und `npm run build` ausführen.
 3. Unter `about:debugging` bei Teilefinder „Neu laden“ klicken. Die Erweiterung dabei nicht entfernen.
-4. Die Teilefinder-Oberfläche und vorhandene Shop-Tabs neu laden, damit neue Skripte aktiv sind.
+4. Die Teilefinder-Oberfläche schließen und über das Erweiterungssymbol neu öffnen; vorhandene Shop-Tabs neu laden, damit neue Skripte aktiv sind. Beim Umstieg auf 0.8.0 ändert sich die Adresse der Oberfläche, die Firefox-Add-on-ID bleibt erhalten.
 5. Falls die Wunschliste leer ist, über „Datei laden“ die Sicherung auswählen.
 
 Der Ordner `outputs/firefox-addon/` bleibt bei Builds am selben Ort. Ein Entfernen und Neuinstallieren kann lokale Add-on-Daten löschen; deshalb vorher die Datei sichern.
@@ -75,7 +86,7 @@ python3 scripts/build-extension.py --test-only
 python3 scripts/build-extension.py
 ```
 
-Quellcode: `teilefinder/firefox-r2/`. Tests: `teilefinder/*.test.mjs` und `teilefinder/local-browser/extract.test.mjs`. Die Build-Version kommt aus dem Erweiterungsmanifest. Generierte Dateien liegen unter `outputs/` und werden nicht in Git aufgenommen.
+Gemeinsamer Quellcode: `teilefinder/src/`. Browser-Manifeste: `teilefinder/manifests/`. Tests: `teilefinder/*.test.mjs` und `teilefinder/local-browser/extract.test.mjs`. Beide Manifeste tragen dieselbe Version; der Build prüft die Übereinstimmung. Generierte Dateien liegen unter `outputs/` und werden nicht in Git aufgenommen.
 
 ## Erneute Suche und Abbruch
 
@@ -89,7 +100,7 @@ Nach abgeschlossenen Suchen speichert die Erweiterung bestätigte, lieferbare An
 
 Das Preisfeld akzeptiert ein Maximum (z. B. `10`) oder einen Bereich (z. B. `5-10`). Beide Grenzen gelten auch für ähnliche Produktvorschläge. Bei gesetzter Preisgrenze werden Vorschläge ohne bestätigten Preis ausgeblendet; die gespeicherten Ergebnisse bleiben erhalten.
 
-Die Oberfläche folgt automatisch dem in Firefox eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen.
+Die Oberfläche folgt automatisch dem im Browser eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen.
 
 Shopprüfungen haben ein Gesamtzeitlimit von 60 Sekunden (EAN-Nachsuche: 30 Sekunden). Bei einem blockierten Shop bleiben abgeschlossene Ergebnisse erhalten und die Wunschliste wird fortgesetzt. Eine zusätzliche Absicherung nach 105 Sekunden pro Artikel verhindert das Warten auf verlorene Abschlussmeldungen. Übersprungene Shops und ältere Ergebnisse werden entsprechend gekennzeichnet.
 
@@ -116,3 +127,19 @@ Liefert eine EAN-Suche mehrere bestätigte Angebote, grenzt der ursprüngliche P
 Bei BIKE24 öffnet die Detailprüfung „Datenblatt“ und wartet auf nachgeladene GTIN-Werte. Ist die gesuchte EAN dort in einer Liste enthalten, aber keiner ausgewählten Ausführung eindeutig zuzuordnen, wird diese Mehrdeutigkeit ausdrücklich angezeigt. Die bloße Listenposition gilt nicht als Zuordnung.
 
 BIKE24 kann ein kombiniertes Ergebnis anzeigen, wenn Produktname/Modell passen, die eingegebene EAN im Datenblatt steht und die gewünschte Dropdown-Ausführung tatsächlich ausgewählt und mit Preis ausgelesen wurde. Diese Ergebnisse werden nicht als variantenspezifische Preisbeobachtung gespeichert oder als EAN-Quelle für andere Shops verwendet. Eine explizit andere EAN der ausgewählten Ausführung wird niemals überschrieben.
+
+## Gemeinsame Architektur und Build-Ziele
+
+- `src/ui/`: gemeinsame Oberfläche, Layout, Dialoge und Zwischenablage.
+- `src/core/`: Produkt-/EAN-/Variantenregeln, Wunschliste, Preisvergleich und gemeinsamer Suchcontroller.
+- `src/shops/`: DOM-Reader und Variantenauswahl für die vier Shops.
+- `src/data/`: IndexedDB-Anbindung für die bestehende Preishistorie.
+- `src/platform/`: native Browser-APIs, lokaler Nachrichtenbus und wiederherstellbare Shop-Tab-Zuordnung.
+- `manifests/firefox.json`: Manifest V2 mit unveränderter Gecko-ID.
+- `manifests/chrome.json`: Manifest V3 mit kleinem Service Worker.
+
+Suchjobs laufen im geöffneten Teilefinder-Tab. Der Hintergrund verwaltet ausschließlich Toolbar-Ereignisse und Tab-Besitzdaten in `storage.session`. Ein Hintergrund-Neustart beendet deshalb keine Listenprüfung. Neu geöffnete Produktlinks über „Zum Shop“ sind manuelle Tabs und werden nicht als Such-Tabs registriert.
+
+`npm run build` prüft und erzeugt beide ZIPs sowie die stabilen Ordner `outputs/firefox-addon/` und `outputs/chrome-addon/`. Einzelziele: `npm run build:firefox` und `npm run build:chrome`. `npm test` führt Syntax- und Regressionstests aus. Nach dem Build: `npm run lint:extension` für Firefox sowie `npm run lint:chrome` für die Chrome-Manifest-/Dateiprüfung. Die Builds enthalten unveränderte, lokal lesbare Quellen, keine Browserprofile oder Zugangsdaten.
+
+Plan, Prüfkriterien und der Stand der Live-Abnahme: [Cross-Browser-Plan](docs/CROSS-BROWSER-PLAN.md).
