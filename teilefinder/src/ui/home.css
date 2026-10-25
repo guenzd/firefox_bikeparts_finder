@@ -236,18 +236,19 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .copy-list-button{height:32px;min-height:32px;margin:0;padding:0 10px;gap:7px;border:1px solid var(--field-line);border-radius:7px;background:var(--secondary);color:var(--secondary-ink);font-size:12px;font-weight:500;line-height:1}
 .copy-list-button:hover{background:var(--hover);color:var(--ink)}
 .shop-heading>.copy-list-button{margin-right:8px}
+.shop-results>.shop-heading>.copy-list-button{margin-right:0}
 
 .result-link-actions>.copy-button.copied{background:var(--success-bg);color:var(--available);border-color:var(--success-line)}
 
-/* Quiet accents for shop sections; product rows retain one title and execution. */
-.shop-results>.shop-heading{border-left:3px solid color-mix(in srgb,var(--link) 45%,var(--line));padding-left:9px;min-height:32px}
-.shop-results>.shop-heading>h3{color:var(--link)}
+/* Shop sections use typography and a quiet surface, without decorative rules. */
+.shop-results>.shop-heading{padding:0 8px;min-height:32px;gap:12px;border-radius:6px;background:color-mix(in srgb,var(--link) 4%,var(--surface))}
+.shop-results>.shop-heading>h3{margin:0;color:var(--ink);font-size:16px;font-weight:600;letter-spacing:-.015em;line-height:1.3}
 .wishlist-results tbody:hover{background:color-mix(in srgb,var(--link) 3%,var(--surface))}
 .wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{font-size:inherit}
 .wishlist-results .stock-unavailable{color:#886540}
 .wishlist-results .stock-unknown{color:var(--muted)}
 :root[data-theme="dark"] .wishlist-results .stock-unavailable{color:#c4ad86}
-@media(forced-colors:active){.shop-results>.shop-heading{border-left-color:CanvasText}.shop-results>.shop-heading>h3,.wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{color:CanvasText}}
+@media(forced-colors:active){.shop-results>.shop-heading{background:Canvas}.shop-results>.shop-heading>h3,.wishlist-results .stock-available,.wishlist-results .stock-unavailable,.wishlist-results .stock-unknown{color:CanvasText}}
 
 .wishlist-results td.price .price-comparison{display:grid;justify-items:end;gap:1px;margin-top:4px;color:var(--muted);font-size:11px;font-weight:400;line-height:1.35;letter-spacing:0}
 .price-comparison>span{white-space:nowrap;font-variant-numeric:tabular-nums}
