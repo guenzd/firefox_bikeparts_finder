@@ -32,7 +32,7 @@ function cheapestWishlist(items){
   const inRange=matching.filter(o=>withinPriceRange(o.price,item));
   const candidates=inRange.filter(o=>deliverable(o.stock));candidates.sort((a,b)=>a.price-b.price);
   const missingMessage=inRange.length?(inRange.some(o=>!o.stock||/nicht auslesbar|unbekannt/i.test(o.stock))?'Lagerstatus unbekannt':'Nicht lieferbar'):matching.length?'Kein passendes Angebot im Preisbereich':item.checkedAt?'Kein passendes Angebot':'Noch nicht geprüft';
-  return {item,best:candidates[0]||null,missingMessage};
+  return {item,best:candidates[0]||null,availableShops:new Set(candidates.map(offer=>offer.shop)).size,missingMessage};
  });
  const total=Math.round(rows.reduce((sum,row)=>sum+(row.best?.price||0),0)*100)/100;
  return {rows,total,complete:rows.length>0&&rows.every(row=>!!row.best),missing:rows.filter(row=>!row.best).length};

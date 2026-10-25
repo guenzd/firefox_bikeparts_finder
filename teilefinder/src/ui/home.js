@@ -232,12 +232,12 @@ function renderTotal(){
  const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='total-results';table.setAttribute('aria-label','Günstigste lieferbare Angebote');
  const head=el('tr');['Artikel / Variante','Günstigster Shop','Preis','Lagerstatus / Stand','Link','Aktionen'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
  const previous=[];
- for(const {item,best,missingMessage} of summary.rows){
+ for(const {item,best,availableShops,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));product.append(productButton);
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
 
 
-  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
+  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
   else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
   const history=el('button',price.textContent);history.type='button';history.className='price-history-trigger';history.title='Preisverlauf';history.setAttribute('aria-label','Preisverlauf für '+item.query);history.addEventListener('click',()=>showPriceHistory(item));price.replaceChildren(history);
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));
