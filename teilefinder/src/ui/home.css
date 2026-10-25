@@ -290,3 +290,7 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 
 .total-results .price-history-trigger{display:inline-flex;align-items:center;min-height:32px;margin:0;padding:0;border:0;border-radius:3px;background:transparent;color:inherit;font:inherit;white-space:nowrap;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--field-line);text-underline-offset:4px}
 .total-results .price-history-trigger:hover{color:var(--link);text-decoration-color:currentColor}
+
+.shop-summary{margin-left:auto;color:var(--muted);font-size:12px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}
+.shop-results>.shop-heading>.shop-summary+.copy-list-button{margin-left:0}
+@media(max-width:760px){.shop-results>.shop-heading{flex-wrap:wrap;row-gap:6px}.shop-summary{white-space:normal}}

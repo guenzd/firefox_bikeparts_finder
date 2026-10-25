@@ -148,3 +148,16 @@ test('Applying a wishlist search never persists conflicting EAN offers when EAN 
   assert.equal(updated.ean,ean);assert.equal(updated.shops[0].offers.length,useEAN?1:2);assert.equal(shops[0].offers.length,2);
  }
 });
+
+test('Shop totals count the cheapest deliverable exact offer once per wishlist item and exclude stale, out-of-range and unmatched variants',()=>{
+ const offer=(price,extra={})=>({price,priceKind:'exact',variant:'black',stock:'Auf Lager',...extra});
+ const item={variant:'black',minPrice:5,maxPrice:20};
+ const entries=[
+  {item,shop:{offers:[offer(12),offer(8),offer(5,{priceKind:'from'}),offer(6,{stock:'Nicht lieferbar'}),offer(4),offer(7,{variant:'white'})]}},
+  {item,shop:{offers:[offer(10.15)]}},
+  {item,shop:{stale:true,offers:[offer(5)]}},
+  {item,shop:{offers:[offer(21)]}},
+  {item,shop:{offers:[]}}
+ ];
+ assert.deepEqual(JSON.parse(JSON.stringify(ctx.shopWishlistSummary(entries))),{total:18.15,available:2,count:5});
+});

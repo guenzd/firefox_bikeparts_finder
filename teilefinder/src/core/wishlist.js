@@ -75,3 +75,13 @@ function knownSearchShops(current,items,ean){
 function wishlistPriceRows(entries,item){
  return entries.flatMap(({shop})=>uniqueOffers(shop?.offers||[]).filter(offer=>withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)).map(offer=>({shop,offer}))).sort((a,b)=>a.offer.price-b.offer.price||a.shop.name.localeCompare(b.shop.name));
 }
+
+
+function shopWishlistSummary(entries){
+ let total=0,available=0;
+ for(const {item,shop} of entries){
+  const prices=(shop.stale?[]:shop.offers||[]).filter(offer=>offer.priceKind==='exact'&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)&&deliverable(offer.stock)).map(offer=>offer.price);
+  if(prices.length){total+=Math.min(...prices);available++;}
+ }
+ return {total:Math.round(total*100)/100,available,count:entries.length};
+}

@@ -1,6 +1,7 @@
 let currentTab;platform.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
 const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
 let searchDeadline;
+let searchRunning=false;
 let wishlistProgress=null;
 let wishlistEditor=null;
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
@@ -48,7 +49,7 @@ function renderWishlistDetails(root){
  for(const name of names){
   const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
-  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';heading.append(el('h3',name),copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
+  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';table.setAttribute('aria-label',name+' · Wunschliste');
   const head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
   for(const {item,shop} of entries){
@@ -62,11 +63,11 @@ function renderWishlistDetails(root){
 
      if(validEAN(offer.ean)&&!hideEANs.get(item.id))product.append(eanRow(offer.ean,item.id));
      price.textContent=(offer.priceKind==='from'?'ab ':'')+money(offer.price);
-     const best=bestOffers.get(item.id),difference=best?Math.round((best.price-offer.price)*100)/100:0;
+     const best=bestOffers.get(item.id),difference=best?Math.round((offer.price-best.price)*100)/100:0;
      if(best&&difference!==0&&!shop.stale&&offer.priceKind==='exact'){
       const comparison=el('small');comparison.className='price-comparison';comparison.title='Bestpreis '+money(best.price)+' bei '+best.shop;
       comparison.append(el('span',(difference>0?'+':'−')+money(Math.abs(difference))));
-      comparison.setAttribute('aria-label','Bestpreis '+money(best.price)+' · dieses Angebot '+money(Math.abs(difference))+(difference<0?' teurer':' günstiger'));price.append(comparison);
+      comparison.setAttribute('aria-label','Bestpreis '+money(best.price)+' · dieses Angebot '+money(Math.abs(difference))+(difference>0?' teurer':' günstiger'));price.append(comparison);
      }
      const availability=el('span',offer.stock);availability.className=deliverable(offer.stock)?'stock-available':(!offer.stock||/nicht auslesbar|unbekannt/i.test(offer.stock)?'stock-unknown':'stock-unavailable');stock.append(availability);
      links.append(resultLinkActions('Öffnen',offer.url));
@@ -92,7 +93,7 @@ platform.runtime.onMessage.addListener(d=>{
   const suggestions=(d.suggestions||[]).filter(o=>{try{return new URL(o.url).protocol==='https:'&&new URL(o.url).hostname.replace(/^www\./,'')===new URL(d.url).hostname.replace(/^www\./,'')&&typeof o.name==='string';}catch{return false;}});
   const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||validEAN(o.ean)===requestedEAN);
   const kept=!offers.length&&previousOffers.length;
-  state.set(d.shop,{queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),done:d.type==='result'});
+  state.set(d.shop,{queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
  }
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
@@ -102,7 +103,7 @@ platform.runtime.onMessage.addListener(d=>{
   if(!activeItem)document.querySelector('#search-ean').value=!useEAN?(currentEAN||shared.ean):shared.ean;filterConflictingEANs(shared.shops,useEAN?shared.ean:'').forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:item.useEAN===false?(item.ean||shared.ean||''):(shared.ean||item.ean||'')}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
- document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress(done);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
+ document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress([...state.values()].filter(s=>s.checked||s.done).length);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
 });
 document.querySelector('#max').addEventListener('input',()=>{inputPriceRange(document.querySelector('#max'));render();});
 document.querySelector('#search-variant').addEventListener('input',render);
@@ -115,13 +116,17 @@ function setWishlistCollapsed(collapsed){
 }
 document.querySelector('#wishlist-toggle').addEventListener('click',()=>setWishlistCollapsed(document.querySelector('#wishlist-toggle').getAttribute('aria-expanded')==='true'));
 function setSearchRunning(running){
+ searchRunning=running;const busy=running||checkingList;
+ for(const control of document.querySelectorAll?.('#search input, #search button, #add-wish, #import-wishlist, [data-shop-action], .wishlist-editor input, .wishlist-editor button')||[])control.disabled=busy;
+ document.querySelector('#check-wishlist').disabled=!wishlist.length||(running&&!checkingList);
  document.querySelector('#stop-search').hidden=!running;
  const progress=document.querySelector('#status');progress.disabled=!running;progress.title=running?'Suche stoppen':'';
 }
 async function startSearch(q,requested=document.querySelector('#search-variant').value.trim(),savedShops){
+ if(searchRunning)return;
  clearTimeout(searchDeadline);searchDeadline=setTimeout(finishTimedOutSearch,105000);
  wishlistDetails=checkingList;setWishlistCollapsed(!checkingList);
- const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,message:'Shopsuche wird geöffnet…'}));setSearchRunning(true);render();document.querySelector('#status').textContent='Suche läuft…';
+ const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,checked:false,message:'Shopsuche wird geöffnet…'}));setSearchRunning(true);render();document.querySelector('#status').textContent='Suche läuft…';
  const item=checkingList?wishlist.find(row=>row.id===activeWishlistId):null;
  const ean=validEAN(item?item.ean:document.querySelector('#search-ean').value);
  const range=item?{minPrice:item.minPrice,maxPrice:item.maxPrice}:inputPriceRange(document.querySelector('#max'));
@@ -131,7 +136,7 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
-document.querySelector('#search').addEventListener('submit',e=>{e.preventDefault();if(checkingList)return;if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity())return;const q=document.querySelector('#query').value.trim();if(q){activeWishlistId='';void startSearch(q);}});
+document.querySelector('#search').addEventListener('submit',e=>{e.preventDefault();if(checkingList||searchRunning)return;if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity())return;const q=document.querySelector('#query').value.trim();if(q){activeWishlistId='';void startSearch(q);}});
 function enableDirectEditing(input,savedValue){
  let selectOnClick=false;
  input.addEventListener('pointerdown',()=>{selectOnClick=document.activeElement!==input;});
@@ -149,16 +154,16 @@ function wishlistActionIcon(path){
 }
 function wishlistRowActions(item){
  const actions=el('div');actions.className='wishlist-row-actions';
- const edit=el('button','Bearbeiten');edit.type='button';edit.className='secondary';edit.disabled=checkingList;
+ const edit=el('button','Bearbeiten');edit.type='button';edit.className='secondary';edit.disabled=checkingList||searchRunning;edit.dataset.shopAction='';
  edit.dataset.editItem=item.id;edit.setAttribute('aria-label','Artikel bearbeiten: '+item.query);edit.setAttribute('aria-expanded',String(wishlistEditor?.id===item.id));if(wishlistEditor?.id===item.id)edit.setAttribute('aria-controls','wish-editor-'+item.id);
  edit.addEventListener('click',()=>{
   if(wishlistEditor?.id===item.id){wishlistEditor=null;renderTotal();return;}
   wishlistEditor={id:item.id,query:item.query,ean:item.ean||'',variant:item.variant||'',price:priceRangeText(item),useEAN:item.useEAN!==false};
   renderTotal();document.querySelector('#wish-editor-'+item.id+' input')?.focus();
  });actions.append(edit);
- const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList;
+ const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
  recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.addEventListener('click',()=>{wishlistEditor=null;void recheckWishlistItem(item.id);});
- const remove=el('button');remove.type='button';remove.className='secondary remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList;
+ const remove=el('button');remove.type='button';remove.className='secondary remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList||searchRunning;remove.dataset.shopAction='';
  remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.addEventListener('click',()=>{wishlist=wishlist.filter(row=>row.id!==item.id);if(wishlistEditor?.id===item.id)wishlistEditor=null;void saveList();renderWishlist();});
  actions.append(recheck,remove);return actions;
 }
@@ -192,7 +197,7 @@ function appendWishlistEditor(table,item){
 function renderWishlist(){
  document.querySelector('#check-wishlist').disabled=!wishlist.length;document.querySelector('#check-wishlist').title=checkingList?'Suche stoppen':'';document.querySelector('#add-wish').disabled=checkingList;document.querySelector('#search-submit').disabled=checkingList;
  document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);document.querySelector('#import-wishlist').disabled=checkingList;
- renderTotal();render();
+ setSearchRunning(searchRunning);renderTotal();render();
 }
 function suggestionRow(suggestion,item,variantAlternative=false){
  const row=el('div');row.className='suggestion-row';row.append(el('strong',suggestion.name));
@@ -200,14 +205,14 @@ function suggestionRow(suggestion,item,variantAlternative=false){
  if(suggestion.variant)row.append(el('small',suggestion.variant));
  if(Number.isFinite(suggestion.price))row.append(el('small',(suggestion.priceKind==='from'?'ab ':'')+money(suggestion.price)));
  const link=el('a','Im Shop prüfen');link.href=suggestion.url;link.target='_blank';link.rel='noopener noreferrer';row.append(link,copyButton(suggestion.url));
- const choose=el('button',variantAlternative?'Ohne Variantenfilter suchen':item?'Für diesen Artikel übernehmen':'Mit diesem Namen suchen');choose.disabled=checkingList;
+ const choose=el('button',variantAlternative?'Ohne Variantenfilter suchen':item?'Für diesen Artikel übernehmen':'Mit diesem Namen suchen');choose.disabled=checkingList||searchRunning;choose.dataset.shopAction='';
  choose.addEventListener('click',async()=>{
-  if(checkingList||choose.disabled)return;choose.disabled=true;
+  if(checkingList||searchRunning||choose.disabled)return;choose.disabled=true;
   try{
   if(variantAlternative){document.querySelector('#search-variant').value='';void startSearch(query,'');}
   else if(item){item.query=suggestion.name.slice(0,160);item.shops=[];item.checkedAt=null;await saveList();await recheckWishlistItem(item.id);}
   else{document.querySelector('#search-ean').value='';document.querySelector('#query').value=suggestion.name.slice(0,160);await startSearch(suggestion.name.slice(0,160));}
-  }catch{document.querySelector('#status').textContent='Vorschlag konnte nicht übernommen oder gesucht werden.';}finally{choose.disabled=checkingList;}
+  }catch{document.querySelector('#status').textContent='Vorschlag konnte nicht übernommen oder gesucht werden.';}finally{choose.disabled=checkingList||searchRunning;}
  });row.append(choose);return row;
 }
 function eanRow(value,itemId=activeWishlistId){
@@ -245,7 +250,7 @@ function renderTotal(){
  root.append(box);
 }
 document.querySelector('#add-wish').addEventListener('click',async()=>{
- if(checkingList||document.querySelector('#add-wish').disabled)return;
+ if(checkingList||searchRunning||document.querySelector('#add-wish').disabled)return;
  const q=document.querySelector('#query').value.trim(),raw=document.querySelector('#max').value;
  if(!q){document.querySelector('#query').reportValidity();return;}
  if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity()||!document.querySelector('#search-ean').reportValidity())return;
@@ -256,11 +261,11 @@ document.querySelector('#add-wish').addEventListener('click',async()=>{
  const itemId=crypto.randomUUID();
  wishlist.push({id:itemId,query:q,ean,useEAN:document.querySelector('#search-use-ean').checked!==false,...parsePriceRange(raw),variant:requested,shops,checkedAt:shops.reduce((at,shop)=>shop.checkedAt&&(!at||shop.checkedAt>at)?shop.checkedAt:at,null)});
  document.querySelector('#add-wish').disabled=true;
- try{await saveList();if(reuseResults){wishlistDetails=true;setWishlistCollapsed(false);renderWishlist();document.querySelector('#status').textContent='Artikel mit Ergebnissen übernommen.';}else await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList;}
+ try{await saveList();if(reuseResults){wishlistDetails=true;setWishlistCollapsed(false);renderWishlist();document.querySelector('#status').textContent='Artikel mit Ergebnissen übernommen.';}else await recheckWishlistItem(itemId);}catch{document.querySelector('#status').textContent='Wunschliste konnte nicht gespeichert werden.';}finally{document.querySelector('#add-wish').disabled=checkingList||searchRunning;}
 });
 async function recheckWishlistItem(itemId){
- if(checkingList)return;const item=wishlist.find(row=>row.id===itemId);if(!item)return;
- checkingList=true;stopRequested=false;activeWishlistId=itemId;renderWishlist();
+ if(checkingList||searchRunning)return;const item=wishlist.find(row=>row.id===itemId);if(!item)return;
+ checkingList=true;stopRequested=false;activeWishlistId=itemId;wishlistProgress={completed:0,total:1,percent:0,single:true};updateWishlistProgress();renderWishlist();
  try{
   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);
   const shops=await pending;
@@ -268,7 +273,7 @@ async function recheckWishlistItem(itemId){
   await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderTotal();
   document.querySelector('#status').textContent='„'+item.query+'“ erneut geprüft.';
  }catch{document.querySelector('#status').textContent='Artikel konnte nicht erneut geprüft werden.';}
- finally{checkingList=false;finishSearch=null;renderWishlist();render();}
+ finally{checkingList=false;finishSearch=null;wishlistProgress=null;updateWishlistProgress();renderWishlist();render();}
 }
 
 function updateWishlistProgress(shopsDone=0){
@@ -279,11 +284,11 @@ function updateWishlistProgress(shopsDone=0){
  const fraction=(completed+Math.min(4,Math.max(0,shopsDone))/4)/total;
  wishlistProgress.percent=Math.max(wishlistProgress.percent,Math.min(100,Math.round(fraction*100)));
  button.style.setProperty('--wishlist-progress',wishlistProgress.percent+'%');
- button.textContent='Prüfe '+Math.min(completed+1,total)+' / '+total+'…';
+ button.textContent=wishlistProgress.single?Math.min(4,Math.max(0,shopsDone))+' / 4 Shops…':'Prüfe '+Math.min(completed+1,total)+' / '+total+'…';
  button.setAttribute('aria-label','Wunschliste prüfen: '+wishlistProgress.percent+' Prozent abgeschlossen. Klicken zum Stoppen.');
 }
 document.querySelector('#check-wishlist').addEventListener('click',async()=>{
- if(checkingList){stopCurrentSearch();return;}if(!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
+ if(checkingList){stopCurrentSearch();return;}if(searchRunning||!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
  try{
   for(let i=0;i<wishlist.length&&!stopRequested;i++){
    const item=wishlist[i];activeWishlistId=item.id;
@@ -333,12 +338,12 @@ document.querySelector('#export-wishlist').addEventListener('click',async()=>{
  const link=el('a');link.href=url;link.download='teilefinder-wunschliste-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
  document.querySelector('#status').textContent='Datei gespeichert.';
 });
-document.querySelector('#import-wishlist').addEventListener('click',()=>{if(!checkingList)document.querySelector('#wishlist-file').click();});
+document.querySelector('#import-wishlist').addEventListener('click',()=>{if(!checkingList&&!searchRunning)document.querySelector('#wishlist-file').click();});
 document.querySelector('#wishlist-file').addEventListener('change',async e=>{
- const file=e.target.files?.[0];e.target.value='';if(!file||checkingList)return;
+ const file=e.target.files?.[0];e.target.value='';if(!file||checkingList||searchRunning)return;
  try{
   if(file.size>20_000_000)throw Error('Die Datei ist zu groß.');
-  const incoming=parseWishlistFile(await file.text());if(checkingList)return;
+  const incoming=parseWishlistFile(await file.text());if(checkingList||searchRunning)return;
   await priceHistoryDB.put(incoming.history||[]);
   const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
   await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
