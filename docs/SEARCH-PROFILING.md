@@ -86,3 +86,28 @@ Konkrete Korrekturen nach Codeprüfung:
 - Fertige Profile sind unveränderliche Momentaufnahmen. Nach einem Job-Timeout noch auslaufende Operationen verändern ihre Summen nicht nachträglich. Beim Abschluss noch nicht beendete Operationen können deshalb in den abgeschlossenen Phasenmessungen fehlen.
 
 Die Regressionstests prüfen das Vermeiden doppelter Fallbacks, den aktuellen Preis/Lagerstatus fester bike-components-Produkte, das Ablehnen veralteter Preise, die Rückgabe-Klassifikation und unveränderliche Profil-Snapshots. Für diese Korrekturen wird keine neue Gesamtbeschleunigung aus den alten Messwerten behauptet; dafür ist ein erneuter realer Lauf erforderlich.
+
+## Zweiter realer Lauf / 0.8.5
+
+Die nächsten zwölf Profile dauern zusammen 299,378 Sekunden (4:59 Minuten), Median 21,350 Sekunden. Das sind 31,634 Sekunden mehr als im ersten Lauf; unterschiedliche Ladebedingungen sind in diesem Vergleich nicht kontrolliert. Eine reale Beschleunigung durch 0.8.4 ist damit nicht nachgewiesen.
+
+Die neue Rückgabe-Klassifikation zeigt 218 Fehler, 77 bereite Antworten und 97 noch nicht bereite Antworten. Hinzu kommen 19 abweichende Seitenadressen, die als zusätzliches Merkmal gezählt werden. `blocked` wurde nicht gemeldet; daraus lässt sich bei fehlerhaften Auslesungen jedoch nicht sicher schließen, dass keine Sicherheitsseite beteiligt war.
+
+| Shop | Fehler | Bereit | Nicht bereit |
+| --- | ---: | ---: | ---: |
+| BIKE24 | 33 | 15 | 15 |
+| Bike-Discount | 37 | 11 | 9 |
+| bike-components | 46 | 21 | 16 |
+| r2-bike | 102 | 30 | 57 |
+
+0.8.5 verkürzt keine weiteren Wartezeiten. Stattdessen wird der bisher grobe Fehlerzähler eingegrenzt:
+
+- `errorKinds.noReceiver`: Auslese-Skript beim Senden noch nicht erreichbar.
+- `errorKinds.disconnected`: unterbrochener Nachrichtenkanal.
+- `errorKinds.timeout`: Nachricht nicht rechtzeitig beantwortet.
+- `errorKinds.readerError`: vom Auslese-Skript zurückgemeldete Ausnahme.
+- `errorKinds.other`: übrige Fehler.
+
+Bei Skript-Ausnahmen enthält `readerErrors` zusätzlich den Standard-Fehlertyp, die relative Quelldatei samt Zeile/Spalte und, falls passend, eine eng begrenzte technische Fehlersignatur. Das funktioniert sowohl für synchrone als auch für asynchrone Fehler über den Browser-Adapter. Rohe Stacktraces und allgemeine Fehlermeldungen werden nicht in die Profile übernommen. Die Zahl unterschiedlicher Fehlersignaturen bleibt pro Shop und Suchjob auf acht begrenzt.
+
+Für die nächste Eingrenzung genügt ein einzelner langsamer Artikel; die ganze Wunschliste muss dafür nicht erneut geprüft werden. Derselbe Konsolenaufruf liefert die erweiterten Informationen.

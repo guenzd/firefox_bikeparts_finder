@@ -143,3 +143,16 @@ for(const kind of ['firefox','chrome'])test(`${kind} shop content scripts initia
  assert.equal(listener({type:'detail'},e.sender,value=>{reply=value;}),true);await new Promise(setImmediate);
  assert.equal(reply.ready,true);assert.equal(reply.offers[0].price,42);
 });
+
+for(const kind of ['firefox','chrome'])test(`${kind} transports safe reader error locations through sync and async message failures`,async()=>{
+ const e=environment(kind);const error=new ReferenceError('missingReader is not defined');error.stack='missingReader@moz-extension://private-id/shops/reader.js:52:19\nhttps://shop.example/product?ean=1234567890128';
+ for(const asyncFailure of [false,true]){
+  let reply;const listener=()=>{if(asyncFailure)return Promise.reject(error);throw error;};
+  e.api.runtime.onMessage.addListener(listener);const wrapped=[...e.native.runtime.onMessage.listeners].at(-1);wrapped({},e.sender,value=>{reply=value;});await new Promise(setImmediate);
+  assert.equal(reply.__teilefinderPlatformError,error.message);assert.equal(reply.errorInfo.site,'shops/reader.js:52:19');assert.equal(reply.errorInfo.signature,'missingReader is not defined');
+  e.native.tabs.sendMessage=async()=>reply;
+  await assert.rejects(e.api.tabs.sendMessage(1,{}),failure=>failure.code==='REMOTE_SCRIPT_ERROR'&&failure.info.name==='ReferenceError'&&failure.info.site==='shops/reader.js:52:19');
+  e.api.runtime.onMessage.removeListener(listener);
+ }
+ const safe=e.ctx.platformErrorInfo({name:'Error',message:'Product secret 1234567890128 at https://shop.example/product',stack:'secret'});assert.equal(safe.signature,'');assert.equal(safe.site,'');
+});

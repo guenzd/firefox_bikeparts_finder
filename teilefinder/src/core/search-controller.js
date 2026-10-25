@@ -9,10 +9,20 @@ async function profileStep(job,shop,phase,work){
 }
 function finishSearchProfile(job){const profile=searchProfile(job);searchProfiles.push({elapsedMs:Math.round(profileNow()-profile.started),shops:JSON.parse(JSON.stringify(profile.shops))});if(searchProfiles.length>20)searchProfiles.shift();}
 const shopPause=(job,shop,ms)=>profileStep(job,shop,'wait',()=>pause(ms));
+function recordReadError(entry,error){
+ const message=String(error?.message||'');
+ const kind=error?.code==='REMOTE_SCRIPT_ERROR'?'readerError':/Zeitlimit|dauert zu lange|timed? ?out/i.test(message)?'timeout':/receiving end does not exist|could not establish connection|no matching message handler/i.test(message)?'noReceiver':/message (?:port|manager).*closed|disconnected|went out of scope/i.test(message)?'disconnected':'other';
+ const kinds=entry.errorKinds||(entry.errorKinds={});kinds[kind]=(kinds[kind]||0)+1;
+ if(kind==='readerError'&&error.info){
+  const info=error.info,details=entry.readerErrors||(entry.readerErrors={});
+  const label=[info.name,info.site,info.signature].filter(Boolean).join(' · ');
+  if(label&&(Object.keys(details).length<8||label in details))details[label]=(details[label]||0)+1;
+ }
+}
 const shopMessage=(job,shop,tab,data,ms)=>profileStep(job,shop,data.type==='extract'?'listing':'detail',async()=>{
  const entry=searchProfile(job).shops[shop.id],outcomes=entry.outcomes||(entry.outcomes={});
  try{const result=await boundedMessage(tab,data,ms);const status=!result?'noResponse':result.blocked?'blocked':result.ready?'ready':'notReady';outcomes[status]=(outcomes[status]||0)+1;if(result?.pageMatchesRequested===false)outcomes.pageMismatch=(outcomes.pageMismatch||0)+1;return result;}
- catch(error){outcomes.errors=(outcomes.errors||0)+1;throw error;}
+ catch(error){outcomes.errors=(outcomes.errors||0)+1;recordReadError(entry,error);throw error;}
 });
 const navigateShop=(job,shop,tab,url)=>profileStep(job,shop,'navigation',()=>searchPlatform.tabs.update(tab,{url}));
 const jobs=new Map(),shopTabs=new Map(),tabSessions=new Map();

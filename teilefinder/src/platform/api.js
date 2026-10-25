@@ -1,7 +1,17 @@
+// Only fixed error types, identifier-shaped signatures and shipped source
+// locations enter profiling. Never transport a raw stack into timing records.
+function platformErrorInfo(error){
+ const name=['Error','TypeError','ReferenceError','SyntaxError','RangeError'].includes(error?.name)?error.name:'Error';
+ const site=String(error?.stack||'').match(/\/((?:shops|core|platform)\/[A-Za-z0-9_.-]+\.js):(\d+):(\d+)/);
+ const message=String(error?.message||''),identifier='[A-Za-z_$][A-Za-z0-9_$]*(?:\\.[A-Za-z_$][A-Za-z0-9_$]*)*';
+ const signatures=[new RegExp('^'+identifier+' is (?:not defined|not a function|undefined|null)$'),/^Cannot read properties of (?:null|undefined) \(reading '[A-Za-z_$][A-Za-z0-9_$]*'\)$/,/^can't access property "[A-Za-z_$][A-Za-z0-9_$]*", [A-Za-z_$][A-Za-z0-9_$]* is (?:null|undefined)$/];
+ return {name,site:site?site[1]+':'+site[2]+':'+site[3]:'',signature:message.length<=160&&signatures.some(pattern=>pattern.test(message))?message:''};
+}
 // The only boundary to native extension APIs. Shared code receives this facade.
 function createNativePlatform(native){
  if(!native?.runtime)throw Error('Erweiterungs-APIs nicht verfügbar.');
- const unwrap=value=>{if(value?.__teilefinderPlatformError)throw Error(value.__teilefinderPlatformError);return value;};
+ const failure=error=>({__teilefinderPlatformError:String(error?.message||'Skriptfehler'),errorInfo:platformErrorInfo(error)});
+ const unwrap=value=>{if(typeof value?.__teilefinderPlatformError==='string'){const error=Error(value.__teilefinderPlatformError);error.code='REMOTE_SCRIPT_ERROR';error.info=value.errorInfo;throw error;}return value;};
  const call=(object,method,...args)=>Promise.resolve().then(()=>object[method](...args)).then(unwrap);
  const messageListeners=new Map();
  return {
@@ -11,10 +21,10 @@ function createNativePlatform(native){
   runtime:{id:native.runtime.id,getURL:path=>native.runtime.getURL(path),sendMessage:data=>call(native.runtime,'sendMessage',data),onMessage:{
    addListener(listener){
     const wrapped=(data,sender,sendResponse)=>{
-     let result;try{result=listener(data,sender);}catch(error){sendResponse({__teilefinderPlatformError:error.message});return false;}
+     let result;try{result=listener(data,sender);}catch(error){sendResponse(failure(error));return false;}
      if(result===undefined)return false;
      if(result&&typeof result.then==='function'){
-      Promise.resolve(result).then(sendResponse,error=>sendResponse({__teilefinderPlatformError:error.message}));return true;
+      Promise.resolve(result).then(sendResponse,error=>sendResponse(failure(error)));return true;
      }
      sendResponse(result);return false;
     };

@@ -81,3 +81,14 @@ test('Finished profiling snapshots stay unchanged when timed-out background work
  ctx.finishSearchProfile(job);job.profile.shops['r2-bike'].detail.ms=99999;job.profile.shops['r2-bike'].outcomes.notReady++;
  const saved=ctx.getSearchProfiles()[0];assert.equal(saved.shops['r2-bike'].detail.ms,10);assert.equal(saved.shops['r2-bike'].outcomes.notReady,1);
 });
+
+test('Profiles classify transport failures, timeouts and reader exceptions without raw messages or stacks',()=>{
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
+ const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}}}},setTimeout,clearTimeout});vm.runInContext(controller,ctx);
+ const entry={};
+ for(const message of ['Could not establish connection. Receiving end does not exist.','Message port closed','Antwort dauert zu lange','Secret 1234567890128 https://shop.example/product'])ctx.recordReadError(entry,Error(message));
+ ctx.recordReadError(entry,{code:'REMOTE_SCRIPT_ERROR',info:{name:'ReferenceError',site:'shops/reader.js:52:19',signature:'missingReader is not defined'}});
+ assert.deepEqual(JSON.parse(JSON.stringify(entry.errorKinds)),{noReceiver:1,disconnected:1,timeout:1,other:1,readerError:1});
+ assert.equal(entry.readerErrors['ReferenceError · shops/reader.js:52:19 · missingReader is not defined'],1);
+ assert.doesNotMatch(JSON.stringify(entry),/Secret|1234567890128|https:/);
+});
