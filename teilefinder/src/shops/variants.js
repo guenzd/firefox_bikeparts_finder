@@ -8,7 +8,7 @@ async function bikeDiscountVariants(fallback,requested){
  while(!document.querySelector('.nele-product-detail-configurator-option input[type="radio"]')&&Date.now()<deadline)await pause(150);
  const variants=[...document.querySelectorAll('.nele-product-detail-configurator-option input[type="radio"]')].map(input=>({id:input.id,text:input.parentElement.querySelector('label')?.innerText.trim(),disabled:input.disabled})).filter(v=>v.id&&v.text);
  const color=typeof productColor==='function'?productColor():'';
- const rows=[];
+ const rows=[];rows.inspectionComplete=variants.length>0;rows.readIssue=variants.length?'noMatchingOption':'optionsMissing';
  for(const variant of variants.filter(v=>!requested||variantMatches({...fallback,variant:[v.text,color].filter(Boolean).join(' · ')},requested)).slice(0,8)){
   if(variant.disabled)continue;
   const livePicker=document.querySelector('#productDetailConfiguratorOptions');
@@ -29,15 +29,21 @@ async function bikeDiscountVariants(fallback,requested){
    const ean=typeof currentProductEAN==='function'?currentProductEAN():'';
    const signature=JSON.stringify([selected,price,stock,ean]);
    const liveInput=document.getElementById(variant.id);
-   const chosen=selected.toLowerCase().includes(variant.text.toLowerCase())&&liveInput?.checked;
+   const chosen=liveInput?.checked&&(typeof variantMatches==='function'?variantMatches({name:'',variant:selected},variant.text):selected.toLowerCase().includes(variant.text.toLowerCase()));
    stable=chosen&&signature===previous?stable+1:0;previous=signature;
-   const amount=euro(price.replace(/€/g,''));
+   const amount=bikeDiscountVariantPrice(price);
+   rows.readIssue=!chosen?'selectionUnconfirmed':amount===null?'priceMissing':/^ab\s/i.test(price)?'fromPrice':!stock?'stockMissing':'selectionUnsettled';
    if(stable>=2&&amount!==null&&!/^ab\s/i.test(price)&&stock){current={price:amount,stock:stockText(stock),ean};break;}
    await pause(250);
   }
   if(current)rows.push({...fallback,ean:current.ean||'',name:document.querySelector('h1')?.innerText.trim()||fallback.name,variant:/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · '+variant.text:[variant.text,color].filter(Boolean).join(' · '),price:current.price,priceKind:'exact',stock:current.stock,url:location.href,source:'Firefox · ausgewählte Produktvariante'});
  }
- return rows;
+ if(rows.length)rows.readIssue='';return rows;
+}
+function bikeDiscountVariantPrice(text){
+ // Ignore tax/footnote text; never choose among multiple monetary amounts.
+ const amounts=[...String(text||'').matchAll(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/g)];
+ return amounts.length===1?euro(amounts[0][1]):null;
 }
 
 // Native product selectors, including dependent size / color / capacity dropdowns.

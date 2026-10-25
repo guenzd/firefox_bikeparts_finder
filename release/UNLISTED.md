@@ -2,9 +2,9 @@
 
 ## Fertiges Paket
 
-`npm run build` und `npm run lint:extension` ausführen. `outputs/teilefinder-firefox-0.8.13.zip` ist das unsigned Einreichungspaket. Es enthält nur Dateien der Erweiterung, nicht die frühere Website oder Browserprofile. Ein ZIP umzubenennen signiert es nicht.
+`npm run build` und `npm run lint:extension` ausführen. `outputs/teilefinder-firefox-0.8.14.zip` ist das unsigned Einreichungspaket. Es enthält nur Dateien der Erweiterung, nicht die frühere Website oder Browserprofile. Ein ZIP umzubenennen signiert es nicht.
 
-Version 0.8.13 setzt Firefox Desktop 140 voraus und verwendet Firefox' eingebaute Dateneinwilligung (`searchTerms`, `websiteActivity`). Die lokale Datenschutzseite ist über die Oberfläche erreichbar. Es gibt keine eigene Serververarbeitung, Telemetrie oder Werbung. Lizenz: alle Rechte vorbehalten, solange der Rechteinhaber keine andere Lizenz festlegt.
+Version 0.8.14 setzt Firefox Desktop 140 voraus und verwendet Firefox' eingebaute Dateneinwilligung (`searchTerms`, `websiteActivity`). Die lokale Datenschutzseite ist über die Oberfläche erreichbar. Es gibt keine eigene Serververarbeitung, Telemetrie oder Werbung. Lizenz: alle Rechte vorbehalten, solange der Rechteinhaber keine andere Lizenz festlegt.
 
 ## Einreichen
 

@@ -615,3 +615,25 @@ test('BIKE24 combines original model, datasheet EAN and selected 116 option with
  }
  assert.equal(c.confirmBike24ProductMatch(base,data,'Shimano CN-M8100 Kette').offers[0].ean,'');
 });
+
+test('Bike-Discount confirms equivalent volume labels and parses price footnotes without accepting other selections or ambiguous prices',async()=>{
+ for(const [selected,price,expected] of [['1000 ml','24,95 €*',1],['1L','24,95 € inkl. MwSt.',1],['500 ml','24,95 €',0],['1 L','29,95 € 24,95 €',0]]){
+  let now=0;const input={id:'volume',checked:true,disabled:false,parentElement:{querySelector:()=>({innerText:'1 L'})}};
+  const picker={getAttribute:()=> 'true',innerText:selected};
+  const document={querySelector:s=>({'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':input,'.product-detail-price':{innerText:price},'.nele-product-availability-info':{innerText:'Auf Lager'},h1:{innerText:'Generic liquid'}}[s]),querySelectorAll:()=>[input],getElementById:()=>input};
+  const ctx=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/generic-liquid'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);}});
+  vm.runInContext(readSource('extract.js')+readSource('variant-match.js')+readSource('variants.js'),ctx);
+  const rows=await ctx.bikeDiscountVariants({name:'Generic liquid'},'1000 ml');assert.equal(rows.length,expected);assert.equal(rows.inspectionComplete,true);
+  if(expected){assert.equal(rows[0].price,24.95);assert.ok(now<2000);}else assert.ok(now<7000);
+ }
+});
+
+test('Bike-Discount returns a completed empty inspection after checking real options, but keeps pending missing controls retryable',async()=>{
+ for(const complete of [true,false]){
+  let listener;const rows=[];rows.inspectionComplete=complete;rows.readIssue=complete?'selectionUnconfirmed':'optionsMissing';
+  const document={body:{innerText:''},querySelector:s=>s==='h1'||s==='#productDetailConfiguratorOptions'?{}:null,querySelectorAll:()=>[]};
+  const ctx=vm.createContext({document,URL,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/example'},platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}},bikeDiscountVariants:async()=>rows});vm.runInContext(readSource('shop.js'),ctx);
+  const result=await listener({type:'detail',query:'Generic product',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,fallback:{}});
+  assert.equal(result.ready,complete);assert.equal(result.offers.length,0);assert.equal(result.readIssue,rows.readIssue);
+ }
+});

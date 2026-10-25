@@ -21,7 +21,7 @@ function recordReadError(entry,error){
 }
 const shopMessage=(job,shop,tab,data,ms)=>profileStep(job,shop,data.type==='extract'?'listing':'detail',async()=>{
  const entry=searchProfile(job).shops[shop.id],outcomes=entry.outcomes||(entry.outcomes={});
- try{const result=await boundedMessage(tab,data,ms);const status=!result?'noResponse':result.blocked?'blocked':result.ready?'ready':'notReady';outcomes[status]=(outcomes[status]||0)+1;if(result?.pageMatchesRequested===false)outcomes.pageMismatch=(outcomes.pageMismatch||0)+1;return result;}
+ try{const result=await boundedMessage(tab,data,ms);const status=!result?'noResponse':result.blocked?'blocked':result.ready?'ready':'notReady';outcomes[status]=(outcomes[status]||0)+1;if(['optionsMissing','noMatchingOption','selectionUnconfirmed','priceMissing','fromPrice','stockMissing','selectionUnsettled'].includes(result?.readIssue)){const issues=entry.readIssues||(entry.readIssues={});issues[result.readIssue]=(issues[result.readIssue]||0)+1;}if(result?.pageMatchesRequested===false)outcomes.pageMismatch=(outcomes.pageMismatch||0)+1;return result;}
  catch(error){outcomes.errors=(outcomes.errors||0)+1;recordReadError(entry,error);throw error;}
 });
 const navigateShop=(job,shop,tab,url)=>profileStep(job,shop,'navigation',()=>searchPlatform.tabs.update(tab,{url}));

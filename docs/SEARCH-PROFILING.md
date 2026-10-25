@@ -162,3 +162,14 @@ Für einen neuen Durchlauf die aktualisierte Erweiterung und anschließend die T
 ## Gespeicherte Wunschlistenlinks / 0.8.10
 
 Wunschlistenprüfungen setzen `refreshKnown`. Ist eine passende Produkt-URL bekannt, wird ausschließlich diese direkt aktualisiert; eine fehlgeschlagene Bestätigung löst keine Shopsuche aus. Frühere Ergebnisse bleiben über die vorhandene Zusammenführung als nicht bestätigt erhalten. Shops ohne bekannten Link werden weiterhin durchsucht. Die Einzelteilsuche behält ihren Such-Fallback. Gespeicherte Links ohne EAN werden auch bei später ergänzter EAN direkt geprüft; die EAN muss auf der frisch gelesenen Seite weiterhin bestätigt werden. Explizit abweichende gespeicherte EANs werden ausgeschlossen.
+
+
+## Einzeltests / 0.8.14
+
+Peaty’s (1000 ml) benötigt im Einzeltest 52,323 Sekunden; Bike-Discount liefert sechsmal kein auswertbares Detailangebot, davon 47,622 Sekunden innerhalb der Leseraufrufe. Powerbar (Cola) benötigt diesmal 16,844 Sekunden; bei BIKE24 werden acht abweichende Seitenpfade gemeldet. Die Ursache dieser Pfadabweichungen ist nicht bestätigt. r2-bike liefert beim ersten Artikel nach zwei `noReceiver`-Antworten einen bereiten Datensatz; seine abgeschlossenen Warte- und Leseraufrufe dauern zusammen rund 3,5 Sekunden. Ein weiter sichtbares Firefox-Ladesymbol beschreibt den Seitenladezustand, nicht den Abschluss unseres Auslesens; offene Netzwerkressourcen sind im Timingprofil nicht erfasst.
+
+Die Bike-Discount-Variantenprüfung unterscheidet nun fehlende Bedienelemente (weiter versuchen) von einer durchgeführten Prüfung vorhandener Optionen (abschließen, auch ohne bestätigtes Angebot). Dadurch wird eine erfolglose vollständige Prüfung nicht sechsmal neu gestartet. Es werden dabei keine alten Preise als frisch bestätigt.
+
+Die Auswahlbestätigung verwendet denselben allgemeinen Variantenvergleich wie die Vorauswahl, insbesondere für unterschiedliche Mengeneinheiten und Leerzeichen. Der Preisleser erlaubt Zusätze zu genau einem Eurobetrag, lehnt aber mehrere Geldbeträge weiterhin als mehrdeutig ab. Diese Fälle sind regressionsgetestet; welche Bedingung konkret im Live-Tab gescheitert ist, lässt sich aus dem ursprünglichen Profil nicht beweisen. Der direkte HTML-Abruf wird durch Cloudflare blockiert; eine interaktive Browserprüfung ist hier nicht verfügbar.
+
+`readIssues` zählt nun `optionsMissing`, `noMatchingOption`, `selectionUnconfirmed`, `priceMissing`, `fromPrice`, `stockMissing` oder `selectionUnsettled` bei nicht bestätigten Varianten. Diese Zähler enthalten keine zusätzlichen Shopinhalte und bleiben im lokalen Profil. Für eine reale Folgemessung genügt zunächst Peaty’s; der Powerbar-Pfadfehler ist von dieser Änderung nicht behoben.

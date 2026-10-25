@@ -123,3 +123,16 @@ test('Profiles keep the requested product identity through query refinement and 
   const profile=profiles[index];assert.equal(profile.productName,'Example Model 123');assert.equal(profile.ean,'1234567890128');assert.equal(profile.variant,'black');assert.equal(profile.useEAN,useEAN);
  }
 });
+
+test('A completed but unconfirmed saved variant is checked once, retains its diagnostic and never starts wishlist search',async()=>{
+ const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(){}}},URL,setTimeout,clearTimeout});
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
+ vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
+ const url='https://www.bike-discount.de/de/generic-liquid',ean='1234567890128',shop={id:'bike-discount',name:'Bike-Discount',host:'www.bike-discount.de',search(){throw Error('Known URL must not start search');}};
+ const job={id:'one',source:99,refreshKnown:true,query:ean,variant:'1000 ml',knownShops:[{name:shop.name,offers:[{url,name:'Generic liquid',ean}]}],results:new Map(),counts:new Map()};
+ ctx.job=job;vm.runInContext('jobs.set(job.source,job)',ctx);ctx.shopTab=async()=>({id:1});ctx.shopPause=async()=>{};
+ let details=0;ctx.searchPlatform.tabs={async sendMessage(_id,data){assert.equal(data.type,'detail');details++;return {ready:true,offers:[],readIssue:'selectionUnconfirmed'};}};
+ // Result metadata can expose a search link without navigating to it.
+ shop.search=()=> 'https://www.bike-discount.de/de/search';
+ await ctx.runShop(job,shop,ean);assert.equal(details,1);assert.equal(job.results.get(shop.id).offers.length,0);assert.equal(job.profile.shops[shop.id].readIssues.selectionUnconfirmed,1);
+});
