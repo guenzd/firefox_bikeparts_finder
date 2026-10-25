@@ -41,3 +41,24 @@ test('Both packages validate all assets, contain identical common sources, and a
   assert.equal(result.status,0,result.stderr||result.stdout);
  }finally{rmSync(output,{recursive:true,force:true});}
 });
+
+test('Successful builds prune only outdated ZIPs of their target; failed builds preserve previous bundles',()=>{
+ const output=mkdtempSync(path.join(tmpdir(),'teilefinder-cleanup-test-'));
+ try{
+  const code=`import importlib.util,pathlib,sys,unittest.mock as mock
+spec=importlib.util.spec_from_file_location('build',sys.argv[1]);build=importlib.util.module_from_spec(spec);spec.loader.exec_module(build)
+out=pathlib.Path(sys.argv[2]);manifest=build.validate('firefox')
+for name in ['teilefinder-firefox-0.0.1.zip','teilefinder-chrome-0.0.1.zip','teilefinder-quellcode.zip','backup.zip','teilefinder-firefox-signed.zip']:(out/name).write_bytes(b'keep unless outdated Firefox bundle')
+build.write_bundle('firefox',manifest,out)
+assert not (out/'teilefinder-firefox-0.0.1.zip').exists()
+for name in ['teilefinder-chrome-0.0.1.zip','teilefinder-quellcode.zip','backup.zip','teilefinder-firefox-signed.zip','teilefinder-firefox.zip','teilefinder-firefox-'+manifest['version']+'.zip']:assert (out/name).exists(),name
+old=out/'teilefinder-firefox-0.0.1.zip';old.write_bytes(b'old release')
+with mock.patch.object(build.shutil,'copyfile',side_effect=OSError('simulated disk failure')):
+ try:build.write_bundle('firefox',manifest,out)
+ except OSError:pass
+ else:raise AssertionError('Expected failed build')
+assert old.read_bytes()==b'old release'
+`;
+  const result=spawnSync('python3',['-B','-c',code,path.join(root,'scripts/build-extension.py'),output],{encoding:'utf8'});assert.equal(result.status,0,result.stderr||result.stdout);
+ }finally{rmSync(output,{recursive:true,force:true});}
+});

@@ -2,9 +2,9 @@
 
 ## Fertiges Paket
 
-`npm run build` und `npm run lint:extension` ausführen. `outputs/teilefinder-firefox-0.8.18.zip` ist das unsigned Einreichungspaket. Es enthält nur Dateien der Erweiterung, nicht die frühere Website oder Browserprofile. Ein ZIP umzubenennen signiert es nicht.
+`npm run build` und `npm run lint:extension` ausführen. `outputs/teilefinder-firefox-0.8.19.zip` ist das unsigned Einreichungspaket. Es enthält nur Dateien der Erweiterung, nicht die frühere Website oder Browserprofile. Ein ZIP umzubenennen signiert es nicht.
 
-Version 0.8.18 setzt Firefox Desktop 140 voraus und verwendet Firefox' eingebaute Dateneinwilligung (`searchTerms`, `websiteActivity`). Die lokale Datenschutzseite ist über die Oberfläche erreichbar. Es gibt keine eigene Serververarbeitung, Telemetrie oder Werbung. Lizenz: alle Rechte vorbehalten, solange der Rechteinhaber keine andere Lizenz festlegt.
+Version 0.8.19 setzt Firefox Desktop 140 voraus und verwendet Firefox' eingebaute Dateneinwilligung (`searchTerms`, `websiteActivity`). Die lokale Datenschutzseite ist über die Oberfläche erreichbar. Es gibt keine eigene Serververarbeitung, Telemetrie oder Werbung. Lizenz: alle Rechte vorbehalten, solange der Rechteinhaber keine andere Lizenz festlegt.
 
 ## Einreichen
 
@@ -22,3 +22,7 @@ Die tatsächliche Freigabe und mögliche Rückfragen entscheidet Mozilla. Der lo
 Zuerst die Wunschliste als Datei sichern. Die signierte `.xpi` über `about:addons` → Zahnrad → „Add-on aus Datei installieren“ installieren. Die Add-on-ID bleibt `r2-teilefinder@local.invalid`. Nach einem Wechsel von der temporären Installation die Sicherung bei Bedarf importieren.
 
 Für weitere Releases die Versionsnummer erhöhen, bauen, prüfen und im bestehenden Mozilla-Eintrag als neue unlisted Version signieren lassen. Die neue signierte XPI über die vorhandene Erweiterung installieren; nicht deinstallieren. Automatische Updates sind hier noch nicht eingerichtet. Dafür wäre später ein HTTPS-Update-Manifest mit stabiler `update_url` und signierten Downloads nötig.
+
+## Datenschutz-Link für den Chrome Web Store
+
+Die veröffentlichbare Erklärung steht in [DATENSCHUTZ.md](../DATENSCHUTZ.md). Die öffentlich erreichbare GitHub-Seite dieser Datei kann im Datenschutz-URL-Feld des Chrome Web Store Developer Dashboards verlinkt werden. Als Kontakt ist die Anbieter-Website verlinkt.
