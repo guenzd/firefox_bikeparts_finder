@@ -111,3 +111,16 @@ Die neue Rückgabe-Klassifikation zeigt 218 Fehler, 77 bereite Antworten und 97 
 Bei Skript-Ausnahmen enthält `readerErrors` zusätzlich den Standard-Fehlertyp, die relative Quelldatei samt Zeile/Spalte und, falls passend, eine eng begrenzte technische Fehlersignatur. Das funktioniert sowohl für synchrone als auch für asynchrone Fehler über den Browser-Adapter. Rohe Stacktraces und allgemeine Fehlermeldungen werden nicht in die Profile übernommen. Die Zahl unterschiedlicher Fehlersignaturen bleibt pro Shop und Suchjob auf acht begrenzt.
 
 Für die nächste Eingrenzung genügt ein einzelner langsamer Artikel; die ganze Wunschliste muss dafür nicht erneut geprüft werden. Derselbe Konsolenaufruf liefert die erweiterten Informationen.
+
+
+## Versuch: Bilder nicht laden / 0.8.6
+
+In Firefox und Chrome wird vor dem ersten Shop-Aufruf eine Sitzungsregel für Bildanfragen installiert. Sie gilt nur für registrierte Shop-Tab-IDs und die vier Shop-Domains als Initiatoren. So werden auch Bilddateien von CDNs erfasst, ohne normale Shop-Tabs zu beeinflussen. Nur `image` wird blockiert; Skripte, CSS, Fonts, HTML und Produktdatenabfragen werden nicht blockiert. `challenges.cloudflare.com` ist als Request-Domain ausgenommen. Inline-Grafiken und bereits im HTML eingebettete Datenbilder benötigen keine separaten Netzwerkanfragen und werden durch diese Regel nicht entfernt.
+
+Neue Shop-Tabs werden zunächst als leere Kinder des Teilefinder-Tabs angelegt, vor der Navigation registriert und mit der Bildregel versehen. Für leere Tabs kann das URL-Feld mangels allgemeiner `tabs`-Berechtigung fehlen; die Zuordnung wird dann über den expliziten `openerTabId` und ein validiertes Shop-Ziel geprüft. Es wird keine zusätzliche allgemeine `tabs`-Berechtigung verlangt.
+
+„Bilder laden“ hebt die Sperre auf; die Auswahl bleibt lokal gespeichert. Bereits fehlgeschlagene Bildanfragen werden dadurch nicht automatisch neu gestartet: Shopseite neu laden oder nächste Suche abwarten. Beim Schließen verwalteter Tabs werden die Regeln bereinigt; Neustarts des Hintergrund-Workers stellen sie aus dem Sitzungsspeicher wieder her. Die zusätzliche `declarativeNetRequest`-Berechtigung kann beim Browser-Update einen Berechtigungsdialog auslösen.
+
+Diese Änderung ist ein Ladeversuch, kein belegter Fix für die im letzten Profil beobachteten 218 Fehler. Eine echte Vorher-/Nachher-Messung mit aktuellen Profilen bleibt erforderlich. Live-Browsersteuerung ist weiterhin nicht verfügbar. Automatische Tests prüfen beide API-Modi, Registrierung vor der ersten Navigation, manuelle Tabs, Regelbereinigung, Worker-Neustart, Einstellungswechsel und Fehlerbehandlung.
+
+Referenzen: [Mozilla DNR-Berechtigungen](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/declarativeNetRequest#permissions), [Tab-bezogene Sitzungsregeln](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/declarativeNetRequest/RuleCondition), [Tab-URL-Berechtigungen](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabs).

@@ -17,6 +17,9 @@ function createNativePlatform(native){
  return {
   tabs:{get:id=>call(native.tabs,'get',id),getCurrent:()=>call(native.tabs,'getCurrent'),query:query=>call(native.tabs,'query',query),create:options=>call(native.tabs,'create',options),update:(id,options)=>call(native.tabs,'update',id,options),remove:id=>call(native.tabs,'remove',id),sendMessage:(id,data)=>call(native.tabs,'sendMessage',id,data),onRemoved:native.tabs?.onRemoved,onUpdated:native.tabs?.onUpdated},
   storage:{local:{get:key=>call(native.storage.local,'get',key),set:data=>call(native.storage.local,'set',data)},session:native.storage.session?{get:key=>call(native.storage.session,'get',key),set:data=>call(native.storage.session,'set',data)}:null},
+  images:native.declarativeNetRequest?{setTabIds:ids=>call(native.declarativeNetRequest,'updateSessionRules',{
+   removeRuleIds:[840001],addRules:ids.length?[{id:840001,priority:1,action:{type:'block'},condition:{tabIds:[...new Set(ids)].sort((a,b)=>a-b),resourceTypes:['image'],initiatorDomains:['bike24.de','bike-discount.de','bike-components.de','r2-bike.com'],excludedRequestDomains:['challenges.cloudflare.com']}}]:[]
+  })}:null,
   action:native.action||native.browserAction,
   runtime:{id:native.runtime.id,getURL:path=>native.runtime.getURL(path),sendMessage:data=>call(native.runtime,'sendMessage',data),onMessage:{
    addListener(listener){

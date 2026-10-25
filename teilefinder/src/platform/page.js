@@ -4,6 +4,7 @@ function createPagePlatforms(nativePlatform){
  const current=nativePlatform.tabs.getCurrent().then(tab=>{if(!Number.isInteger(tab?.id))throw Error('Erweiterungs-Tab nicht gefunden.');return tab;});
  const runtime={...nativePlatform.runtime,onMessage:{addListener:listener=>listeners.add(listener),removeListener:listener=>listeners.delete(listener)},async sendMessage(data){
   const owner=await current,sender={id:nativePlatform.runtime.id,url:nativePlatform.runtime.getURL('ui/home.html'),tab:{id:owner.id}};
+  if(data?.type==='shop-image-settings')return nativePlatform.runtime.sendMessage({...data,owner:owner.id});
   let response;for(const listener of [...listeners]){const result=listener(data,sender);if(result!==undefined&&response===undefined)response=await result;}
   if(data?.type==='close-shop-tabs'){
    const stored=await nativePlatform.runtime.sendMessage({type:'close-owned-shop-tabs',owner:owner.id});
@@ -11,30 +12,15 @@ function createPagePlatforms(nativePlatform){
   }
   return response;
  }};
- // Firefox can initially report about:blank, without Chrome's pendingUrl.
- // Subscribe before re-reading the tab, so navigation cannot fall between checks.
- function readyShopTab(tab,host){
-  const ready=value=>{try{return new URL(value.pendingUrl||value.url).hostname===host;}catch{return false;}};
-  if(ready(tab))return Promise.resolve(tab);
-  return new Promise((resolve,reject)=>{
-   let timer;
-   const finish=(error,value)=>{clearTimeout(timer);nativePlatform.tabs.onUpdated?.removeListener(updated);nativePlatform.tabs.onRemoved?.removeListener(removed);error?reject(error):resolve(value);};
-   const updated=(id,_change,value)=>{if(id===tab.id&&ready(value))finish(null,value);};
-   const removed=id=>{if(id===tab.id)finish(Error('Shop-Tab wurde geschlossen.'));};
-   nativePlatform.tabs.onUpdated?.addListener(updated);nativePlatform.tabs.onRemoved?.addListener(removed);
-   timer=setTimeout(()=>finish(Error('Shop-Seite konnte nicht geöffnet werden.')),8000);
-   nativePlatform.tabs.get(tab.id).then(value=>updated(tab.id,{},value),error=>finish(error));
-  });
- }
  const ui={...nativePlatform,runtime};
  const search={...ui,tabs:{...ui.tabs,async create(options){
   const owner=await current,host=new URL(options.url).hostname;
   const existing=await nativePlatform.runtime.sendMessage({type:'find-shop-tab',owner:owner.id,host});
   if(existing?.tab)return nativePlatform.tabs.update(existing.tab.id,options);
-  const tab=await nativePlatform.tabs.create(options);
-  try{await readyShopTab(tab,host);const result=await nativePlatform.runtime.sendMessage({type:'register-shop-tab',owner:owner.id,tabId:tab.id});if(!result?.registered)throw Error('Shop-Tab konnte nicht zugeordnet werden.');}
+  // Register and install image rules before the first shop request.
+  const tab=await nativePlatform.tabs.create({...options,url:'about:blank',openerTabId:owner.id});
+  try{const result=await nativePlatform.runtime.sendMessage({type:'register-shop-tab',owner:owner.id,tabId:tab.id,url:options.url});if(!result?.registered)throw Error('Shop-Tab konnte nicht zugeordnet werden.');return await nativePlatform.tabs.update(tab.id,options);}
   catch(error){await nativePlatform.tabs.remove(tab.id).catch(()=>{});throw error;}
-  return tab;
  }}};
  return {ui,search};
 }

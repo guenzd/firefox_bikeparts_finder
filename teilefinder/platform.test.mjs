@@ -119,19 +119,15 @@ test('Registry accepts owned tabs while Chrome reports a pending navigation rath
  await registry.removed(1);assert.deepEqual(e.removed,[11]);
 });
 
-test('Firefox blank initial tabs wait for navigation before registration and remain open for searches',async()=>{
+test('Firefox registers a blank owned tab before navigating, without relying on pendingUrl',async()=>{
  const e=environment('firefox'),registry=e.ctx.createTabRegistry(e.api);
- e.native.tabs.onUpdated=event();const api=e.ctx.createNativePlatform(e.native);
  e.native.runtime.sendMessage=data=>registry.lookup(data,e.sender)??registry.register(data,e.sender);
- const create=e.native.tabs.create;e.native.tabs.create=async options=>{const tab=await create({...options,url:'about:blank'});return tab;};
- const ctx=vm.createContext({URL,setTimeout,clearTimeout});vm.runInContext(source('page.js').split('var pagePlatforms=')[0],ctx);
- const page=ctx.createPagePlatforms(api);let finished=false;
- const pending=page.search.tabs.create({url:'https://www.bike24.de/search',active:false}).then(tab=>{finished=true;return tab;});
- await new Promise(setImmediate);assert.equal(finished,false);assert.deepEqual(e.removed,[]);
- const tab=[...e.tabs.values()].find(tab=>tab.id>100);tab.url='https://www.bike24.de/search';e.native.tabs.onUpdated.emit(tab.id,{url:tab.url},{...tab});
- await pending;assert.equal(finished,true);assert.deepEqual(e.session.ownedShopTabs['1'],[tab.id]);assert.deepEqual(e.removed,[]);
+ const create=e.native.tabs.create,update=e.native.tabs.update;let blankId;
+ e.native.tabs.create=async options=>{assert.equal(options.url,'about:blank');const tab=await create(options);blankId=tab.id;return tab;};
+ e.native.tabs.update=async(id,options)=>{assert.ok(e.session.ownedShopTabs['1'].includes(id));return update(id,options);};
+ vm.runInContext(source('page.js').split('var pagePlatforms=')[0],e.ctx);const page=e.ctx.createPagePlatforms(e.api);
+ const tab=await page.search.tabs.create({url:'https://www.bike24.de/search',active:false});assert.equal(tab.id,blankId);assert.equal(tab.url,'https://www.bike24.de/search');assert.deepEqual(e.removed,[]);
  const reused=await page.search.tabs.create({url:'https://www.bike24.de/next',active:false});assert.equal(reused.id,tab.id);
- assert.equal(e.native.tabs.onUpdated.listeners.size,0);
 });
 
 for(const kind of ['firefox','chrome'])test(`${kind} shop content scripts initialise and answer reader messages without the privileged tabs API`,async()=>{
@@ -155,4 +151,55 @@ for(const kind of ['firefox','chrome'])test(`${kind} transports safe reader erro
   e.api.runtime.onMessage.removeListener(listener);
  }
  const safe=e.ctx.platformErrorInfo({name:'Error',message:'Product secret 1234567890128 at https://shop.example/product',stack:'secret'});assert.equal(safe.signature,'');assert.equal(safe.site,'');
+});
+
+for(const kind of ['firefox','chrome'])test(`${kind} image rules cover only owned shop tabs, precede first navigation, persist preference and survive worker restart`,async()=>{
+ const e=environment(kind),rules=new Map(),calls=[];
+ e.native.declarativeNetRequest={async updateSessionRules(change){calls.push(change);for(const id of change.removeRuleIds)rules.delete(id);for(const rule of change.addRules)rules.set(rule.id,rule);}};
+ const api=e.ctx.createNativePlatform(e.native),registry=e.ctx.createTabRegistry(api);
+ e.native.runtime.sendMessage=data=>registry.lookup(data,e.sender)??registry.register(data,e.sender);
+ const update=e.native.tabs.update;
+ e.native.tabs.update=async(id,options)=>{assert.ok(rules.get(840001)?.condition.tabIds.includes(id),'Images blocked before shop navigation');return update(id,options);};
+ vm.runInContext(source('page.js').split('var pagePlatforms=')[0],e.ctx);const page=e.ctx.createPagePlatforms(api);
+ const owned=await page.search.tabs.create({url:'https://r2-bike.com/product',active:false});
+ const manual=await page.ui.tabs.create({url:'https://r2-bike.com/manual'});
+ const rule=rules.get(840001);assert.equal(rule.action.type,'block');assert.deepEqual(Array.from(rule.condition.resourceTypes),['image']);assert.deepEqual(Array.from(rule.condition.tabIds),[owned.id]);assert.ok(!rule.condition.tabIds.includes(manual.id));
+ assert.ok(rule.condition.initiatorDomains.includes('r2-bike.com'));assert.ok(rule.condition.excludedRequestDomains.includes('challenges.cloudflare.com'));
+ assert.equal((await page.ui.runtime.sendMessage({type:'shop-image-settings'})).loadImages,false);
+ await page.ui.runtime.sendMessage({type:'shop-image-settings',loadImages:true});assert.equal(rules.size,0);assert.equal(e.local.loadShopImages,true);
+ await page.ui.runtime.sendMessage({type:'shop-image-settings',loadImages:false});assert.equal(rules.get(840001).condition.tabIds.length,1);
+ rules.clear();await e.ctx.createTabRegistry(api).restore();assert.ok(rules.get(840001).condition.tabIds.includes(owned.id));
+ const before=calls.length;assert.equal(registry.lookup({type:'shop-image-settings',owner:1,loadImages:true},{...e.sender,url:'https://r2-bike.com/'}),undefined);assert.equal(calls.length,before);
+ await registry.removed(1);assert.equal(rules.size,0);assert.ok(e.tabs.has(manual.id));
+});
+
+test('Image rule failures prevent first shop navigation and clean up the new blank tab',async()=>{
+ const e=environment();e.native.declarativeNetRequest={async updateSessionRules(){throw Error('Rules unavailable');}};
+ const api=e.ctx.createNativePlatform(e.native),registry=e.ctx.createTabRegistry(api);e.native.runtime.sendMessage=data=>registry.lookup(data,e.sender)??registry.register(data,e.sender);
+ vm.runInContext(source('page.js').split('var pagePlatforms=')[0],e.ctx);const page=e.ctx.createPagePlatforms(api);let navigated=false;e.native.tabs.update=async()=>{navigated=true;};
+ await assert.rejects(page.search.tabs.create({url:'https://www.bike24.de/product'}),/Rules unavailable/);assert.equal(navigated,false);assert.equal(e.removed.length,1);
+});
+
+test('Unclaimed blank tabs require a valid shop destination and are closed if their parent closes during setup',async()=>{
+ const e=environment(),registry=e.ctx.createTabRegistry(e.api);e.tabs.set(11,{id:11,url:'about:blank',openerTabId:1});
+ assert.equal((await registry.register({type:'register-shop-tab',owner:1,tabId:11,url:'https://unrelated.example/'},e.sender)).registered,false);
+ assert.equal((await registry.register({type:'register-shop-tab',owner:1,tabId:11,url:'https://r2-bike.com/product'},e.sender)).registered,true);
+ await registry.removed(1);assert.deepEqual(e.removed,[11]);
+});
+
+test('Blank-tab ownership works without readable URL fields or the broad tabs permission',async()=>{
+ const e=environment(),registry=e.ctx.createTabRegistry(e.api);e.tabs.set(11,{id:11,openerTabId:1});e.tabs.set(12,{id:12,openerTabId:2});
+ assert.equal((await registry.register({type:'register-shop-tab',owner:1,tabId:12,url:'https://r2-bike.com/product'},e.sender)).registered,false);
+ assert.equal((await registry.register({type:'register-shop-tab',owner:1,tabId:11,url:'https://r2-bike.com/product'},e.sender)).registered,true);
+ await registry.removed(1);assert.deepEqual(e.removed,[11]);assert.ok(e.tabs.has(12));
+});
+
+test('Image rules retain other owners and restore the old rule when saving the preference fails',async()=>{
+ const e=environment(),applied=[];e.api.images={async setTabIds(ids){applied.push([...ids].sort((a,b)=>a-b));}};
+ const registry=e.ctx.createTabRegistry(e.api);e.tabs.set(11,{id:11,url:'https://r2-bike.com/one'});e.tabs.set(21,{id:21,url:'https://www.bike24.de/two'});
+ await registry.register({type:'register-shop-tab',owner:1,tabId:11},e.sender);await registry.register({type:'register-shop-tab',owner:2,tabId:21},{...e.sender,tab:{id:2}});
+ assert.deepEqual(applied.at(-1),[11,21]);await registry.removed(1);assert.deepEqual(applied.at(-1),[21]);assert.ok(e.tabs.has(21));
+ e.api.storage.local.set=async()=>{throw Error('Storage unavailable');};
+ await assert.rejects(registry.lookup({type:'shop-image-settings',owner:2,loadImages:true},{...e.sender,tab:{id:2}}),/Storage unavailable/);
+ assert.deepEqual(applied.slice(-2),[[],[21]]);assert.equal(e.local.loadShopImages,undefined);
 });

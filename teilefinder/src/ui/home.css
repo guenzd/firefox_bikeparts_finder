@@ -262,3 +262,5 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 :root[data-theme="dark"] .theme-moon,:root:not([data-theme="dark"]) .theme-sun{display:none}
 #theme-toggle:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
 @media(max-width:480px){.page-heading{gap:6px}.page-heading h1{font-size:19px}.theme-controls{gap:2px}}
+
+.image-setting{display:inline-flex;align-items:center;gap:6px;margin-left:auto;color:var(--muted);font-size:12px;font-weight:400;cursor:pointer}.image-setting input{width:14px;height:14px;padding:0;margin:0;accent-color:var(--focus)}
