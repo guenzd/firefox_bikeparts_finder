@@ -1,11 +1,11 @@
-let currentTab;browser.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
+let currentTab;platform.tabs.getCurrent().then(tab=>{currentTab=tab.id;});
 const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
 let searchDeadline;
 let wishlistProgress=null;
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
-const saveList=()=>browser.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
-browser.storage.local.get('wishlist').then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
+const saveList=()=>platform.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
+platform.storage.local.get('wishlist').then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(tag==='th'){n.scope='col';if(text==='Preis')n.className='price-heading';}return n;};
 function appendTableHead(table,row){const head=el('thead');head.append(row);table.append(head);}
 function resultMessage(message){
@@ -83,7 +83,7 @@ function renderWishlistDetails(root){
   wrap.append(table);article.append(wrap);root.append(article);
  }
 }
-browser.runtime.onMessage.addListener(d=>{
+platform.runtime.onMessage.addListener(d=>{
  if(d.target!==currentTab||d.id!==id||!names.includes(d.shop))return;
  const previous=state.get(d.shop);if(d.type==='status')state.set(d.shop,{...previous,message:d.message});
  if(['result','partial-result'].includes(d.type)){
@@ -122,7 +122,7 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  const same=q===query&&requested===searchedVariant;query=q;searchedVariant=requested;id=crypto.randomUUID();if(!same)state.clear();if(savedShops){state.clear();savedShops.forEach(shop=>state.set(shop.name,shop));}names.forEach(name=>state.set(name,{...state.get(name),offers:state.get(name)?.offers||[],done:false,message:'Shopsuche wird geöffnet…'}));setSearchRunning(true);render();document.querySelector('#status').textContent='Suche läuft…';
  searchedEAN=validEAN(document.querySelector('#search-ean').value);
  const useEAN=checkingList?wishlist.find(item=>item.id===activeWishlistId)?.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
- try{await browser.runtime.sendMessage({type:'search',query,useEAN,nameFallback:!checkingList&&useEAN,...(inputPriceRange(document.querySelector('#max'))||{}),ean:validEAN(document.querySelector('#search-ean').value),variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,validEAN(document.querySelector('#search-ean').value)||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ try{await platform.runtime.sendMessage({type:'search',query,useEAN,nameFallback:!checkingList&&useEAN,...(inputPriceRange(document.querySelector('#max'))||{}),ean:validEAN(document.querySelector('#search-ean').value),variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,validEAN(document.querySelector('#search-ean').value)||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
@@ -156,7 +156,7 @@ function renderWishlist(){
    form.addEventListener('submit',async event=>{
     event.preventDefault();const corrected=name.value.trim();if(checkingList||!corrected)return;
     save.disabled=true;cancel.disabled=true;
-    try{const updated=renameWishlistItem(wishlist,item.id,corrected);await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderWishlist();document.querySelector('#status').textContent='Name gespeichert. Artikel erneut prüfen.';}
+    try{const updated=renameWishlistItem(wishlist,item.id,corrected);await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderWishlist();document.querySelector('#status').textContent='Name gespeichert. Artikel erneut prüfen.';}
     catch{save.disabled=false;cancel.disabled=false;document.querySelector('#status').textContent='Name konnte nicht gespeichert werden.';}
    });
    form.append(name,save,cancel);nameCell.replaceChildren(form);name.focus();name.select();
@@ -243,7 +243,7 @@ async function recheckWishlistItem(itemId){
   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);
   const shops=await pending;
   const updated=applyWishlistSearch(wishlist,itemId,shops,new Date().toISOString());
-  await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderTotal();
+  await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;renderTotal();
   document.querySelector('#status').textContent='„'+item.query+'“ erneut geprüft.';
  }catch{document.querySelector('#status').textContent='Artikel konnte nicht erneut geprüft werden.';}
  finally{checkingList=false;finishSearch=null;renderWishlist();render();}
@@ -319,8 +319,8 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
   const incoming=parseWishlistFile(await file.text());if(checkingList)return;
   await priceHistoryDB.put(incoming.history||[]);
   const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
-  await browser.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
-  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void browser.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
+  await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
+  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void platform.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
   renderWishlist();
   document.querySelector('#status').textContent=added+' Artikel importiert · Ergebnisse wiederhergestellt.';
  }catch(error){document.querySelector('#status').textContent='Import fehlgeschlagen: '+(error instanceof SyntaxError?'Ungültige JSON-Datei.':error.message);}
@@ -328,7 +328,7 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
 
 
 function stopCurrentSearch(){
- clearTimeout(searchDeadline);stopRequested=true;void browser.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);
+ clearTimeout(searchDeadline);stopRequested=true;void platform.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);
  if(finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,shop])=>({name,...shop})));}
  document.querySelector('#status').textContent='Suche gestoppt.';
 }
@@ -337,7 +337,7 @@ document.querySelector('#status').addEventListener('click',()=>{if(!document.que
 document.querySelector('#close-shop-tabs').addEventListener('click',async()=>{
  const button=document.querySelector('#close-shop-tabs');if(button.disabled)return;button.disabled=true;
  stopCurrentSearch();
- try{await browser.runtime.sendMessage({type:'close-shop-tabs'});document.querySelector('#status').textContent='Shop-Tabs geschlossen.';}
+ try{await platform.runtime.sendMessage({type:'close-shop-tabs'});document.querySelector('#status').textContent='Shop-Tabs geschlossen.';}
  catch{document.querySelector('#status').textContent='Shop-Tabs konnten nicht geschlossen werden.';}
  finally{button.disabled=false;}
 });
@@ -386,7 +386,7 @@ function showWishlistPrices(itemId,trigger){
    const row=el('tr'),product=el('td');product.append(el('strong',shop.name),el('small',offer.variant||offer.name));
    const price=el('td',(offer.priceKind==='from'?'ab ':'')+money(offer.price));price.className='price';
    const stock=el('td',offer.stock||'Lagerstatus nicht auslesbar');if(shop.stale)stock.append(el('small','Vorheriges Ergebnis · nicht bestätigt'));
-   const links=el('td');links.className='shop-actions-cell';if(offer.url){const actions=el('div');actions.className='shop-actions';const link=el('a','Zum Shop');link.className='shop-link-button';link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label','Zum Shop: '+shop.name+' · '+offer.name);link.addEventListener('click',event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();void browser.tabs.create({url:offer.url}).catch(()=>{document.querySelector('#status').textContent='Shoplink konnte nicht geöffnet werden.';});});const copy=copyButton(offer.url);copy.title='Produktlink kopieren';copy.setAttribute('aria-label','Produktlink von '+shop.name+' kopieren');actions.append(link,copy);links.append(actions);}
+   const links=el('td');links.className='shop-actions-cell';if(offer.url){const actions=el('div');actions.className='shop-actions';const link=el('a','Zum Shop');link.className='shop-link-button';link.href=offer.url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label','Zum Shop: '+shop.name+' · '+offer.name);link.addEventListener('click',event=>{if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;event.preventDefault();void platform.tabs.create({url:offer.url}).catch(()=>{document.querySelector('#status').textContent='Shoplink konnte nicht geöffnet werden.';});});const copy=copyButton(offer.url);copy.title='Produktlink kopieren';copy.setAttribute('aria-label','Produktlink von '+shop.name+' kopieren');actions.append(link,copy);links.append(actions);}
    row.append(product,price,stock,links);table.append(row);
  }
  if(!offers.length)dialog.append(el('p','Keine Ergebnisse für die gewünschte Variante innerhalb des Preisbereichs.'));
@@ -397,7 +397,7 @@ function showWishlistPrices(itemId,trigger){
 
 function finishTimedOutSearch(){
  const unfinished=names.filter(name=>!state.get(name)?.done);if(!unfinished.length)return;
- void browser.runtime.sendMessage({type:'cancel'}).catch(()=>{});id='';
+ void platform.runtime.sendMessage({type:'cancel'}).catch(()=>{});id='';
  for(const name of unfinished){const previous=state.get(name)||{};state.set(name,{...previous,done:true,stale:!!previous.offers?.length,message:'Zeitlimit überschritten · vorherige Ergebnisse'});}
  setSearchRunning(false);document.querySelector('#status').textContent='Zeitlimit überschritten · nächster Artikel';
  render();

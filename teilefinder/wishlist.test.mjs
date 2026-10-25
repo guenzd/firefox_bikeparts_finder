@@ -1,8 +1,9 @@
+import {readSource} from './test-sources.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
-const ctx=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),ctx);
+const ctx=vm.createContext({});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),ctx);
 const offer=(price,stock,variant='116 Glieder',priceKind='exact')=>({price,stock,variant,priceKind,url:'https://shop.example/product'});
 const sum=items=>{ctx.items=items;return vm.runInContext('cheapestWishlist(items)',ctx);};
 test('Cheapest deliverable exact variant respects each item price cap and sums across shops',()=>{
@@ -18,7 +19,7 @@ test('Persisted wishlist data produces the same total after reload',()=>{
 });
 
 test('Correcting a wishlist name clears stale results and keeps EAN, variant, cap',()=>{
- const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
  c.items=[{id:'a',query:'Conti Aro',ean:'4019238283907',variant:'29 mm',maxPrice:80,shops:[{name:'old'}],checkedAt:'yesterday'},{id:'b',query:'Chain'}];
  const result=vm.runInContext("renameWishlistItem(items,'a',' Continental Aero 111 ')",c);
  assert.equal(result[0].query,'Continental Aero 111');assert.equal(result[0].ean,'4019238283907');assert.equal(result[0].variant,'29 mm');assert.equal(result[0].maxPrice,80);assert.equal(result[0].shops.length,0);assert.equal(result[0].checkedAt,null);assert.equal(result[1].query,'Chain');assert.equal(c.items[0].query,'Conti Aro');
@@ -26,7 +27,7 @@ test('Correcting a wishlist name clears stale results and keeps EAN, variant, ca
 });
 
 test('Single item recheck updates only its results while retaining settings',()=>{
- const c=vm.createContext({});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
  c.items=[{id:'a',query:'Tyre',variant:'29 mm',maxPrice:80,shops:[]},{id:'b',query:'Chain',shops:[{name:'retained'}],checkedAt:'old'}];
  c.shops=[{name:'bike-components',offers:[{price:71.99}]}];
  const result=vm.runInContext("applyWishlistSearch(items,'a',shops,'now')",c);
@@ -34,7 +35,7 @@ test('Single item recheck updates only its results while retaining settings',()=
 });
 
 test('Empty refresh preserves previous offers as stale and excludes them from current totals',()=>{
- const c=vm.createContext({variantMatches:()=>true});vm.runInContext(readFileSync(new URL('./firefox-r2/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./firefox-r2/wishlist.js',import.meta.url),'utf8'),c);
+ const c=vm.createContext({variantMatches:()=>true});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
  c.items=[{id:'a',maxPrice:null,shops:[{name:'BIKE24',checkedAt:'old',offers:[{price:20,priceKind:'exact',stock:'Auf Lager'}]}]}];
  const rows=vm.runInContext("applyWishlistSearch(items,'a',[{name:'BIKE24',offers:[],message:'Timeout'}],'now')",c);
  assert.equal(rows[0].shops[0].offers[0].price,20);assert.equal(rows[0].shops[0].checkedAt,'old');assert.equal(rows[0].shops[0].stale,true);

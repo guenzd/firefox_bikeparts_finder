@@ -17,3 +17,6 @@ work/
 **/*.pem
 **/*debug.log*
 **/tsconfig.tsbuildinfo
+
+**/__pycache__/
+**/*.pyc

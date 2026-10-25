@@ -20,11 +20,3 @@ function priceHistoryPoints(rows){
  const cents=point=>Math.round(point.price*100);
  return points.filter((point,index)=>index===0||index===points.length-1||cents(point)!==cents(points[index-1])||cents(point)!==cents(points[index+1]));
 }
-const priceHistoryDB=(()=>{
- let pending;
- const open=()=>pending||(pending=new Promise((resolve,reject)=>{const request=indexedDB.open('teilefinder-price-history',1);request.onupgradeneeded=()=>{const store=request.result.createObjectStore('observations',{keyPath:'key'});store.createIndex('ean','ean');};request.onsuccess=()=>resolve(request.result);request.onerror=()=>{pending=null;reject(request.error);};}));
- return {
-  async put(rows){const clean=cleanPriceHistory(rows);if(!clean.length)return;const db=await open();await new Promise((resolve,reject)=>{const tx=db.transaction('observations','readwrite');for(const row of clean)tx.objectStore('observations').put(row);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Speicherung abgebrochen'));});},
-  async all(ean){const db=await open();return new Promise((resolve,reject)=>{const store=db.transaction('observations').objectStore('observations');const request=ean?store.index('ean').getAll(ean):store.getAll();request.onsuccess=()=>resolve(cleanPriceHistory(request.result).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at)));request.onerror=()=>reject(request.error);});}
- };
-})();

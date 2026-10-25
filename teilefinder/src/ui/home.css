@@ -110,7 +110,7 @@ input.ean-toggle{accent-color:var(--accent)}
 
 /* Inter is bundled locally; no font service or network request at runtime. */
 @font-face{
- font-family:'Inter';src:url('fonts/InterVariable.woff2') format('woff2');
+ font-family:'Inter';src:url('../assets/fonts/InterVariable.woff2') format('woff2');
  font-weight:100 900;font-style:normal;font-display:swap;
 }
 :root{--font-ui:'Inter',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}

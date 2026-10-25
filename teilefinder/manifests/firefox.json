@@ -1,8 +1,8 @@
 {
   "manifest_version": 2,
   "name": "Teilefinder – Fahrradteile vergleichen",
-  "version": "0.7.86",
-  "description": "Sucht Fahrradteile in vier Shops in deinem Firefox. Ohne lokalen Server.",
+  "version": "0.8.0",
+  "description": "Vergleicht Fahrradteile in vier Shops direkt in deinem Browser. Ohne lokalen Server.",
   "browser_specific_settings": {
     "gecko": {
       "id": "r2-teilefinder@local.invalid",
@@ -29,15 +29,14 @@
   ],
   "background": {
     "scripts": [
-      "extract.js",
-      "variant-match.js",
-      "suggestions.js",
-      "background.js"
+      "platform/api.js",
+      "platform/registry.js",
+      "platform/background.js"
     ]
   },
   "browser_action": {
     "default_title": "Teilefinder öffnen",
-    "default_icon": "icon.svg"
+    "default_icon": "assets/icon.svg"
   },
   "content_scripts": [
     {
@@ -49,18 +48,21 @@
         "https://www.bike-components.de/*"
       ],
       "js": [
-        "variant-match.js",
-        "extract.js",
-        "suggestions.js",
-        "variants.js",
-        "wishlist.js",
-        "shop.js"
+        "platform/api.js",
+        "platform/content.js",
+        "core/products.js",
+        "core/variant-match.js",
+        "shops/extract.js",
+        "core/suggestions.js",
+        "shops/variants.js",
+        "core/wishlist.js",
+        "shops/reader.js"
       ],
       "run_at": "document_idle"
     }
   ],
   "icons": {
-    "48": "icon.svg",
-    "96": "icon.svg"
+    "48": "assets/icon.svg",
+    "96": "assets/icon.svg"
   }
 }

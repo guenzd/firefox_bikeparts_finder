@@ -1,9 +1,10 @@
+import {readSource} from './test-sources.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const ctx=vm.createContext({});
-vm.runInContext(readFileSync(new URL('./firefox-r2/price-history.js',import.meta.url),'utf8'),ctx);
+vm.runInContext(readSource('price-history.js'),ctx);
 const observations=prices=>prices.map((price,index)=>({key:String(index),at:new Date(Date.UTC(2026,9,12+index)).toISOString(),offers:[{price,shop:'Shop A'},{price:price+10,shop:'Shop B'}]}));
 const keys=rows=>Array.from(ctx.priceHistoryPoints(rows),point=>point.row.key);
 test('Price history keeps only the first and last point of each consecutive equal-price run',()=>{
@@ -26,7 +27,7 @@ test('Compression sorts chronologically and retains endpoints inside the selecte
 
 test('Product datasheet EAN matches do not become variant-specific price observations',()=>{
  const vmContext=vm.createContext({URL});
- for(const file of ['variant-match.js','wishlist.js','price-history.js'])vm.runInContext(readFileSync(new URL('./firefox-r2/'+file,import.meta.url),'utf8'),vmContext);
+ for(const file of ['variant-match.js','wishlist.js','price-history.js'])vm.runInContext(readSource(file),vmContext);
  const shops=[{name:'BIKE24',done:true,offers:[{ean:'4524667879565',eanEvidence:'datasheet',price:39.99,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1271583.html'}]}];
  assert.equal(vmContext.priceObservations(shops,'one','2026-10-24T12:00:00Z').length,0);
 });
