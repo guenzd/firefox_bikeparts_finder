@@ -1,5 +1,7 @@
 # Teilefinder 0.7.18
 
+> Archived release description for 0.7.18. Features and validation counts below refer to that release, not the current version. See the [current README](../README.md) and [Firefox distribution guide](UNLISTED.md) for current instructions.
+
 Firefox extension for comparing bicycle parts across BIKE24, Bike-Discount, bike-components and r2-bike.
 
 - Search by product name or confirmed EAN, with variant and maximum-price filters.

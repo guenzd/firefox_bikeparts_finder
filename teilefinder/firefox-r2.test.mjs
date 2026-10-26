@@ -262,6 +262,19 @@ test('Bike-Discount EAN search redirects read the main product rather than recom
  }
 });
 
+test('Bike-Discount product redirects accept punctuated names and reject different short models',async()=>{
+ let listener;
+ const title='Busch + Müller Toplight 2C Permanent-Rücklicht';
+ const document={readyState:'complete',body:{innerText:title},querySelector(s){return {h1:{innerText:title},'.product-detail-price':{innerText:'17,99 €'},'.nele-product-availability-info':{innerText:'Lagernd, Lieferzeit 1-3 Tage'}}[s]||null;},querySelectorAll(s){if(s.includes('a[href]'))throw Error('Recommendations must not replace the main product');return [];}};
+ const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/busch-mueller-toplight-2c-permanent-ruecklicht'},URL,platform:{runtime:{onMessage:{addListener(f){listener=f;}}}},validEAN:()=>''});
+ vm.runInContext(readSource('extract.js')+readSource('shop.js'),ctx);vm.runInContext("productColor=()=>''",ctx);
+ for(const [query,count] of [['Busch + Müller Toplight 2C',1],['Busch+Müller Toplight 2C',1],['Busch + Müller Toplight 3C',0]]){
+  const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query});
+  assert.equal(result.ready,true);assert.equal(result.offers.length,count,query);
+  if(count){assert.equal(result.offers[0].name,title);assert.equal(result.offers[0].price,17.99);assert.equal(result.offers[0].stock,'Lagernd, Lieferzeit 1-3 Tage');}
+ }
+});
+
 test('BIKE24 chip presentation retains hidden native option selectors without admitting quantity',()=>{
  const make=(id,testid)=>({id,name:id,disabled:false,multiple:false,labels:[],getClientRects:()=>[],matches:()=>!!testid,getAttribute:()=>'',closest:()=>null});
  const flavour=make('216619',true),quantity=make('quantity',false);

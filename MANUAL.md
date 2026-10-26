@@ -1,147 +1,128 @@
 # Teilefinder – Handbuch
 
-## Signierte Installation (Unlisted)
+## Installieren
 
-Der Firefox-Build benötigt Firefox Desktop 140 oder neuer. Das lokal erzeugte ZIP ist noch kein signiertes Add-on. Die Einreichung und Installation einer von Mozilla signierten XPI sind in `release/UNLISTED.md` beschrieben.
+Die Erweiterung braucht keinen lokalen Server. Voraussetzung: Firefox Desktop 140+ oder Chrome 114+.
 
-## Installation in Firefox
+### Firefox
 
-1. Im Projektordner `npm run build` ausführen.
-2. Firefox öffnen und `about:debugging#/runtime/this-firefox` aufrufen.
-3. „Temporäres Add-on laden“ wählen und `outputs/firefox-addon/manifest.json` öffnen.
-4. Über das Teilefinder-Symbol die Suchoberfläche öffnen.
+Für eine dauerhafte Installation die von Mozilla signierte `.xpi` unter `about:addons` → Zahnrad → „Add-on aus Datei installieren“ auswählen. Ein selbst gebautes ZIP ist noch nicht signiert. Details: [Unlisted-Signierung](release/UNLISTED.md).
 
-Die Erweiterung arbeitet vollständig im Browser; ein lokaler Server ist nicht erforderlich. Temporäre Add-ons müssen nach einem Firefox-Neustart erneut geladen werden.
+Zum Entwickeln:
 
-## Installation in Chrome
+1. Im Repository-Hauptverzeichnis `npm run build:firefox` ausführen.
+2. `about:debugging#/runtime/this-firefox` öffnen.
+3. „Temporäres Add-on laden“ und `outputs/firefox-addon/manifest.json` auswählen.
+4. Das Teilefinder-Symbol anklicken.
 
-1. `npm run build` ausführen (oder nur Chrome: `npm run build:chrome`).
+Temporäre Add-ons müssen nach einem Firefox-Neustart erneut geladen werden.
+
+### Chrome
+
+1. Im Repository-Hauptverzeichnis `npm run build:chrome` ausführen.
 2. `chrome://extensions` öffnen und den Entwicklermodus aktivieren.
-3. „Entpackte Erweiterung laden“ wählen und den Ordner `outputs/chrome-addon/` auswählen.
-4. Über das Teilefinder-Symbol die Oberfläche öffnen.
+3. „Entpackte Erweiterung laden“ und `outputs/chrome-addon/` auswählen.
+4. Das Teilefinder-Symbol anklicken.
 
-Voraussetzung: Chrome 114 oder neuer. Der lokale Build ist keine Veröffentlichung im Chrome Web Store. Zum Aktualisieren wieder in denselben Ausgabeordner bauen und unter `chrome://extensions` bei Teilefinder „Neu laden“ wählen; nicht entfernen und neu installieren.
+Eine Store-Installation erfolgt über den veröffentlichten Store-Eintrag. Der lokale Build veröffentlicht nichts; siehe [Chrome Web Store](release/CHROME-WEB-STORE.md).
 
-Firefox und Chrome verwenden jeweils eigenen lokalen Erweiterungsspeicher und eine eigene Preishistorie. Für die Übertragung „Als Datei speichern“ im bisherigen Browser und „Datei laden“ im anderen Browser verwenden. Es gibt keine automatische Browser-Synchronisierung.
+## Aktualisieren und Daten behalten
 
-## Aktualisieren
+Vor dem Update „Als Datei speichern“ verwenden. Für Entwicklungsinstallationen erneut in denselben Ausgabeordner bauen und bei der vorhandenen Erweiterung „Neu laden“ wählen. Anschließend die Teilefinder-Seite schließen und über das Symbol neu öffnen. Eine neue signierte Firefox-XPI über die bestehende Installation installieren. Die Firefox-ID bleibt unverändert.
 
-1. Die Wunschliste über „Als Datei speichern“ sichern.
-2. Den neuen Quellcode im selben Projektordner bereitstellen und `npm run build` ausführen.
-3. Unter `about:debugging` bei Teilefinder „Neu laden“ klicken. Die Erweiterung dabei nicht entfernen.
-4. Die Teilefinder-Oberfläche schließen und über das Erweiterungssymbol neu öffnen; vorhandene Shop-Tabs neu laden, damit neue Skripte aktiv sind. Beim Umstieg auf 0.8.0 ändert sich die Adresse der Oberfläche, die Firefox-Add-on-ID bleibt erhalten.
-5. Falls die Wunschliste leer ist, über „Datei laden“ die Sicherung auswählen.
+**Nicht erst deinstallieren:** Dabei können Wunschliste, Ergebnisse und Historie verloren gehen. Falls nötig, die Sicherung über „Datei laden“ wiederherstellen. Firefox und Chrome haben getrennte lokale Daten; für den Wechsel ebenfalls Datei-Export/-Import nutzen. Es gibt keine Cloud-Synchronisierung.
 
-Der Ordner `outputs/firefox-addon/` bleibt bei Builds am selben Ort. Ein Entfernen und Neuinstallieren kann lokale Add-on-Daten löschen; deshalb vorher die Datei sichern.
+## Einzelteil suchen
 
-## Suchen
+| Feld | Eingabe |
+| --- | --- |
+| Produktname | Name beziehungsweise Modell des gesuchten Artikels |
+| EAN | Optional bekannte Kennung; der Schalter bestimmt, ob damit gesucht wird |
+| Variante | Gewünschte Merkmale, etwa `30 mm`, `black, M` oder `116` |
+| Preis € | Maximum wie `60` oder Bereich wie `30-60`; Dezimalkomma ist möglich |
 
-- Produktname oder Artikelnummer eingeben, etwa `Continental Aero 111`.
-- Das separate EAN-Feld kann leer bleiben; eine bekannte EAN kann direkt eingetragen werden.
-- Die gewünschte Ausführung separat unter „Variante“ angeben, etwa `29 mm`.
-- Optional einen Maximalpreis setzen und „Suchen“ klicken.
+„Suchen“ startet die vier Shops. Zuerst werden Suchtreffer ausgewertet; Produktseiten und Optionen werden für fehlende Angaben geprüft. Mengen wie `1 L` und `1000 ml` werden gleichgesetzt. Modellnummern und Zahlenvarianten bleiben streng; die Ausführung kann im Titel oder in der ausgewählten Option stehen. Zeichensetzung im Produktnamen zählt nicht als eigenes Suchwort. Es gibt keine produktbezogenen Suchbegriff-Sonderregeln.
 
-Mengenangaben in Liter und Milliliter werden gleichgesetzt (z. B. `1 L` = `1000 ml`). Wird der Produktname gefunden, aber die gewünschte Variante nicht bestätigt, werden die anderen Ausführungen mit ihren Variantenangaben angezeigt. „Ohne Variantenfilter suchen“ sucht denselben Produktnamen erneut mit leerem Variantenfeld.
+Wenn der Name passt, aber die Variante nicht bestätigt wurde, erscheinen andere Ausführungen zur Auswahl. „Ohne Variantenfilter suchen“ entfernt den Variantenfilter. Ähnliche Produkte lassen sich übernehmen; dadurch startet eine neue Suche. Preisgrenzen schränken auch Vorschläge ein. Bei gesetzter Grenze werden Vorschläge ohne bestätigten Preis ausgeblendet.
 
-Bei bekannten Artikeln werden zuerst die gespeicherten Produktseiten direkt geprüft. Die Erweiterung speichert bestätigte Produktlinks pro Shop dauerhaft lokal, mit EAN oder Suchbegriff und Variante als Zuordnung. Zusätzlich werden konkrete Varianten-Auswahlen gespeichert: Dropdown-Werte, Options-IDs und Beschriftungen, auch für mehrere abhängige Dropdowns. Beim nächsten Aktualisieren wird die gespeicherte Kombination gezielt wieder ausgewählt. Sind die Shop-Optionen inzwischen verändert, wird die Ausführung erneut über die normale Variantenprüfung bestimmt. Ältere Einträge erhalten die zusätzlichen Auswahlmetadaten bei der nächsten erfolgreichen Variantenprüfung. Preise, Lagerstatus und Produktidentität werden bei jeder Prüfung neu gelesen. Bei der Wunschlistenprüfung wird ein gespeicherter Produktlink direkt aktualisiert; eine nicht bestätigte Seite startet keine zusätzliche Shopsuche. Der Link bleibt erhalten, frühere Ergebnisse werden als nicht bestätigt gekennzeichnet. Nur Shops ohne passenden Produktlink werden durchsucht. Bei der Einzelteilsuche bleibt die Shopsuche als Rückfall möglich. Bei dieser werden in allen vier Shops zuerst die Suchtreffer ausgewertet. Bereits bestätigte Ausführung, exakter Preis und Lagerstatus werden direkt übernommen; eindeutig abweichende Varianten werden aussortiert. Produktseiten und Dropdowns werden nur für fehlende Angaben geprüft. Die vier Shop-Tabs werden dabei wiederverwendet. In den verwalteten Shop-Tabs werden Bildanfragen standardmäßig blockiert, auch für Produktbilder von CDNs. Zusätzlich begrenzt eine Bildquellen-Richtlinie in der Shopseite die Bildladevorgänge. Die kleine Option „Bilder laden“ schaltet sie wieder frei; die Auswahl wird lokal gespeichert und wirkt beim nächsten Seitenaufruf bzw. Neuladen der Shopseite. Selbst geöffnete Shop-Tabs bleiben unberührt. Skripte, CSS und Datenabfragen bleiben aktiv. Bei einer Sicherheitsprüfung den betroffenen Tab öffnen und die Prüfung selbst abschließen. Produktlinks öffnen das Angebot; das Symbol mit zwei Quadraten kopiert den Link.
-
-Fehlen passende Treffer, schließt die Suche auch ohne ausdrückliches „keine Ergebnisse“-Banner ab. Eine breitere Suche wird einmal versucht. Danach wird der Artikel als ohne passendes Angebot markiert und die Wunschliste läuft weiter. Nicht antwortende Shop-Skripte haben eine begrenzte Wartezeit.
+Die Einzelteilsuche klappt Wunschliste und deren Ergebnisse ein, ohne sie zu löschen. Eine Listenprüfung verändert die manuellen Suchfelder nicht.
 
 ## EAN verwenden
 
-Sobald eine eindeutige EAN gefunden wurde, wird sie ins Suchfeld und beim passenden Wunschlistenartikel übernommen. Sie wird auch in bestätigten Angeboten derselben Variante ergänzt. Bei mehreren unterschiedlichen EANs bleibt die automatische Auswahl aus.
+Eine eindeutig gefundene EAN wird beim zugehörigen Artikel ergänzt. Unterschiedliche mögliche Kennungen werden nicht willkürlich ausgewählt. Das Kopiersymbol neben einer EAN kopiert sie in die Zwischenablage **und** übernimmt sie ins zugehörige EAN-Feld.
 
-Neben jeder EAN in den Ergebnissen steht ein Symbol mit zwei überlappenden Quadraten. Es übernimmt die Kennung direkt ins EAN-Suchfeld und gegebenenfalls in den zugehörigen Wunschlistenartikel und kopiert sie zusätzlich in die Zwischenablage. Anschließend „Suchen“ klicken. Das gleiche Symbol neben Shoplinks kopiert dagegen den Link in die Zwischenablage.
+Mit aktiviertem EAN-Schalter wird eine vorhandene EAN als Suchbegriff verwendet. Eine ausdrücklich andere Kennung wird ausgeschlossen. Bei mehreren bestätigten Treffern kann der Produktname die Auswahl weiter eingrenzen, ersetzt aber keine EAN-Bestätigung. Bei der Einzelteilsuche werden Shops ohne EAN-Treffer anschließend auch mit dem Namen geprüft. Mit ausgeschaltetem Schalter wird nach dem Namen gesucht; eine gespeicherte EAN kann dennoch ein gelesenes Angebot bestätigen.
 
-Ist das EAN-Häkchen aktiviert, wird eine vorhandene EAN von Anfang an als Suchbegriff verwendet. Ohne Häkchen wird nach dem Namen gesucht; eine gespeicherte EAN kann dann dennoch ein auf der Produktseite geprüftes ähnliches Angebot bestätigen, wenn EAN und gewünschte Variante übereinstimmen. Wird sie erst während der Suche gefunden, werden Shops mit mehreren Treffern einmal mit der EAN nachgesucht. Eine erfolglose EAN-Nachsuche entfernt keine zuvor gefundenen Angebote.
+Wird die EAN erst im Suchlauf gefunden, können Shops mit mehreren Treffern einmal damit nachgeprüft werden. Eine erfolglose Nachsuche entfernt keine zuvor bestätigten passenden Angebote.
 
-Bei BIKE24 wird auch die GTIN im Datenblatt als EAN gelesen. Bei r2-bike wird die EAN aus der Beschreibung übernommen; falls erforderlich, öffnet die Erweiterung „mehr lesen“. Eine Änderung des Produktnamens oder der Variante entfernt die bisherige EAN, damit sie nicht für einen anderen Artikel verwendet wird.
+BIKE24 liest die GTIN unter „Datenblatt“, r2-bike bei Bedarf über „mehr lesen“ in der Beschreibung. Bei mehreren GTINs wird keine Zuordnung anhand der Listenreihenfolge erfunden. Ein kombiniertes BIKE24-Ergebnis aus passendem Produkt, Datenblatt-EAN und ausgewählter Variante gilt nicht als variantenspezifische EAN-Bestätigung für andere Shops oder die Preishistorie.
 
-## Wunschliste und Dateien
+Die wiederholten EAN-Zeilen in Ergebnissen werden ausgeblendet, sobald für den Artikel in allen vier Shop-Listen passende Angebote im Preis-/Variantenfilter angezeigt werden. Eine neue Suche ist dafür nicht erforderlich; die EAN bleibt im Editor verfügbar.
 
-„Zur Wunschliste hinzufügen“ speichert die Suche samt Variante und Maximalpreis. Liegt bereits eine abgeschlossene Ad-hoc-Suche für denselben Artikel, dieselbe Variante und passende EAN vor, werden die vorhandenen Shop-Ergebnisse samt ursprünglichen Abfragezeiten übernommen, ohne erneut zu suchen. Andernfalls startet die Prüfung automatisch. Wunschliste und günstigste Ergebnisse stehen in einer gemeinsamen Liste. Rechts am Artikel öffnet „Bearbeiten“ die Felder für Produktname, EAN samt Verwendungsschalter, Ausführung und Preisbereich direkt unter der Zeile. „Speichern“ übernimmt alle Änderungen gemeinsam; „Abbrechen“ oder Escape verwirft den Entwurf. Ein Klick auf den Preis öffnet den Preisverlauf. Eine reine Änderung des Preisbereichs erhält die vorhandenen Ergebnisse und erfordert keine Suche. Der runde Pfeil prüft nur diesen Artikel erneut, × entfernt ihn. Während der Einzelprüfung zeigt der obere Prüfbutton den Fortschritt von 0/4 bis 4/4 Shops und kann zum Stoppen angeklickt werden. Weitere Suchen, Aktualisierungen und Vorschlagssuchen sind während einer laufenden Suche gesperrt, da sie dieselben Shop-Tabs verwenden. Beide Aktionen stehen auch bei Artikeln ohne Angebot bereit. Die übrigen Artikel bleiben erhalten. Hinter „Lieferbar“ steht die Anzahl passender lieferbarer Shops, zum Beispiel 3/4. Mehrere Angebote desselben Shops zählen dabei einmal. Die Kopfzeile jedes Shops nennt dessen Summe und die Abdeckung als x/x Produkte. Gezählt wird je Wunschlistenartikel das günstigste bestätigte, lieferbare Angebot im Preisbereich; frühere, nicht bestätigte Ergebnisse zählen nicht. Positive Preisdifferenzen (+) bedeuten einen Aufpreis gegenüber dem Bestpreis. Eine fehlende EAN wird beim Prüfen ergänzt, wenn die gefundenen Angebote eine eindeutige Kennung liefern.
+## Wunschliste
 
-- „Als Datei speichern“ sichert die gesamte aktuelle Ansicht in einer JSON-Datei: Suchfelder, Suchergebnisse, Wunschlistenartikel und deren Angebote einschließlich Preisen, Lagerstatus, EANs, Links und Abfragezeitpunkten. Die Datei liegt außerhalb des Add-ons und kann frei abgelegt oder kopiert werden.
-- „Datei laden“ stellt die gespeicherte Suche mit Ergebnissen wieder her und ergänzt die Wunschliste aus dieser Datei. Identische Kombinationen aus Name, Variante und Preisgrenze werden nicht doppelt angelegt; vorhandene Artikel bleiben erhalten.
-- Nach Änderungen erneut speichern: Die externe Datei wird nicht automatisch aktualisiert.
-- Gespeicherte Ergebnisse behalten ihren ursprünglichen Abfragezeitpunkt. Bei identischen Wunschlistenartikeln werden Ergebnisse übernommen, wenn noch keine oder ältere Ergebnisse vorhanden sind. Ältere Dateien mit ausschließlich Suchvorgaben bleiben lesbar.
+„Zur Wunschliste hinzufügen“ speichert die Vorgaben und startet die Prüfung. Liegt schon eine abgeschlossene passende Einzelteilsuche vor, werden deren Angebote samt ursprünglichem Stand übernommen, ohne neu zu suchen.
 
-## Gesamtpreis
+Eingaben und günstigste Ergebnisse stehen in einer gemeinsamen Liste:
 
-„Wunschliste prüfen“ sucht alle Wunschlistenartikel. Pro Artikel zählt das günstigste bestätigte, lieferbare Angebot der gewünschten Variante innerhalb des Maximalpreises. Fehlen Angebote, wird eine Teilsumme angezeigt. Versandkosten werden nicht in die Summe eingerechnet.
+| Aktion | Wirkung |
+| --- | --- |
+| Artikelname anklicken | Shopvergleich mit gefilterten Angeboten, günstigster Preis zuerst |
+| Preis anklicken | Lokalen Preisverlauf öffnen |
+| Bearbeiten | Name, EAN samt Schalter, Ausführung und Preisbereich unter der Zeile bearbeiten |
+| ↻ | Nur diesen Artikel aktualisieren |
+| × | Artikel aus der Wunschliste entfernen |
 
-Produktlinks öffnen die jeweilige Shopseite.
+Im Editor übernimmt „Speichern“ die Änderungen gemeinsam. „Abbrechen“ oder Escape verwirft sie. Eine reine Preisänderung erhält die Ergebnisse. Eine Namenskorrektur erhält die EAN; eine geänderte Variante entfernt die unverändert übernommene alte EAN, damit sie nicht die neue Ausführung festlegt.
 
-## Entwicklung und Build
+„Wunschliste prüfen“ aktualisiert alle Artikel nacheinander. Die Shops eines Artikels laufen parallel. Bei einer Einzelaktualisierung zeigt der obere Button den Fortschritt als 0/4 bis 4/4 Shops. Andere Aktionen, die dieselben Shop-Tabs benötigen, sind währenddessen gesperrt.
 
-```sh
-npm test
-npm run build
-```
+Ein Klick auf den laufenden Fortschritt stoppt die Suche. Bereits gelesene Ergebnisse bleiben erhalten. Shopprüfungen haben Zeitlimits; blockierte oder nicht antwortende Shops sollen die Liste nicht dauerhaft aufhalten.
 
-Alternativ die gleichen Befehle ohne npm:
+## Bekannte Artikel direkt aktualisieren
 
-```sh
-python3 scripts/build-extension.py --test-only
-python3 scripts/build-extension.py
-```
+Bestätigte Produkt-URLs werden lokal gespeichert, zusammen mit der tatsächlich ausgewählten Variante: etwa Optionswerte, IDs und Beschriftungen mehrerer abhängiger Dropdowns. Beim Aktualisieren wird die Seite direkt geöffnet und die Auswahl wiederhergestellt. Preis, Lagerstatus und Kennung werden frisch gelesen. Geänderte oder entfernte Optionen führen zurück zur normalen Variantenprüfung auf der Produktseite.
 
-Gemeinsamer Quellcode: `teilefinder/src/`. Browser-Manifeste: `teilefinder/manifests/`. Tests: `teilefinder/*.test.mjs` und `teilefinder/local-browser/extract.test.mjs`. Beide Manifeste tragen dieselbe Version; der Build prüft die Übereinstimmung. Generierte Dateien liegen unter `outputs/` und werden nicht in Git aufgenommen. Nach einem erfolgreichen Build werden ältere versionierte ZIPs des gebauten Browsers automatisch entfernt. Die aktuelle versionierte ZIP und die ZIP ohne Versionsnummer bleiben erhalten; Einzelbrowser-Builds lassen die ZIPs des anderen Browsers unverändert.
+Bei der Wunschlistenprüfung wird eine bekannte, nicht bestätigte Produktseite nicht durch zusätzliche Shopsuchen ersetzt. Der frühere Link bleibt erhalten. Nur Shops ohne passenden gespeicherten Link werden durchsucht. Die Einzelteilsuche kann auf die Shopsuche zurückfallen.
 
-## Erneute Suche und Abbruch
+„Frühere Angebote, nicht bestätigt“ bedeutet: Das aktuelle Auslesen konnte diese Angebote nicht bestätigen. Der alte Preis bleibt mit seinem ursprünglichen Stand sichtbar, zählt aber nicht zu aktuellen Summen oder zur neuen Preishistorie. Das bedeutet nicht automatisch „ausverkauft“.
 
-„Suche stoppen“ beendet das Warten und lässt die bisher eingegangenen Ergebnisse bestehen. Bleibt eine erneute Shop-Abfrage leer, werden frühere Angebote mit ihrem bisherigen Stand erhalten und als aktuell nicht bestätigt markiert. Solche alten Angebote fließen nicht in den aktuellen Gesamtpreis ein.
+## Preise und Lieferstatus
 
-## Lokaler Preisverlauf
+Der günstigste Gesamtpreis verwendet je Artikel das günstigste **bestätigte, lieferbare Angebot** mit exaktem Preis, gewünschter Variante und passendem Preisbereich. Fehlen Artikel, wird eine Teilsumme angezeigt. Versandkosten werden nicht eingerechnet.
 
-Nach abgeschlossenen Suchen speichert die Erweiterung bestätigte, lieferbare Angebote pro EAN in IndexedDB. Durch Klicken auf den Preis beim Wunschlistenartikel erscheint eine Grafik des günstigsten lieferbaren Preises mit Zeitraumauswahl und Tabelle. Maximalpreise begrenzen diese Historie nicht. Die Aufzeichnung beginnt mit zukünftigen Suchen; alte Ergebnisse werden nicht nachträglich als neue Preise erfasst.
+„Lieferbar 3/4“ nennt die Anzahl lieferbarer Shops; mehrere Angebote desselben Shops zählen einmal. Nicht lieferbare Artikel bleiben anklickbar. Die obere Übersicht vereinheitlicht den Status, die Shoplisten und der Dialog zeigen die Shoptexte.
 
-„Als Datei speichern“ exportiert auch die Historie; „Datei laden“ stellt sie wieder her. Beim Deinstallieren werden die lokalen Daten gelöscht.
+Jede Shopüberschrift nennt Summe und Abdeckung als x/x Produkte. Pro Wunschlistenartikel zählt ein lieferbares Angebot. Neben dem Shoppreis zeigt die dezente Differenz einen Aufpreis gegenüber dem Bestpreis mit `+` an. Nicht bestätigte frühere Angebote zählen nicht zur aktuellen Vergleichssumme.
 
-Das Preisfeld akzeptiert ein Maximum (z. B. `10`) oder einen Bereich (z. B. `5-10`). Beide Grenzen gelten auch für ähnliche Produktvorschläge. Bei gesetzter Preisgrenze werden Vorschläge ohne bestätigten Preis ausgeblendet; die gespeicherten Ergebnisse bleiben erhalten.
+## Links und Listen kopieren
 
-Die Oberfläche folgt automatisch dem im Browser eingestellten Website-Farbschema. Der Dunkelmodus verwendet eine zurückhaltende Smyck-Palette und gilt auch für Dialoge und den Preisverlauf. Ein Wechsel wird ohne Neuladen übernommen. Das Sonne/Mond-Symbol rechts oben schaltet manuell zwischen Hell und Dunkel um. Die manuelle Auswahl gilt bis zum Neuladen bzw. erneuten Öffnen der Oberfläche; dann wird wieder das Browser-Design verwendet.
+„Öffnen“ zeigt das Produkt, „Suchen“ die Shopsuche. Das Symbol mit zwei Quadraten kopiert den jeweiligen Link. Trackingparameter wie `origin` werden entfernt; benötigte Varianten- und SKU-Parameter bleiben erhalten.
 
-Shopprüfungen haben ein Gesamtzeitlimit von 60 Sekunden (EAN-Nachsuche: 30 Sekunden). Bei einem blockierten Shop bleiben abgeschlossene Ergebnisse erhalten und die Wunschliste wird fortgesetzt. Eine zusätzliche Absicherung nach 105 Sekunden pro Artikel verhindert das Warten auf verlorene Abschlussmeldungen. Übersprungene Shops und ältere Ergebnisse werden entsprechend gekennzeichnet.
+„Lieferbare kopieren“ kopiert ausschließlich lieferbare Artikel, nach Shop gruppiert, jeweils mit Namen und URL. Für E-Mail-Programme wird zusätzlich HTML mit anklickbaren Links angeboten; Messenger können stattdessen die Textfassung verwenden.
 
-Mit „Shop-Tabs schließen“ werden die von diesem Teilefinder-Tab geöffneten Shop-Tabs gemeinsam geschlossen und eine laufende Suche gestoppt. Gespeicherte Ergebnisse bleiben erhalten. Beim Schließen des Teilefinder-Tabs werden seine Shop-Tabs automatisch geschlossen. Selbst geöffnete Shop-Tabs und die Tabs anderer Teilefinder-Fenster bleiben erhalten.
+## Sicherung als Datei
 
-Bei der Ad-hoc-Suche schaltet der Schalter neben „EAN“ zwischen EAN- und Namenssuche um. Aktiviert wird zuerst die EAN verwendet; Shops ohne EAN-Treffer werden anschließend mit Produktname und Variante erneut geprüft. Ohne Schalter wird direkt nach dem Namen gesucht. Bereits gefundene EAN-Treffer bleiben erhalten. Beim Hinzufügen zur Wunschliste wird die EAN-Einstellung übernommen; die automatische Namenssuche nach erfolgloser EAN-Suche gilt für Ad-hoc-Abfragen.
+„Als Datei speichern“ exportiert die vollständige Ansicht: Suchfelder, Einzelteilergebnisse, Wunschliste, Angebote, Produktlinks, Variantenauswahlen, Abfragezeiten und Preishistorie. Die JSON-Datei liegt außerhalb der Erweiterung. Änderungen werden nicht automatisch in diese Datei zurückgeschrieben.
 
-Bei unterschiedlichen Shop-Bezeichnungen wird zusätzlich eine exakte Modellkennung mit Marke und gemeinsamen Produktmerkmalen abgeglichen. Falls nötig, wird die Shopsuche auf Marke und Modell eingegrenzt. Zahlen im Variantenfeld können im Artikeltitel oder in der ausgewählten Ausführung stehen; eine abweichende ausgewählte Ausführung hat Vorrang. Preise und Teile von Modellnummern bestätigen keine reine Zahlenvariante.
+„Datei laden“ stellt die gespeicherte Suche wieder her und ergänzt die Wunschliste. Identische Kombinationen aus Name, Variante und Preisbereich werden zusammengeführt; neuere vorhandene Ergebnisse bleiben erhalten. Ältere Dateien mit reinen Suchvorgaben bleiben lesbar. Importierte Preise behalten ihren alten Abfragezeitpunkt.
 
-Ein Klick auf den laufenden Suchfortschritt stoppt die Suche. Während der Listenprüfung stoppt auch der Button „Prüfe …“ die gesamte Prüfung. Bereits gefundene Ergebnisse bleiben erhalten. Beide Bedienelemente sind auch per Tastatur erreichbar.
+## Preisverlauf
 
-Preis und Ausführung in der Wunschliste lassen sich direkt im Feld bearbeiten: Beim ersten Klick wird der Inhalt markiert. Enter übernimmt die Änderung, Escape setzt den gespeicherten Wert wieder ein. Beim Verlassen des Feldes wird ebenfalls gespeichert. „Bearbeiten“ neben dem Artikelnamen ist nur für den Namen erforderlich.
+Nach abgeschlossenen Suchen werden bestätigte, lieferbare Angebote je EAN lokal in IndexedDB gespeichert. Im Diagramm und in der Tabelle bleiben bei mehr als zwei gleichen Preisen hintereinander die Randpunkte erhalten; mittlere Wiederholungen entfallen. Preisgrenzen begrenzen diese Aufzeichnung nicht. Die Anzeige nennt Tiefstpreis und aktuellen aufgezeichneten Preis.
 
-Zeigen alle vier Shop-Listen für einen Artikel ein Angebot innerhalb des Preis- und Variantenfilters an, werden die EAN-Zeilen in der Gesamtübersicht und den Shop-Ergebnissen ausgeblendet. Es zählen die bereits angezeigten Ergebnisse, unabhängig von EAN-Metadaten und Abschlusskennzeichen. Eine neue Suche ist dafür nicht nötig; das EAN-Eingabefeld bleibt erhalten. Fehlt in einer Shop-Liste ein passendes Angebot, erscheinen die EAN-Zeilen wieder.
+Die Aufzeichnung beginnt mit den Suchläufen; alte importierte Ergebnisse werden nicht als neue Messung ausgegeben. Export und Import enthalten auch die Historie. Ohne bestätigte EAN gibt es keinen zugeordneten Preisverlauf.
 
-Bei erfolglosen EAN-Abfragen unterscheidet die Meldung zwischen einer abweichenden EAN, einer nicht auslesbaren EAN und einer bestätigten EAN mit nicht bestätigter Wunschvariante. Abweichende Produkte werden nicht als passende Angebote übernommen.
+## Shop-Tabs, Bilder und Design
 
-Bei aktivierter EAN-Suche werden Angebote mit ausdrücklich abweichender EAN aus Ergebnissen und Wunschliste entfernt, auch wenn eine EAN-Nachsuche erfolglos bleibt. Eine neu gefundene EAN gilt als eindeutig, wenn sie die einzige gemeinsame Kennung aller Shops mit ausgelesenen EANs ist. Mehrere Varianten in einem Shop verhindern diese Eingrenzung nicht. Ohne aktivierten EAN-Schalter bleibt die Namenssuche erhalten.
+Pro Teilefinder-Tab werden vier Shop-Tabs wiederverwendet. „Shop-Tabs schließen“ schließt diese gemeinsam und stoppt eine laufende Prüfung. Auch das Schließen des Teilefinder-Tabs schließt seine Such-Tabs. Manuell geöffnete Produktlinks und Tabs anderer Teilefinder-Fenster bleiben erhalten. Ein noch sichtbares Browser-Ladesymbol kann länger laufen als das Auslesen der Produktdaten.
 
-BIKE24: Bei Dropdown-Ausführungen wird die EAN nach der Auswahl gemeinsam mit Preis und Lagerstatus gelesen. Eine mehrdeutige GTIN-Liste löst bei vorhandenen Optionen eine vollständige Variantenprüfung aus. Explizite SKU/EAN-Zuordnungen aus den Produktdaten werden bevorzugt; die Reihenfolge einer GTIN-Liste wird nicht als Zuordnung verwendet. Eine nach dem Optionswechsel unveränderte SKU in der URL bestätigt nicht die neue Ausführung.
+„Bilder laden“ ist standardmäßig ausgeschaltet. Die Bildsperre gilt nur in verwalteten Shop-Tabs, auch für CDN-Fotos. Skripte, CSS und Datenabfragen bleiben aktiv. Die Einstellung wird lokal gespeichert und wirkt bei der nächsten Navigation beziehungsweise beim Neuladen der Shopseite. Sicherheitsprüfungen bei Bedarf selbst im Shop-Tab abschließen.
 
-Liefert eine EAN-Suche mehrere bestätigte Angebote, grenzt der ursprüngliche Produktname mit exakter Modellkennung die Auswahl zusätzlich ein. Passende Namen werden bei der Detailprüfung bevorzugt. Wenn kein Name zuverlässig übereinstimmt, bleiben die bestätigten EAN-Treffer erhalten; ein Namensmatch ersetzt keine EAN-Bestätigung.
+Die Oberfläche folgt dem Browser-Farbschema. Sonne/Mond schaltet manuell um, bis die Oberfläche neu geladen wird; dann gilt wieder das Browser-Design. Schrift und Symbole sind lokal enthalten.
 
-Bei BIKE24 öffnet die Detailprüfung „Datenblatt“ und wartet auf nachgeladene GTIN-Werte. Ist die gesuchte EAN dort in einer Liste enthalten, aber keiner ausgewählten Ausführung eindeutig zuzuordnen, wird diese Mehrdeutigkeit ausdrücklich angezeigt. Die bloße Listenposition gilt nicht als Zuordnung.
+## Technik und Fehlersuche
 
-BIKE24 kann ein kombiniertes Ergebnis anzeigen, wenn Produktname/Modell passen, die eingegebene EAN im Datenblatt steht und die gewünschte Dropdown-Ausführung tatsächlich ausgewählt und mit Preis ausgelesen wurde. Diese Ergebnisse werden nicht als variantenspezifische Preisbeobachtung gespeichert oder als EAN-Quelle für andere Shops verwendet. Eine explizit andere EAN der ausgewählten Ausführung wird niemals überschrieben.
+Build-Befehle und Quellstruktur stehen im [README](README.md), Laufzeitmessungen unter [Profiling](docs/SEARCH-PROFILING.md). Ein leeres `getSearchProfiles()` nach dem Neuladen ist normal: Profile liegen nur im Arbeitsspeicher der geöffneten Teilefinder-Seite.
 
-## Gemeinsame Architektur und Build-Ziele
-
-- `src/ui/`: gemeinsame Oberfläche, Layout, Dialoge und Zwischenablage.
-- `src/core/`: Produkt-/EAN-/Variantenregeln, Wunschliste, Preisvergleich und gemeinsamer Suchcontroller.
-- `src/shops/`: DOM-Reader und Variantenauswahl für die vier Shops.
-- `src/data/`: IndexedDB-Anbindung für die bestehende Preishistorie.
-- `src/platform/`: native Browser-APIs, lokaler Nachrichtenbus und wiederherstellbare Shop-Tab-Zuordnung.
-- `manifests/firefox.json`: Manifest V2 mit unveränderter Gecko-ID.
-- `manifests/chrome.json`: Manifest V3 mit kleinem Service Worker.
-
-Suchjobs laufen im geöffneten Teilefinder-Tab. Der Hintergrund verwaltet ausschließlich Toolbar-Ereignisse und Tab-Besitzdaten in `storage.session`. Ein Hintergrund-Neustart beendet deshalb keine Listenprüfung. Neu geöffnete Produktlinks über „Zum Shop“ sind manuelle Tabs und werden nicht als Such-Tabs registriert.
-
-`npm run build` prüft und erzeugt beide ZIPs sowie die stabilen Ordner `outputs/firefox-addon/` und `outputs/chrome-addon/`. Einzelziele: `npm run build:firefox` und `npm run build:chrome`. `npm test` führt Syntax- und Regressionstests aus. Nach dem Build: `npm run lint:extension` für Firefox sowie `npm run lint:chrome` für die Chrome-Manifest-/Dateiprüfung. Die Builds enthalten unveränderte, lokal lesbare Quellen, keine Browserprofile oder Zugangsdaten.
-
-Plan, Prüfkriterien und der Stand der Live-Abnahme: [Cross-Browser-Plan](docs/CROSS-BROWSER-PLAN.md).
-
-Für die Bildsperre verwendet die Erweiterung die Browser-Berechtigung `declarativeNetRequest`. Beim Update kann der Browser die neue Berechtigung abfragen. Die Regeln gelten ausschließlich für verwaltete Shop-Tabs; es werden keine Netzwerkprotokolle gespeichert.
+Datenspeicherung und Berechtigungen: [Datenschutzerklärung](DATENSCHUTZ.md).

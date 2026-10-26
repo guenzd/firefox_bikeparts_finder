@@ -1,7 +1,21 @@
 # Firefox und Chrome: gemeinsamer Erweiterungskern
 
 Branch: `feature/chrome-cross-browser` · Ausgangspunkt: 0.7.86
-Ziel: dieselbe UI, dieselben Suchregeln und Shop-Reader; getrennte Browser-Einstiegspunkte und Manifeste. Firefox-ID und gespeicherte Daten bleiben erhalten. Keine Shop-Sonderfälle oder Änderungen der Match-Regeln in diesem Refactoring.
+Ziel: dieselbe UI, dieselben Suchregeln und Shop-Reader; getrennte Browser-Einstiegspunkte und Manifeste. Firefox-ID und gespeicherte Daten bleiben erhalten. Das ursprüngliche Refactoring sollte die Match-Regeln erhalten. Für die Weiterentwicklung gelten gemeinsame generische Produktregeln; Shop-spezifische DOM-Reader sind ausdrücklich vorgesehen, produktbezogenes Suchbegriff-Tuning nicht.
+
+## Aktueller Architekturstand
+
+Die Trennung ist umgesetzt: `teilefinder/src/ui`, `core`, `shops` und `data` sind gemeinsam; Browser-APIs liegen in `platform`, die beiden Manifeste in `teilefinder/manifests`. Der alte Ordner `firefox-r2` wird nicht mehr gebaut. Suchjobs laufen im UI-Tab, der Hintergrund verwaltet Toolbar, Tab-Besitz und Bildregeln. Pro UI-Tab gibt es höchstens einen wiederverwendeten Tab je Shop.
+
+Produktlinks und konkrete ausgewählte Optionen werden dauerhaft lokal gespeichert. Ein Wunschlisten-Refresh prüft bekannte Seiten direkt, liest Preise und Bestand frisch und startet bei unbestätigten bekannten Seiten keine zusätzliche Suche. Firefox und Chrome behalten getrennte lokale Speicher; der JSON-Export überträgt Konfiguration, Ergebnisse und Historie.
+
+Der Default ist das Browser-Farbschema. Der Sonne/Mond-Schalter gilt nur bis zum Neuladen; es gibt keinen zusätzlichen Automatik-Button. Neue Shop-Tabs werden leer angelegt, registriert und mit Bildregeln versehen, bevor sie zur Shopseite navigieren. Diese heutigen Abläufe ersetzen die entsprechenden Zwischenstände von 0.8.1 weiter unten.
+
+Aktuelle Befehle und Bedienung: [README](../README.md), [Handbuch](../MANUAL.md), [Profiling](SEARCH-PROFILING.md). Automatisierte Prüfungen decken Plattformverträge, Hintergrund-Neustarts, Tab-Besitz, DOM-Reader, Matching, Dateien, Historie und reproduzierbare Pakete ab. Eine vollständige automatisierte Live-Abnahme beider Browser ist weiterhin offen: Die native Browsersteuerung war nicht erreichbar. Nutzerberichte und lokale Laufzeitprofile sind zusätzliche Evidenz, keine vollständige Browserabnahme.
+
+## Ursprünglicher Umsetzungsplan und historische Abnahme
+
+Die folgenden Zahlen und Versionsangaben dokumentieren die damaligen Schritte, nicht den aktuellen Testumfang.
 
 ## 1. Bestand sichern und Struktur trennen
 
@@ -40,7 +54,7 @@ Abnahme: simuliertes Beenden/Neustarten des Hintergrunds beeinflusst laufende Su
 - [x] Host-Rechte und Chrome-Action-Konfiguration korrekt setzen; Chrome-kompatible PNG-Icons bereitstellen.
 - [x] Deterministische ZIPs und stabile entpackte Verzeichnisse für beide Browser erzeugen.
 - [x] Alle referenzierten JS-, HTML-, CSS-, Font- und Icon-Dateien sowie Ladereihenfolge prüfen.
-- [x] Firefox-Lint und gesonderte Chrome-MV3-Prüfungen in den Build aufnehmen.
+- [x] Chrome-MV3-Paketprüfung in den Build aufnehmen; Firefox-Lint als separaten verbindlichen Release-Schritt bereitstellen.
 
 Abnahme: beide Pakete enthalten denselben Core/UI/Reader-Code; Chrome enthält keine Gecko-/MV2-Felder und keinen Suchcontroller im Worker. Firefox-Daten und JSON-Import bleiben kompatibel.
 
@@ -56,7 +70,7 @@ Abnahme: beide Pakete enthalten denselben Core/UI/Reader-Code; Chrome enthält k
 
 - Kein Framework-Wechsel: vorhandenes HTML/CSS/JavaScript bleibt bestehen.
 - Keine neue Laufzeit-Abhängigkeit für Browser-APIs; nur der tatsächlich benötigte Adapterumfang.
-- Suchjobs leben im UI-Tab statt im kurzlebigen Chrome-Service-Worker. Hintergrunddaten beschränken sich auf eine wiederherstellbare Besitzliste von Shop-Tabs.
+- Suchjobs leben im UI-Tab statt im kurzlebigen Chrome-Service-Worker. Suchzustände bleiben im UI-Tab; der Hintergrund hält die wiederherstellbare Besitzliste und verwaltet die Bildregeln.
 - Wishlist/Cache: bestehende `storage.local`-Schlüssel; Historie: bestehende IndexedDB-Namen und Struktur. Chrome und Firefox speichern unabhängig, Übertragung über vorhandenen JSON-Export/Import.
 - Quellen: Chrome-MV3-Service-Worker-Migration und Chrome-Messaging-Dokumentation. Asynchrone Listener verwenden `return true`, ohne Promise-Unterstützung ab Chrome 148 vorauszusetzen.
 
@@ -79,11 +93,11 @@ Referenzen: [Chrome Service-Worker-Migration](https://developer.chrome.com/docs/
 Umsetzungsversion: **0.8.0**. Commits: eigener Plan-Commit, gemeinsame Plattform/Core-/Build-Umsetzung und Dokumentations-/Abnahme-Commit. Der Branch wird separat gepusht und nicht nach `main` gemergt; Tag `v0.8.0` markiert diesen Entwicklungsstand, keine Store-Freigabe.
 
 
-### Nachprüfung 0.8.1
+### Historische Nachprüfung 0.8.1
 
 - Content-Skripte werden jetzt mit realistischem API-Umfang getestet: `tabs`, Toolbar-Aktion und `storage.session` fehlen dort. Der Adapter setzt nur `runtime` voraus und initialisiert deshalb auch auf Shopseiten korrekt.
 - Firefox-Tabs dürfen zunächst `about:blank` ohne `pendingUrl` melden. Vor der Registrierung wartet die Seitenplattform auf die Shop-Adresse, mit Ereignissen, erneuter Zustandsprüfung und begrenztem Zeitlimit. Registrierung, Wiederverwendung und Listener-Aufräumen sind abgedeckt.
 - Wunschlistenprüfung und Einzelpostenprüfung lesen EAN/Preisgrenzen direkt vom Listenartikel. Die manuellen Suchfelder bleiben unverändert, auch beim Übernehmen gefundener EANs und bei späten Ergebnissen.
-- Sonne/Mond-Schalter mit lokaler Auswahl, Rückkehr zu „Automatisch“, laufenden Browser-Theme-Wechseln und Tests für verzögerte/fehlgeschlagene Speicherung.
+- Damals: Sonne/Mond-Schalter mit gespeicherter Auswahl und „Automatisch“. Dieser Zwischenstand wurde durch den heutigen, nur bis zum Neuladen geltenden Schalter ersetzt.
 
 Automatisierter Stand 0.8.1: 161 Tests bestanden, Firefox-Lint ohne Fehler/Warnungen und Chrome-Paketvalidierung bestanden. Die Live-Abnahme bleibt offen.

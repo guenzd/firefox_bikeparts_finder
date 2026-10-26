@@ -1,8 +1,28 @@
-# Suchlauf-Profiling (0.8.3)
+# Suchlauf-Profiling
 
-## Messung und Grenzen
+## Aktuellen Suchlauf aufzeichnen
 
-Die native Browsersteuerung lieferte am 25.10.2026 erneut `Sky Computer Use native pipe startup failed`, ohne erreichbare Browser. Deshalb gibt es hier **keine Messung realer Shop- oder Netzwerkzeiten**. Gemessen wurde der echte Suchcontroller mit deterministischer virtueller Uhr und simulierten Shopantworten. Matching, Cache-Auswahl, Wartezeiten, Wiederverwendung und Ergebnisabschluss laufen durch den produktiven Code.
+1. Die aktualisierte Erweiterung laden und die Teilefinder-Seite neu öffnen.
+2. Einen Artikel über ↻ aktualisieren oder eine Einzelteilsuche ausführen. Für einen Vergleich Produktname, EAN-Schalter, Variante, Preisbereich und „Bilder laden“ unverändert lassen.
+3. Nach Abschluss in der Entwicklerkonsole **der Teilefinder-Seite** ausführen:
+
+```js
+JSON.stringify(getSearchProfiles(), null, 2)
+```
+
+4. Die vollständige Ausgabe bei Bedarf in `tmp.log` im Repository-Hauptverzeichnis ablegen. Die Datei ist ignoriert und wird nicht gepusht. Das Add-on schreibt sie nicht automatisch.
+
+Die letzten 20 abgeschlossenen oder abgebrochenen Jobs liegen nur im Arbeitsspeicher. Ein Neuladen leert sie; `[]` während des ersten laufenden Jobs ist ebenfalls möglich. Profile enthalten Namen, EAN und Varianten und sollten vor einer Weitergabe geprüft werden. Einzelmessungen und komplette Listenläufe nicht ohne gleiche Bedingungen vergleichen.
+
+Hohe `detail`-Zeiten können DOM-, Datenblatt- und Variantenwartezeiten enthalten. `navigation` misst nur den API-Aufruf, nicht den vollständigen Netzwerkabruf. Shops laufen parallel; ihre Zeiten dürfen nicht zur Gesamtlaufzeit addiert werden. Ein weiter rotierendes Browser-Ladesymbol misst nicht den Abschluss der Produktauslesung. `pageMismatch` und `readIssues` sind Diagnosehinweise, kein alleiniger Beweis einer bestimmten Ursache.
+
+Bekannte Wunschlisten-URLs und gespeicherte Optionen sollten direkt unter `detail` geprüft werden, ohne vorheriges Listing. Shops ohne geeigneten gespeicherten Link benötigen weiterhin die Suche. Ältere oder nicht bestätigte Angebote sind kein Beleg für erfolgreiche frische Auslesungen.
+
+`npm run profile:search` führt dagegen einen **simulierten** Controller-Benchmark aus, keinen echten Shop- oder Netzwerkvergleich. Die folgenden Abschnitte bewahren die historischen Messungen und Änderungen. Frühe Testzahlen und technische Zwischenstände gelten jeweils für die dort genannte Version.
+
+## Historischer Ausgangsversuch 0.8.3: Messung und Grenzen
+
+Die native Browsersteuerung lieferte am 25.10.2026 erneut `Sky Computer Use native pipe startup failed`, ohne erreichbare Browser. Deshalb enthält dieser erste Versuch **keine Messung realer Shop- oder Netzwerkzeiten**. Spätere Abschnitte werten vom Nutzer bereitgestellte echte Laufzeitprofile aus. Gemessen wurde der echte Suchcontroller mit deterministischer virtueller Uhr und simulierten Shopantworten. Matching, Cache-Auswahl, Wartezeiten, Wiederverwendung und Ergebnisabschluss laufen durch den produktiven Code.
 
 `npm run profile:search` erzeugt einen JSON-Bericht. Die Szenarien liefern vier gültige Angebote; ein fehlendes Ergebnis lässt den Lauf fehlschlagen. Erfasst werden Controller-Laufzeit, Navigationen, Listing-/Detail-Auslesungen, erstellte Tabs und gleichzeitige Auslesungen pro Tab.
 

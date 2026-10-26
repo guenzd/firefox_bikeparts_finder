@@ -29,7 +29,10 @@ function modelNameMatches(name,query){
 function matches(name,q){
  const text=productNameText(name),query=productNameText(q),words=text.split(/[^a-z0-9]+/).filter(Boolean);
  if(/\b(?:bundle|set|\d+er\s+set)\b/.test(text)&&!/\b(?:bundle|set|\d+er\s+set)\b/.test(query))return false;
- const requested=query.split(/\s+/).filter(Boolean);
+ // Tokenize both sides equally: punctuation in a brand/title is a separator,
+ // not a required word. Model identifiers are still checked separately below.
+ const requested=query.split(/[^a-z0-9]+/).filter(Boolean);
+ if(!requested.length)return !query;
  if(!productModelCodes(q).every(code=>hasModelCode(name,code)))return false;
  const acronym=(token,tokens)=>/^[a-z]{2,4}$/.test(token)&&tokens.some((_,i)=>tokens.slice(i,i+token.length).length===token.length&&tokens.slice(i,i+token.length).every((word,j)=>/^[a-z]{3,}$/.test(word)&&word[0]===token[j]));
  return requested.every((token,index)=>{

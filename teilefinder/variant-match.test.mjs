@@ -51,6 +51,17 @@ test('Peatys brand apostrophes normalize identically in all extraction paths',()
  assert.equal(match({name:'PEATY´S Dichtmittel Holeshot Biofibre Tubeless Sealant | 1000 ml'},'1 L'),true);
 });
 
+test('Product matching treats title punctuation symmetrically without weakening model numbers',()=>{
+ const c=vm.createContext({URL});vm.runInContext(readSource('extract.js'),c);
+ const title='Busch + Müller Toplight 2C Permanent-Rücklicht';
+ for(const query of ['Busch + Müller Toplight 2C','Busch+Müller Toplight 2C','Busch & Müller Toplight 2C','Busch Müller Toplight 2C'])assert.equal(c.matches(title,query),true,query);
+ for(const query of ['Busch + Müller Toplight 3C','Busch + Müller Toplight 12C','Other + Müller Toplight 2C','+++'])assert.equal(c.matches(title,query),false,query);
+ assert.equal(c.matches('Acme / Co. Cable BC-2400','Acme / Co. Cable BC-2400'),true);
+ assert.equal(c.matches('Acme & Co. Cable BC-24000','Acme & Co. Cable BC-2400'),false);
+ const offers=c.structuredOffers([{'@type':'Product',name:title,offers:{price:'17.99',priceCurrency:'EUR',availability:'https://schema.org/InStock'}}],'bike-discount.de','https://www.bike-discount.de/de/rear-light','Busch + Müller Toplight 2C');
+ assert.equal(offers.length,1);assert.equal(offers[0].stock,'Auf Lager');
+});
+
 test('Generic abbreviations, compound suggestions and typos need no product-specific dictionary',()=>{
  const c=vm.createContext({});vm.runInContext(readSource('extract.js')+readSource('suggestions.js'),c);
  assert.equal(c.matches('Acme Ultra Light Cable','Acme UL Cable'),true);
