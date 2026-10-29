@@ -31,8 +31,7 @@ test('List copy exports only deliverable products, one name and URL per line, wi
  let copied;const status={};
  const button={classList:{add(){}},append(){},setAttribute(){}};
  const ctx=uiContext({cleanShopUrl:value=>value,copyButton:(_url,callback)=>{button.click=callback;return button;},document:{createTextNode:()=>({}),querySelector:()=>status},navigator:{clipboard:{async writeText(text){copied=text;}}}});
- const wishlistCode=readSource('wishlist.js');
- vm.runInContext(wishlistCode.slice(wishlistCode.indexOf('function deliverable('),wishlistCode.indexOf('function cheapestWishlist(')),ctx);
+ vm.runInContext(readSource('variant-match.js'),ctx);
  vm.runInContext(home.slice(home.indexOf('function copyListButton('),home.indexOf('function copyButton(')),ctx);
  const available={name:'Product\nA',url:'https://shop.example/a',stock:'auf Lager'};
  ctx.copyListButton([available,available,{name:'Product B',url:'https://shop.example/b',stock:'1-3 Arbeitstage'},{name:'Unavailable',url:'https://shop.example/c',stock:'nicht lieferbar'},{name:'Unknown',url:'https://shop.example/d',stock:'nicht auslesbar'},{name:'Later',url:'https://shop.example/e',stock:'verfügbar ab 4.11.'}], 'BIKE24');
@@ -44,8 +43,7 @@ test('List copy writes clickable escaped HTML and clean plain-text URLs together
  let formats;const status={};const button={classList:{add(){}},append(){},setAttribute(){}};
  const ctx=uiContext({URL,Blob,ClipboardItem:class{constructor(data){formats=data;}},copyButton:(_url,callback)=>{button.click=callback;return button;},document:{createTextNode:()=>({}),querySelector:()=>status},navigator:{clipboard:{async write(items){assert.equal(items.length,1);}}}});
  vm.runInContext(readSource('variant-match.js'),ctx);
- const wishlistCode=readSource('wishlist.js');
- vm.runInContext(wishlistCode.slice(wishlistCode.indexOf('function deliverable('),wishlistCode.indexOf('function cheapestWishlist(')),ctx);
+ vm.runInContext(readSource('variant-match.js'),ctx);
  vm.runInContext(home.slice(home.indexOf('function copyListButton('),home.indexOf('function copyButton(')),ctx);
  ctx.copyListButton([{name:'A & <B>',url:'https://www.bike-components.de/product/?o=123&v=456&origin=SRP&utm_source=test',stock:'Auf Lager'},{name:'Unavailable',url:'https://www.bike24.de/missing',stock:'nicht lieferbar'}], 'bike-components');
  await button.click();
@@ -58,8 +56,7 @@ test('Wishlist copy groups mixed best offers under each shop heading in HTML and
  let formats;const status={},button={classList:{add(){}},append(){},setAttribute(){}};
  const ctx=uiContext({URL,Blob,ClipboardItem:class{constructor(data){formats=data;}},copyButton:(_url,callback)=>{button.click=callback;return button;},document:{createTextNode:()=>({}),querySelector:()=>status},navigator:{clipboard:{async write(){}}}});
  vm.runInContext(readSource('variant-match.js'),ctx);
- const wishlistCode=readSource('wishlist.js');
- vm.runInContext(wishlistCode.slice(wishlistCode.indexOf('function deliverable('),wishlistCode.indexOf('function cheapestWishlist(')),ctx);
+ vm.runInContext(readSource('variant-match.js'),ctx);
  vm.runInContext(home.slice(home.indexOf('function copyListButton('),home.indexOf('function copyButton(')),ctx);
  const offer=(shop,name)=>({shop,name,url:'https://example.org/'+name,stock:'Auf Lager'});
  ctx.copyListButton([offer('BIKE24','A'),offer('r2-bike','B'),offer('BIKE24','C')]);await button.click();
@@ -282,4 +279,13 @@ test('Single-item refresh shows four-shop progress, rejects concurrent refreshes
  ctx.updateWishlistProgress(4);assert.equal(node('#check-wishlist').textContent,'4 / 4 Shops…');ctx.setSearchRunning(false);assert.ok(controls.every(c=>c.disabled),'Keep locked until wishlist results are saved');
  ctx.finishSearch([]);await pending;assert.equal(ctx.checkingList,false);assert.ok(controls.every(c=>!c.disabled));assert.equal(node('#check-wishlist').textContent,'Wunschliste prüfen');
  ctx.setSearchRunning(true);assert.equal(node('#check-wishlist').disabled,true,'Ad hoc search locks wishlist start too');assert.ok(controls.every(c=>c.disabled));ctx.setSearchRunning(false);assert.ok(controls.every(c=>!c.disabled));
+});
+
+test('Comparison results keep their display mode and never fill one product EAN into a broad search',()=>{
+ const nodes={};const node=s=>nodes[s]||(nodes[s]={value:'',checked:true});let listener;
+ const ctx=uiContext({URL,platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}},currentTab:1,id:'job',names:['BIKE24'],state:new Map(),wishlist:[],activeWishlistId:'',query:'Spray',searchedVariant:'',document:{querySelector:node,querySelectorAll:()=>[]},saveList(){},render(){},updateWishlistProgress(){}});
+ vm.runInContext(readSource('variant-match.js'),ctx);
+ vm.runInContext(home.slice(home.indexOf('platform.runtime.onMessage.addListener(d=>'),home.indexOf("document.querySelector('#max').addEventListener")),ctx);
+ listener({type:'result',target:1,id:'job',shop:'BIKE24',query:'Spray',comparisonMode:'cheapest',url:'https://www.bike24.de/search',offers:[{name:'A Spray',price:6,priceKind:'exact',ean:'1234567890128',url:'https://www.bike24.de/p1.html'}]});
+ assert.equal(ctx.state.get('BIKE24').comparisonMode,'cheapest');assert.equal(node('#search-ean').value,'');assert.equal(ctx.state.get('BIKE24').offers.length,1);
 });

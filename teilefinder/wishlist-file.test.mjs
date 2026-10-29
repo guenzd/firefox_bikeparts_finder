@@ -69,3 +69,10 @@ test('Export and import retain bounded concrete selections for native, radio and
  assert.ok(ctx.cleanVariantSelection([null,{kind:'submit',id:'cart',value:'anything'}]).every(value=>value.kind==='select'));
  assert.equal(ctx.cleanVariantSelection(Array(30).fill(selection[0])).length,20);
 });
+
+test('Snapshot roundtrip preserves cheapest-product comparison mode and its candidate offers',()=>{
+ const shop={name:'Bike-Discount',comparisonMode:'cheapest',offers:[{name:'A Spray',url:'https://www.bike-discount.de/de/a',price:6,priceKind:'exact',stock:'Auf Lager'},{name:'B Spray',url:'https://www.bike-discount.de/de/b',price:8,priceKind:'exact',stock:'Auf Lager'}]};
+ const snapshot=ctx.snapshotShops([shop]);assert.equal(snapshot[0].comparisonMode,'cheapest');assert.equal(snapshot[0].offers.length,2);
+ ctx.items=[{query:'Spray',variant:'',maxPrice:null,shops:[shop]}];const loaded=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(loaded[0].shops[0].comparisonMode,'cheapest');assert.equal(loaded[0].shops[0].offers.length,2);
+ assert.equal(ctx.snapshotShops([{...shop,comparisonMode:'unknown'}])[0].comparisonMode,undefined);
+});

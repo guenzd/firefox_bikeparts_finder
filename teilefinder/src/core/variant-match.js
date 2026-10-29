@@ -55,8 +55,22 @@ function productSearchQuery(query,variant){
 }
 
 function validEAN(value){const text=String(value||'').trim();return /^\d{8,14}$/.test(text)?text:'';}
+// One stock classifier is shared by search selection and presentation.
+function deliverable(stock){
+ const s=String(stock||'');
+ if(/\bWochen?\b|nicht|ausverkauft|out of stock|sold out|vorbestell|nachbestell|(?:verfügbar|lieferbar|erhältlich)\s+(?:ab|in)|available (?:from|in)|unbekannt|nicht auslesbar/i.test(s))return false;
+ return /auf lager|lagernd|ab lager|sofort lieferbar|in stock|available from stock|(?:Versand in|Lieferzeit:?|lieferbar in)\s*\d+(?:\s*[-–]\s*\d+)?\s*(?:Werk|Arbeits)?tage[n]?|\b\d+(?:\s*[-–]\s*\d+)?\s*(?:Arbeits|Werk)tage[n]?/i.test(s);
+}
+// Distinct matched products are a comparison, not evidence for one shared EAN.
+function hasDifferentProducts(offers){
+ const rows=offers.filter(o=>['exact','from'].includes(o.priceKind)&&Number.isFinite(o.price));
+ const identifiers=new Set(rows.map(o=>validEAN(o.ean)).filter(Boolean));
+ if(rows.length&&rows.every(o=>validEAN(o.ean))&&identifiers.size===1)return false;
+ return new Set(rows.map(o=>String(o.name||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()).filter(Boolean)).size>1;
+}
 // Share only one unambiguous identifier for the requested, confirmed variant.
 function shareVariantEAN(shops,requested,known=''){
+ if(!validEAN(known)&&shops.some(shop=>shop.comparisonMode==='cheapest'))return {ean:'',shops};
  const candidates=shops.filter(s=>!s.stale).flatMap(s=>s.offers||[]).filter(o=>o.eanEvidence!=='datasheet'&&o.priceKind==='exact'&&variantMatches(o,requested));
  const identifiers=[...new Set(candidates.map(o=>validEAN(o.ean)).filter(Boolean))];
  // A shop may list several executions. Only an identifier shared by every

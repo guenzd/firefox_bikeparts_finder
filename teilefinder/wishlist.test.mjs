@@ -161,3 +161,20 @@ test('Shop totals count the cheapest deliverable exact offer once per wishlist i
  ];
  assert.deepEqual(JSON.parse(JSON.stringify(ctx.shopWishlistSummary(entries))),{total:18.15,available:2,count:5});
 });
+
+test('Product comparisons show the lowest deliverable exact offer per shop under the current filters and retain alternatives',()=>{
+ const shop={name:'A',comparisonMode:'cheapest',offers:[
+  {...offer(5,'Nicht lieferbar','400 ml'),name:'A',url:'https://shop.example/a'},
+  {...offer(6,'Auf Lager','400 ml'),name:'B',url:'https://shop.example/b'},
+  {...offer(8,'Auf Lager','400 ml'),name:'C',url:'https://shop.example/c'},
+  {...offer(3,'Auf Lager','400 ml','from'),name:'D',url:'https://shop.example/d'},
+  {...offer(2,'Auf Lager','100 ml'),name:'E',url:'https://shop.example/e'}]};
+ assert.equal(ctx.displayedShopOffers(shop,{variant:'400 ml',maxPrice:10})[0].price,6);
+ assert.equal(ctx.displayedShopOffers(shop,{variant:'400 ml',minPrice:7,maxPrice:10})[0].price,8);
+ assert.equal(ctx.displayedShopOffers(shop,{variant:'400 ml',maxPrice:5})[0].stock,'Nicht lieferbar');
+ assert.equal(ctx.displayedShopOffers(shop,{variant:'400 ml',maxPrice:4}).length,0);
+ assert.equal(shop.offers.length,5);
+ assert.equal(ctx.displayedShopOffers({...shop,comparisonMode:''},{variant:'400 ml',maxPrice:10}).length,4);
+ const rows=ctx.wishlistPriceRows([{shop}],{variant:'400 ml',maxPrice:10});assert.equal(rows.length,1);assert.equal(rows[0].offer.price,6);
+ const updated=ctx.applyWishlistSearch([{id:'general',query:'Spray',variant:'',ean:''}],'general',[shop],'2026-10-29T12:00:00Z');assert.equal(updated[0].ean,'');assert.equal(updated[0].shops[0].offers.length,5);
+});

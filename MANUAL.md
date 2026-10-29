@@ -45,6 +45,10 @@ Vor dem Update „Als Datei speichern“ verwenden. Für Entwicklungsinstallatio
 
 Wenn der Name passt, aber die Variante nicht bestätigt wurde, erscheinen andere Ausführungen zur Auswahl. „Ohne Variantenfilter suchen“ entfernt den Variantenfilter. Ähnliche Produkte lassen sich übernehmen; dadurch startet eine neue Suche. Preisgrenzen schränken auch Vorschläge ein. Bei gesetzter Grenze werden Vorschläge ohne bestätigten Preis ausgeblendet.
 
+Bei einer allgemeinen Namenssuche mit mehreren unterschiedlichen passenden Produkten wird je Shop das günstigste bestätigte, lieferbare Produkt im Preis- und Variantenfilter angezeigt. Günstigere nicht lieferbare Produkte gewinnen nicht. Fehlende Angaben werden bevorzugt bei günstigen Kandidaten geprüft; eine allgemeine Suche wird nicht automatisch auf die EAN eines einzelnen Treffers eingegrenzt. Eine ausdrücklich verwendete EAN bleibt dagegen verbindlich. Ohne lieferbares Angebot bleibt ein nicht lieferbarer Treffer zur Prüfung anklickbar.
+
+Die Alternativen bleiben gespeichert. Wird der Preisbereich geändert, wird daraus der passende Shop-Bestpreis neu ausgewählt. Diese Auswahl gilt auch im Shop-Popup und beim Kopieren und bleibt beim Datei-Export/-Import erhalten.
+
 Die Einzelteilsuche klappt Wunschliste und deren Ergebnisse ein, ohne sie zu löschen. Eine Listenprüfung verändert die manuellen Suchfelder nicht.
 
 ## EAN verwenden

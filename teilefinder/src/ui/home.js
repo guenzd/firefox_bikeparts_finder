@@ -30,13 +30,13 @@ function render(){
  for(const {item,shop:s} of entries){
  const section=el('section'),message=resultMessage(s.message);if(item){section.append(el('h4',item.query),el('small',item.variant||'Alle Varianten'));if(s.url){const link=el('a','Im Shop suchen');link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';section.append(link,copyButton(s.url));}}
  const range=item||inputPriceRange(document.querySelector('#max')),requested=item?item.variant:document.querySelector('#search-variant').value;
- const rows=uniqueOffers(s.offers||[]).filter(o=>typeof o.price==='number'&&withinPriceRange(o.price,range||{minPrice:Infinity,maxPrice:0})&&variantMatches(o,requested));
+ const rows=displayedShopOffers(s,{...(range||{minPrice:Infinity,maxPrice:0}),variant:requested});
  const hideEAN=allShopsHaveDisplayedOffers([...state.entries()].map(([name,shop])=>({name,...shop})),{...(range||{minPrice:Infinity,maxPrice:0}),variant:requested});
  if(rows.length){const wrap=el('div');wrap.className='table-wrap';const t=el('table'),head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Link'].forEach(v=>head.append(el('th',v)));appendTableHead(t,head);t.setAttribute('aria-label',name+' · Suchergebnisse');
  for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean)&&!hideEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td');cell.className='result-links';cell.append(resultLinkActions('Öffnen',o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
  }else section.append(el('p',(s.offers||[]).length?'Keine Angebote innerhalb des Preisbereichs.':message));
  if(!(s.offers||[]).length&&s.suggestions?.length)appendSuggestions(section,s.suggestions,range||{minPrice:Infinity,maxPrice:0},item,s.variantAlternatives);
- if((s.offers||[]).length>rows.length)section.append(el('small',((s.offers||[]).length-rows.length)+' Angebote durch Preisfilter ausgeblendet.'));
+ if(s.comparisonMode!=='cheapest'&&(s.offers||[]).length>rows.length)section.append(el('small',((s.offers||[]).length-rows.length)+' Angebote durch Preisfilter ausgeblendet.'));
  if(rows.length&&message)section.append(el('p',message));
  a.append(section);
  }root.append(a);
@@ -49,11 +49,11 @@ function renderWishlistDetails(root){
  for(const name of names){
   const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
-  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
+  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:displayedShopOffers(shop,item)),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';table.setAttribute('aria-label',name+' · Wunschliste');
   const head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
   for(const {item,shop} of entries){
-   const offers=uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant));
+   const offers=displayedShopOffers(shop,item);
    const group=el('tbody');
    for(const [index,offer] of (offers.length?offers:[null]).entries()){
     const row=el('tr'),product=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';
@@ -93,7 +93,7 @@ platform.runtime.onMessage.addListener(d=>{
   const suggestions=(d.suggestions||[]).filter(o=>{try{return new URL(o.url).protocol==='https:'&&new URL(o.url).hostname.replace(/^www\./,'')===new URL(d.url).hostname.replace(/^www\./,'')&&typeof o.name==='string';}catch{return false;}});
   const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||validEAN(o.ean)===requestedEAN);
   const kept=!offers.length&&previousOffers.length;
-  state.set(d.shop,{queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
+  state.set(d.shop,{comparisonMode:d.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
  }
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
@@ -132,7 +132,7 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  const range=item?{minPrice:item.minPrice,maxPrice:item.maxPrice}:inputPriceRange(document.querySelector('#max'));
  searchedEAN=ean;
  const useEAN=item?item.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
- try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,comparisonMode:s.comparisonMode,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});

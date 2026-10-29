@@ -697,3 +697,39 @@ test('Bike-Discount native dropdowns keep recommendation prices outside variant 
  const result=await ctx.dropdownVariants({name:'Generic item'},'M');assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,19.99);
  hasPrice=false;const missing=await ctx.dropdownVariants({name:'Generic item'},'M');assert.equal(missing.offers.length,0);
 });
+
+test('Broad name searches compare distinct products per shop without narrowing to a shared EAN; explicit EAN stays binding',async()=>{
+ for(const explicitEAN of [false,true]){
+  let listener;const home='moz-extension://unit/home.html',messages=[],urls=[];
+  const common='1234567890128';
+  const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){urls.push(o.url);return {id:new URL(o.url).hostname};},async update(_id,o){urls.push(o.url);},async get(){return {};},async sendMessage(_tab,data){
+   if(data.type==='detail'){assert.ok(explicitEAN);return {ready:true,offers:[data.fallback]};}
+   assert.equal(data.type,'extract','Complete listing prices and stock need no detail tabs');
+   const base={priceKind:'exact',stock:'Auf Lager',variant:'400 ml',url:'https://'+data.host+'/shared',name:'Brand A Silikonspray',price:10,ean:common};
+   return {ready:true,offers:[base,{...base,name:'Brand B Silikonspray',url:'https://'+data.host+'/best',price:6,ean:'2234567890128'},{...base,name:'Brand C Silikonspray',url:'https://'+data.host+'/unavailable',price:5,stock:'Nicht lieferbar',ean:'3234567890128'},{...base,name:'Brand D Silikonspray',url:'https://'+data.host+'/below-minimum',price:2,ean:'4234567890128'}]};
+  }}};
+  const c=vm.createContext({platform,URL,clearTimeout,setTimeout:fastTimeout});vm.runInContext(source+readSource('wishlist.js'),c);
+  await listener({type:'search',id:'general',query:'Silikonspray',minPrice:5,maxPrice:12,...(explicitEAN?{ean:common}:{})},{url:home,tab:{id:99}});
+  for(let i=0;i<100;i++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);if(!explicitEAN)assert.equal(urls.length,4);
+  for(const result of results){
+   assert.equal(result.comparisonMode,explicitEAN?undefined:'cheapest');
+   const displayed=c.displayedShopOffers(result,{minPrice:5,maxPrice:12,variant:''});assert.equal(displayed.length,1);assert.equal(displayed[0].price,explicitEAN?10:6);
+   if(!explicitEAN){assert.equal(result.offers.length,4);assert.equal(c.shareVariantEAN(results,'').ean,'');}
+  }
+ }
+});
+
+test('General searches inspect cheaper unavailable products beyond three, then stop once more expensive candidates cannot win',async()=>{
+ let listener;const home='moz-extension://unit/home.html',messages=[],details=new Map();
+ const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(){},async get(){return {};},async sendMessage(tab,data){
+  if(data.type==='detail'){details.set(tab,(details.get(tab)||0)+1);return {ready:true,offers:[{...data.fallback,stock:data.fallback.price<4?'Nicht lieferbar':'Auf Lager'}]};}
+  return {ready:true,offers:[6,5,4,3,2,1].map(price=>({name:'Brand '+price+' Spray',variant:'400 ml',price,priceKind:'exact',stock:'Lagerstatus nicht auslesbar',url:'https://'+data.host+'/spray-'+price}))};
+ }}};
+ const c=vm.createContext({platform,URL,clearTimeout,setTimeout:fastTimeout});vm.runInContext(source+readSource('wishlist.js'),c);
+ await listener({type:'search',id:'general-stock',query:'Spray'},{url:home,tab:{id:99}});
+ for(let i=0;i<130;i++)await new Promise(setImmediate);
+ const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);assert.equal(details.size,4);
+ for(const count of details.values())assert.equal(count,4);
+ for(const result of results){assert.equal(result.comparisonMode,'cheapest');assert.equal(c.displayedShopOffers(result,{})[0].price,4);}
+});
