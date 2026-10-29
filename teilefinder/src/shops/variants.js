@@ -109,7 +109,7 @@ async function dropdownVariants(fallback,requested='',savedSelection=[]){
   attempted++;if(restore)savedApplied=true;
   let previous='',stable=0;
   for(let i=0;i<20;i++){
-   const priceNode=document.querySelector('#add-to-cart .price__value, .product-detail-price, [itemprop="offers"] [itemprop="price"], .product-info .price, #buy_form .price, #product-offer [itemprop="price"], .product-price');
+   const priceNode=location.hostname?.replace(/^www\./,'')==='bike-discount.de'?document.querySelector('.product-detail-price'):document.querySelector('#add-to-cart .price__value, .product-detail-price, [itemprop="offers"] [itemprop="price"], .product-info .price, #buy_form .price, #product-offer [itemprop="price"], .product-price');
    const priceText=(priceNode?.innerText||priceNode?.textContent||'').trim()||priceNode?.getAttribute('content')||'';
    const stockNode=document.querySelector('#add-to-cart .product-availability, .nele-product-availability-info, .delivery-status, .availability, .delivery-time, .delivery');
    const stock=stockText(stockNode?.innerText||stockNode?.textContent||'');

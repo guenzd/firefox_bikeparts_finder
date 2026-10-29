@@ -63,7 +63,9 @@ async function readShopPage(data){
   const main=(data.shopId==='r2-bike'?document.querySelector('#buy_form'):null)||document.querySelector('[itemtype$="/Product"]')||document.querySelector('main')||document.body;
   const availability=(data.shopId==='r2-bike'?main.querySelector?.('.delivery-status, .delivery, .availability, .stock-status'):null)||document.querySelector('.nele-product-availability-info, .delivery-status, .delivery, .availability, .stock-status');
   const stock=data.shopId==='bike-discount'?bikeDiscountStock():stockText(availability?.innerText||availability?.textContent||(data.shopId==='r2-bike'&&main.id==='buy_form'?main.innerText:main.innerText.split(/Beschreibung|Wird oft zusammen gekauft|Zuletzt angesehen/)[0]));
-  const priceNode=data.direct?document.querySelector('#buy_form .price, #product-offer [itemprop="price"], [data-test="auto-product-price"], .product-detail-price, [itemprop="offers"] [itemprop="price"], .product-info .price, .product-price'):null;
+  // A comma-separated selector follows DOM order, not selector priority.
+  // Bike-Discount places recommendation-card prices before the actual product.
+  const priceNode=data.direct?(data.shopId==='bike-discount'?document.querySelector('.product-detail-price'):document.querySelector('#buy_form .price, #product-offer [itemprop="price"], [data-test="auto-product-price"], .product-detail-price, [itemprop="offers"] [itemprop="price"], .product-info .price, .product-price')):null;
   const priceText=(priceNode?.innerText||priceNode?.textContent||priceNode?.getAttribute('content')||'').trim();
   const amount=priceText.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);const freshPrice=amount?euro(amount[1]):euro(priceNode?.getAttribute('content'));
   const offer=data.fallback?{...data.fallback,ean:currentProductEAN(),variant:[data.fallback.variant,productColor()].filter(Boolean).join(' · '),stock,...(data.direct?{price:freshPrice,priceKind:/^ab\s/i.test(priceText)?'from':'exact',name:document.querySelector('h1')?.innerText?.trim()||'',variant:[document.querySelector('h1')?.innerText?.trim(),productColor()].filter(Boolean).join(' · ')}:{})}:null;

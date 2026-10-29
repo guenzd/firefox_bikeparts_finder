@@ -81,7 +81,7 @@ Ein Klick auf den laufenden Fortschritt stoppt die Suche. Bereits gelesene Ergeb
 
 ## Bekannte Artikel direkt aktualisieren
 
-Bestätigte Produkt-URLs werden lokal gespeichert, zusammen mit der tatsächlich ausgewählten Variante: etwa Optionswerte, IDs und Beschriftungen mehrerer abhängiger Dropdowns. Beim Aktualisieren wird die Seite direkt geöffnet und die Auswahl wiederhergestellt. Preis, Lagerstatus und Kennung werden frisch gelesen. Geänderte oder entfernte Optionen führen zurück zur normalen Variantenprüfung auf der Produktseite.
+Bestätigte Produkt-URLs werden lokal gespeichert, zusammen mit der tatsächlich ausgewählten Variante: etwa Optionswerte, IDs und Beschriftungen mehrerer abhängiger Dropdowns. Beim Aktualisieren wird die Seite direkt geöffnet und die Auswahl wiederhergestellt. Preis, Lagerstatus und Kennung werden frisch gelesen. Bei Bike-Discount wird dafür ausschließlich das Produktpreisfeld verwendet; Preise und UVPs der Empfehlungskarten werden nicht übernommen. Geänderte oder entfernte Optionen führen zurück zur normalen Variantenprüfung auf der Produktseite.
 
 Bei der Wunschlistenprüfung wird eine bekannte, nicht bestätigte Produktseite nicht durch zusätzliche Shopsuchen ersetzt. Der frühere Link bleibt erhalten. Nur Shops ohne passenden gespeicherten Link werden durchsucht. Die Einzelteilsuche kann auf die Shopsuche zurückfallen.
 

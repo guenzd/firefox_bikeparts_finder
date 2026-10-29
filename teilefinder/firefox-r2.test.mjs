@@ -670,3 +670,30 @@ test('Bike-Discount combines size radio options with an explicit collapsed produ
   if(expected){assert.equal(rows[0].selection[0].id,'medium');assert.equal(rows[0].price,159.99);assert.ok(ctx.variantMatches(rows[0],wanted));}
  }
 });
+
+test('Bike-Discount refresh and redirects read only the main product price, never recommendation UVPs',async()=>{
+ let listener,hasPrice=true;
+ const nodes={h1:{innerText:'SIGMA HIRO 30 Rücklicht'},'.product-detail-price':{innerText:'19,99 €'},'.product-detail-buy':{innerText:'Lagernd, Lieferzeit 1-3 Tage'},'#description-tab-pane':{textContent:'EAN: 4016224152100'}};
+ const recommendation={innerText:'UVP* 12,95 € 6,99 €'};
+ const document={readyState:'complete',body:{innerText:'SIGMA HIRO 30 Rücklicht'},querySelector(selector){if(selector.includes(',')&&selector.includes('.product-price'))return recommendation;return selector==='.product-detail-price'&&!hasPrice?null:nodes[selector]||null;},querySelectorAll:()=>[]};
+ const ctx=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/sigma-hiro-30-ruecklicht',hostname:'www.bike-discount.de'},URL,platform:{runtime:{onMessage:{addListener(f){listener=f;}}}},productDropdowns:()=>[]});
+ for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readSource(file),ctx);
+ for(const type of ['detail','extract']){
+  const result=await listener({type,direct:true,query:'SIGMA HIRO 30',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,fallback:{name:'Old title',price:12.95}});
+  assert.equal(result.ready,true);assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,19.99,type);assert.equal(result.offers[0].ean,'4016224152100');
+ }
+ hasPrice=false;
+ const missing=await listener({type:'detail',direct:true,query:'SIGMA HIRO 30',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,fallback:{name:'Old title',price:12.95}});
+ assert.equal(missing.ready,false);assert.equal(missing.offers[0].price,null);
+});
+
+test('Bike-Discount native dropdowns keep recommendation prices outside variant observations',async()=>{
+ let now=0,hasPrice=true;
+ const option={value:'M',textContent:'M',disabled:false};
+ const select={id:'size',name:'size',labels:[],value:'M',options:[option],getClientRects:()=>[{}],closest:()=>null,getAttribute:()=>'',dispatchEvent(){}};
+ const document={querySelectorAll:()=>[select],querySelector(selector){if(selector==='.product-detail-price')return hasPrice?{innerText:'19,99 €',getAttribute:()=>null}:null;if(selector.includes('.product-price'))return {innerText:'UVP 12,95 € 6,99 €',getAttribute:()=>null};if(selector.includes('availability'))return {innerText:'Auf Lager'};return null;}};
+ const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/generic-item'},Event:class{},Date:{now:()=>now},setTimeout(f,ms){now+=ms;setImmediate(f);},euro:s=>Number(s.replace(',','.')),stockText:s=>s,dedupe:rows=>rows});
+ vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),ctx);
+ const result=await ctx.dropdownVariants({name:'Generic item'},'M');assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,19.99);
+ hasPrice=false;const missing=await ctx.dropdownVariants({name:'Generic item'},'M');assert.equal(missing.offers.length,0);
+});
