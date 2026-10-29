@@ -24,11 +24,13 @@ async function bikeDiscountVariants(fallback,requested,savedSelection=[]){
   const input=document.getElementById(variant.id);
   const label=input?.parentElement.querySelector('label');
   if(!label)continue;
-  if(!input.checked)label.click();
+  const selectedText=livePicker.innerText?.trim()||'';
+  if(!input.checked||!(typeof variantMatches==='function'?variantMatches({name:'',variant:selectedText},variant.text):selectedText.toLowerCase().includes(variant.text.toLowerCase())))label.click();
   // Selection and price update asynchronously. Require a settled selected variant.
   await pause(700);
-  let previous='',stable=0,current;
-  const until=Date.now()+6000;
+  let previous='',stable=0,current,reapplied=false;
+  // Background tabs throttle timers: allow two matching observations to settle.
+  const until=Date.now()+12000,reapplyAfter=Date.now()+1000;
   while(Date.now()<until){
    const selected=document.querySelector('#productDetailConfiguratorOptions')?.innerText.trim()||'';
    const price=document.querySelector('.product-detail-price')?.innerText.trim()||'';
@@ -37,10 +39,15 @@ async function bikeDiscountVariants(fallback,requested,savedSelection=[]){
    const signature=JSON.stringify([selected,price,stock,ean]);
    const liveInput=document.getElementById(variant.id);
    const chosen=liveInput?.checked&&(typeof variantMatches==='function'?variantMatches({name:'',variant:selected},variant.text):selected.toLowerCase().includes(variant.text.toLowerCase()));
+   // A browser-restored checked radio does not prove the shop processed it.
+   // Retry the label once if initialization swallowed the first choice event.
+   if(!chosen&&liveInput?.checked&&!reapplied&&Date.now()>=reapplyAfter){
+    reapplied=true;liveInput.parentElement.querySelector('label')?.click();previous='';stable=0;await pause(250);continue;
+   }
    stable=chosen&&signature===previous?stable+1:0;previous=signature;
    const amount=bikeDiscountVariantPrice(price);
    rows.readIssue=!chosen?'selectionUnconfirmed':amount===null?'priceMissing':/^ab\s/i.test(price)?'fromPrice':!stock?'stockMissing':'selectionUnsettled';
-   if(stable>=2&&amount!==null&&!/^ab\s/i.test(price)&&stock){current={price:amount,stock:stockText(stock),ean};break;}
+   if(stable>=1&&amount!==null&&!/^ab\s/i.test(price)&&stock){current={price:amount,stock:stockText(stock),ean};break;}
    await pause(250);
   }
   if(current)rows.push({...fallback,ean:current.ean||'',name:document.querySelector('h1')?.innerText.trim()||fallback.name,variant:/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · '+variant.text:[variant.text,color].filter(Boolean).join(' · '),price:current.price,priceKind:'exact',stock:current.stock,url:location.href,source:'Firefox · ausgewählte Produktvariante',selection:[{kind:'radio',id:variant.id,value:variant.id,text:variant.text}]});

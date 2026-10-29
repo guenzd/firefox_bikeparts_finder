@@ -114,14 +114,19 @@ async function readKnownProducts(job,shop,tab,searchQuery){
   if(!jobActive(job))break;
   if(index&&hint.url!==unique[index-1].url)await navigateShop(job,shop,tab.id,hint.url);
   job.checkedKnownUrls.add(hint.url);
-  for(let attempt=0;attempt<6&&jobActive(job);attempt++){
+  let attempts=0;
+  for(let poll=0;poll<40&&attempts<6&&jobActive(job);poll++){
    await shopPause(job,shop,750);if(!jobActive(job))return;
    try{const result=await shopMessage(job,shop,tab.id,{type:'detail',nameQuery:job.nameQuery,query:searchQuery,variant:job.variant,host:shop.host,shopId:shop.id,url:hint.url,direct:true,followLinked:false,savedSelection:variantMatches(hint,job.variant)?cleanVariantSelection(hint.selection):[],fallback:{...hint,selection:[],variant:'',stock:'',price:null,ean:''}},20000);
+    // An old document can answer while navigation is still committing. Do not
+    // spend product-read attempts on it; the outer shop deadline still applies.
+    if(result.pageMatchesRequested===false)continue;
+    attempts++;
     if(result.blocked)continue;
     if(!result.ready)continue;
     const title=result.productName||'';
     offers.push(...(result.offers||[]).filter(o=>Number.isFinite(o.price)&&o.priceKind==='exact'&&variantMatches(o,job.variant)&&(ean?equivalentEANs(o.ean,ean):matchesKnownProduct(title,job.query,o,job.knownEAN))));break;
-   }catch{}
+   }catch(error){if(!/receiving end does not exist|could not establish connection|no matching message handler/i.test(String(error?.message||'')))attempts++;}
   }
  }
  return uniqueOffers(offers);

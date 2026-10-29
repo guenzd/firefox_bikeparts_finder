@@ -635,13 +635,13 @@ test('BIKE24 combines original model, datasheet EAN and selected 116 option with
 
 test('Bike-Discount confirms equivalent volume labels and parses price footnotes without accepting other selections or ambiguous prices',async()=>{
  for(const [selected,price,expected] of [['1000 ml','24,95 €*',1],['1L','24,95 € inkl. MwSt.',1],['500 ml','24,95 €',0],['1 L','29,95 € 24,95 €',0]]){
-  let now=0;const input={id:'volume',checked:true,disabled:false,parentElement:{querySelector:()=>({innerText:'1 L'})}};
+  let now=0;const input={id:'volume',checked:true,disabled:false,parentElement:{querySelector:()=>({innerText:'1 L',click(){}})}};
   const picker={getAttribute:()=> 'true',innerText:selected};
   const document={querySelector:s=>({'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':input,'.product-detail-price':{innerText:price},'.nele-product-availability-info':{innerText:'Auf Lager'},h1:{innerText:'Generic liquid'}}[s]),querySelectorAll:()=>[input],getElementById:()=>input};
   const ctx=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/generic-liquid'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);}});
   vm.runInContext(readSource('extract.js')+readSource('variant-match.js')+readSource('variants.js'),ctx);
   const rows=await ctx.bikeDiscountVariants({name:'Generic liquid'},'1000 ml');assert.equal(rows.length,expected);assert.equal(rows.inspectionComplete,true);
-  if(expected){assert.equal(rows[0].price,24.95);assert.ok(now<2000);}else assert.ok(now<7000);
+  if(expected){assert.equal(rows[0].price,24.95);assert.ok(now<2000);}else assert.ok(now<13000);
  }
 });
 
@@ -759,5 +759,18 @@ test('Bike-Discount product search redirect accepts equivalent EAN and UPC label
  const c=vm.createContext({document,URL,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/silca-super-secret-2.0-chain-lube-kettenwachs'},platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});vm.runInContext(readSource('variant-match.js')+readSource('extract.js')+readSource('shop.js'),c);
  for(const query of ['810093163519','0810093163519','00810093163519','10810093163519']){
   const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query});assert.equal(result.offers.length,query.startsWith('1')?0:1);if(result.offers.length){assert.equal(result.offers[0].ean,'0810093163519');assert.equal(result.offers[0].price,26.99);assert.equal(c.variantMatches(result.offers[0],'100 ml'),true);assert.equal(c.variantMatches(result.offers[0],'500 ml'),false);}
+ }
+});
+
+test('Bike-Discount restores checked radios whose shop label is still unselected, including a swallowed initialization click',async()=>{
+ for(const [swallowFirst,timerFloor] of [[false,0],[true,0],[false,7000]]){
+  let now=0,selected='',clicks=0,expanded=false;
+  const input={id:'flavour-cola',checked:true,disabled:false};
+  const label={innerText:'Cola (mit Koffein)',click(){clicks++;input.checked=true;if(!swallowFirst||clicks>1)selected=this.innerText;}};input.parentElement={querySelector:()=>label};
+  const picker={get innerText(){return selected||'Bitte wählen Sie eine Variante';},getAttribute:()=>String(expanded),click(){expanded=!expanded;}};
+  const document={querySelector:selector=>({'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':input,'.product-detail-price':{innerText:'44,99 €'},'.nele-product-availability-info':{innerText:'Lagernd, Lieferzeit 1-3 Tage'},h1:{innerText:'Generic gel box'}}[selector]||null),querySelectorAll:()=>[input],getElementById:()=>input};
+  const c=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/generic-gel'},Date:{now:()=>now},setTimeout(fn,ms){now+=Math.max(ms,timerFloor);setImmediate(fn);},euro:text=>Number(text.replace(',','.')),stockText:text=>text,currentProductEAN:()=>selected?'4029679672666':''});
+  vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),c);
+  const offers=await c.bikeDiscountVariants({name:'Generic gel box'},'Cola');assert.equal(offers.length,1);assert.equal(offers[0].ean,'4029679672666');assert.equal(offers[0].price,44.99);assert.equal(offers[0].selection[0].id,input.id);assert.equal(clicks,swallowFirst?2:1);
  }
 });

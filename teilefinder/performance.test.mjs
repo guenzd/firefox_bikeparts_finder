@@ -147,3 +147,13 @@ test('Known variants sharing one URL are restored separately without revisiting 
  ctx.searchPlatform.tabs={async update(){navigations++;},async sendMessage(_id,data){assert.equal(data.fallback.price,null);assert.equal(data.fallback.selection.length,0);const value=data.savedSelection[0].value;selected.push(value);return {ready:true,productName:'Generic product',offers:[{url,name:'Generic product',variant:value,price:value==='A'?10:20,priceKind:'exact',selection:data.savedSelection}]};}};
  const offers=await ctx.readKnownProducts(job,shop,{id:1},job.query);assert.deepEqual(selected,['A','B']);assert.equal(navigations,0);assert.deepEqual(Array.from(offers,row=>row.price),[10,20]);
 });
+
+test('Known product URLs survive slow reused-tab navigation without consuming all six product-read attempts',async()=>{
+ const c=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(){}}},URL,setTimeout,clearTimeout});
+ const files=['identifiers.js','products.js','variant-match.js','catalog.js','search-controller.js'];for(const file of files)vm.runInContext(readFileSync(new URL('./src/core/'+file,import.meta.url),'utf8'),c);
+ const url='https://www.bike-discount.de/de/known-product',ean='4029679672666',shop={id:'bike-discount',name:'Bike-Discount',host:'www.bike-discount.de',search(){throw Error('Known refresh must not navigate to a search');}};
+ const job={id:'slow-known',source:99,refreshKnown:true,query:ean,variant:'Cola',knownShops:[{name:shop.name,offers:[{name:'Old title',url,ean,price:99,variant:'Cola'}]}],results:new Map(),counts:new Map()};
+ c.job=job;vm.runInContext('jobs.set(job.source,job)',c);c.shopPause=async()=>{};
+ let reads=0;c.searchPlatform.tabs={async sendMessage(_id,data){assert.equal(data.url,url);assert.equal(data.direct,true);assert.equal(data.fallback.price,null);reads++;return reads<10?{ready:false,pageMatchesRequested:false,offers:[]}:{ready:true,pageMatchesRequested:true,productName:'Fresh title',offers:[{name:'Fresh title',url,ean,variant:'Cola',price:44.99,priceKind:'exact',stock:'Auf Lager'}]};}};
+ const offers=await c.readKnownProducts(job,shop,{id:1},ean);assert.equal(reads,10);assert.equal(offers.length,1);assert.equal(offers[0].price,44.99);assert.ok(job.checkedKnownUrls.has(url));
+});
