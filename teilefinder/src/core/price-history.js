@@ -10,8 +10,8 @@ function cleanPriceHistory(rows){
 }
 function priceObservations(shops,searchId,at){
  const byEAN=new Map();
- for(const shop of shops){if(shop.stale||!shop.done)continue;for(const offer of shop.offers||[]){const ean=validEAN(offer.ean);if(!ean||offer.eanEvidence==='datasheet'||offer.priceKind!=='exact'||!Number.isFinite(offer.price)||offer.price<=0||!deliverable(offer.stock))continue;const rows=byEAN.get(ean)||[];rows.push({shop:shop.name,price:offer.price,url:cleanShopUrl(offer.url),stock:offer.stock});byEAN.set(ean,rows);}}
- return [...byEAN].map(([ean,offers])=>({key:searchId+'|'+ean,ean,at,offers:offers.sort((a,b)=>a.price-b.price)}));
+ for(const shop of shops){if(shop.stale||!shop.done)continue;for(const offer of shop.offers||[]){const ean=validEAN(offer.ean);if(!ean||offer.eanEvidence==='datasheet'||offer.priceKind!=='exact'||!Number.isFinite(offer.price)||offer.price<=0||!deliverable(offer.stock))continue;const key=gtinKey(ean),entry=byEAN.get(key)||{ean,offers:[]};entry.offers.push({shop:shop.name,price:offer.price,url:cleanShopUrl(offer.url),stock:offer.stock});byEAN.set(key,entry);}}
+ return [...byEAN.values()].map(({ean,offers})=>({key:searchId+'|'+ean,ean,at,offers:offers.sort((a,b)=>a.price-b.price)}));
 }
 // Keep the endpoints of each unchanged-price run in the selected time window.
 // Stored observations remain complete for exports and future views.

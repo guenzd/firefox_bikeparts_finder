@@ -37,7 +37,7 @@ test('Cancelled linked-variant checks stop after the pending wait instead of iss
 test('A saved URL already checked in this shop run is not revisited by the empty-EAN fallback',async()=>{
  const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
  const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}}}},setTimeout:(fn,ms)=>ms<10000?setImmediate(fn):setTimeout(fn,ms),clearTimeout,URL});
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/catalog.js',import.meta.url),'utf8')+controller,ctx);
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/catalog.js',import.meta.url),'utf8')+controller,ctx);
  let navigations=0,details=0;const url='https://r2-bike.com/example-product',ean='1234567890128';
  const shop={id:'r2-bike',name:'r2-bike',host:'r2-bike.com',search:q=>'https://r2-bike.com/suchergebnisse#search?query='+q};
  const hint={url,name:'Example Model 123',ean,variant:'black',price:25,priceKind:'exact',stock:'Auf Lager'};
@@ -58,8 +58,8 @@ test('bike-components products without a selector read current price and stock i
   if(selector.includes('.stock-status'))return {innerText:'Auf Lager'};
   return null;
  }};
- const ctx=vm.createContext({URL,document,location:{hostname:'www.bike-components.de',href:url},platform:{runtime:{onMessage:{addListener(){}}}},dedupe:rows=>rows,productDropdowns:()=>[],currentProductEAN:()=> '1234567890128',productColor:()=>''});
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
+ const ctx=vm.createContext({URL,document,location:{hostname:'www.bike-components.de',href:url},platform:{runtime:{onMessage:{addListener(){}}}},dedupe:rows=>rows,productDropdowns:()=>[],currentProductEAN:()=> '1234567890128',productColor:()=>'',fixedProductProperties:()=>''});
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
  const result=await ctx.readShopPage({type:'detail',query:'Example Model 123',shopId:'bike-components',host:'www.bike-components.de',url,direct:true,fallback:{name:'Old product',price:999,variant:'Old variant',ean:'9999999999999'}});
  assert.equal(result.ready,true);assert.equal(result.offers[0].price,29.99);assert.equal(result.offers[0].ean,'1234567890128');assert.equal(result.offers[0].stock,'Auf Lager');
  priceAvailable=false;const missing=await ctx.readShopPage({type:'detail',query:'Example Model 123',shopId:'bike-components',host:'www.bike-components.de',url,direct:true,fallback:{name:'Old product',price:999}});assert.equal(missing.ready,false);assert.equal(missing.offers[0].price,null);
@@ -112,7 +112,7 @@ test('Already interactive and complete documents can be read immediately',async(
 test('Profiles keep the requested product identity through query refinement and distinguish a disabled EAN',async()=>{
  const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');let listener;
  const ctx=vm.createContext({searchPlatform:{runtime:{getURL:path=>'extension://unit/'+path,onMessage:{addListener(fn){listener=fn;}}}},setTimeout,clearTimeout});
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
  ctx.searchAll=async job=>{job.query='internally refined query';job.nameQuery='normalized name';};
  for(const useEAN of [true,false]){
   await listener({type:'search',id:'identity-'+useEAN,query:'  Example Model 123  ',ean:'1234567890128',variant:' black ',useEAN},{url:'extension://unit/ui/home.html',tab:{id:99}});
@@ -127,7 +127,7 @@ test('Profiles keep the requested product identity through query refinement and 
 test('A completed but unconfirmed saved variant is checked once, retains its diagnostic and never starts wishlist search',async()=>{
  const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(){}}},URL,setTimeout,clearTimeout});
  const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
  const url='https://www.bike-discount.de/de/generic-liquid',ean='1234567890128',shop={id:'bike-discount',name:'Bike-Discount',host:'www.bike-discount.de',search(){throw Error('Known URL must not start search');}};
  const job={id:'one',source:99,refreshKnown:true,query:ean,variant:'1000 ml',knownShops:[{name:shop.name,offers:[{url,name:'Generic liquid',ean}]}],results:new Map(),counts:new Map()};
  ctx.job=job;vm.runInContext('jobs.set(job.source,job)',ctx);ctx.shopTab=async()=>({id:1});ctx.shopPause=async()=>{};

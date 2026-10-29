@@ -23,7 +23,7 @@ Search profiling keeps only the last 20 finished/cancelled jobs in UI memory, in
 
 ## Product identity and saved variants
 
-Matching uses general product/model, EAN and variant rules, without a product-specific search dictionary. Shop-specific readers adapt to each DOM. Explicit conflicting EANs are rejected. Ambiguous BIKE24 datasheet identifiers are not assigned to variants by list order; combined datasheet evidence is excluded from variant-specific history and cross-shop EAN propagation.
+Matching uses general product/model, EAN and variant rules, without a product-specific search dictionary. Shop-specific readers adapt to each DOM. Equivalent zero-padded GS1 GTIN representations are compared as the same identifier without rewriting user input. An empty identifier search may retry one equivalent UPC/EAN representation in the same tab and within the existing shop time budget; a different packaging indicator remains a different product. Explicit conflicting EANs are rejected. Ambiguous BIKE24 datasheet identifiers are not assigned to variants by list order; combined datasheet evidence is excluded from variant-specific history and cross-shop EAN propagation.
 
 Known URLs and bounded option metadata (control kind, ID/name/label, option value/text) are stored locally and exported with the wishlist. Refresh restores choices through the existing dropdown/radio/option readers, then reads fresh identity, prices and stock. Missing options fall back to variant inspection. No arbitrary saved scripts or DOM selectors are executed. The BIKE24 purchase-event guard remains active during selection. No cart, checkout or purchase actions exist.
 

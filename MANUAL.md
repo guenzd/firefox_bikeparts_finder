@@ -41,7 +41,7 @@ Vor dem Update „Als Datei speichern“ verwenden. Für Entwicklungsinstallatio
 | Variante | Gewünschte Merkmale, etwa `30 mm`, `black, M` oder `116` |
 | Preis € | Maximum wie `60` oder Bereich wie `30-60`; Dezimalkomma ist möglich |
 
-„Suchen“ startet die vier Shops. Zuerst werden Suchtreffer ausgewertet; Produktseiten und Optionen werden für fehlende Angaben geprüft. Mengen wie `1 L` und `1000 ml` werden gleichgesetzt. Modellnummern und Zahlenvarianten bleiben streng; die Ausführung kann im Titel oder in der ausgewählten Option stehen. Zeichensetzung im Produktnamen zählt nicht als eigenes Suchwort. Es gibt keine produktbezogenen Suchbegriff-Sonderregeln.
+„Suchen“ startet die vier Shops. Zuerst werden Suchtreffer ausgewertet; Produktseiten und Optionen werden für fehlende Angaben geprüft. Mengen wie `1 L` und `1000 ml` werden gleichgesetzt. Modellnummern und Zahlenvarianten bleiben streng; die Ausführung kann im Titel oder in der ausgewählten Option stehen. Zeichensetzung im Produktnamen zählt nicht als eigenes Suchwort. Bei festen Produkten werden auch ausdrücklich beschriftete Angaben wie „Inhalt: 100 ml“ aus der Produktbeschreibung berücksichtigt. Mengen in Werbetexten oder Grundpreisen bestätigen keine Variante. Es gibt keine produktbezogenen Suchbegriff-Sonderregeln.
 
 Wenn der Name passt, aber die Variante nicht bestätigt wurde, erscheinen andere Ausführungen zur Auswahl. „Ohne Variantenfilter suchen“ entfernt den Variantenfilter. Ähnliche Produkte lassen sich übernehmen; dadurch startet eine neue Suche. Preisgrenzen schränken auch Vorschläge ein. Bei gesetzter Grenze werden Vorschläge ohne bestätigten Preis ausgeblendet.
 
@@ -55,7 +55,7 @@ Die Einzelteilsuche klappt Wunschliste und deren Ergebnisse ein, ohne sie zu lö
 
 Eine eindeutig gefundene EAN wird beim zugehörigen Artikel ergänzt. Unterschiedliche mögliche Kennungen werden nicht willkürlich ausgewählt. Das Kopiersymbol neben einer EAN kopiert sie in die Zwischenablage **und** übernimmt sie ins zugehörige EAN-Feld.
 
-Mit aktiviertem EAN-Schalter wird eine vorhandene EAN als Suchbegriff verwendet. Eine ausdrücklich andere Kennung wird ausgeschlossen. Bei mehreren bestätigten Treffern kann der Produktname die Auswahl weiter eingrenzen, ersetzt aber keine EAN-Bestätigung. Bei der Einzelteilsuche werden Shops ohne EAN-Treffer anschließend auch mit dem Namen geprüft. Mit ausgeschaltetem Schalter wird nach dem Namen gesucht; eine gespeicherte EAN kann dennoch ein gelesenes Angebot bestätigen.
+Mit aktiviertem EAN-Schalter wird eine vorhandene EAN als Suchbegriff verwendet. Gleichwertige UPC-/EAN-Schreibweisen mit führenden Auffüllnullen werden als dieselbe Kennung erkannt. Bei einer leeren Kennungssuche wird einmal die gleichwertige UPC-/EAN-Schreibweise im selben Shop-Tab versucht. Verpackungskennungen mit anderer führender Ziffer gelten weiterhin als andere Artikel. Die eingegebene Kennung wird dabei nicht umgeschrieben. Eine ausdrücklich andere Kennung wird ausgeschlossen. Bei mehreren bestätigten Treffern kann der Produktname die Auswahl weiter eingrenzen, ersetzt aber keine EAN-Bestätigung. Bei der Einzelteilsuche werden Shops ohne EAN-Treffer anschließend auch mit dem Namen geprüft. Mit ausgeschaltetem Schalter wird nach dem Namen gesucht; eine gespeicherte EAN kann dennoch ein gelesenes Angebot bestätigen.
 
 Wird die EAN erst im Suchlauf gefunden, können Shops mit mehreren Treffern einmal damit nachgeprüft werden. Eine erfolglose Nachsuche entfernt keine zuvor bestätigten passenden Angebote.
 

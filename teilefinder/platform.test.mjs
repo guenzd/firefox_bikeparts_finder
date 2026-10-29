@@ -70,7 +70,7 @@ for(const kind of ['firefox','chrome'])test(`${kind} search controller finishes 
  vm.runInContext(source('page.js').split('var pagePlatforms=')[0],e.ctx);const page=e.ctx.createPagePlatforms(e.api);
  const results=[],fast=(fn,ms)=>ms>=10000?setTimeout(fn,ms):setImmediate(fn);
  const ctx=vm.createContext({searchPlatform:page.search,URL,setTimeout:fast,clearTimeout});
- for(const file of ['products.js','variant-match.js','catalog.js','search-controller.js'])vm.runInContext(readFileSync(new URL('./src/core/'+file,import.meta.url),'utf8'),ctx);
+ for(const file of ['identifiers.js','products.js','variant-match.js','catalog.js','search-controller.js'])vm.runInContext(readFileSync(new URL('./src/core/'+file,import.meta.url),'utf8'),ctx);
  page.ui.runtime.onMessage.addListener(data=>{if(data.type==='result')results.push(data);});
  const accepted=await page.ui.runtime.sendMessage({type:'search',id:'first',query:'Example product'});assert.equal(accepted.accepted,true);
  for(let i=0;i<15;i++)await new Promise(setImmediate);assert.ok(reads>0);

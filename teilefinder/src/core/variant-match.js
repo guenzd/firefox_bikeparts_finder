@@ -64,7 +64,7 @@ function deliverable(stock){
 // Distinct matched products are a comparison, not evidence for one shared EAN.
 function hasDifferentProducts(offers){
  const rows=offers.filter(o=>['exact','from'].includes(o.priceKind)&&Number.isFinite(o.price));
- const identifiers=new Set(rows.map(o=>validEAN(o.ean)).filter(Boolean));
+ const identifiers=new Set(rows.map(o=>gtinKey(o.ean)).filter(Boolean));
  if(rows.length&&rows.every(o=>validEAN(o.ean))&&identifiers.size===1)return false;
  return new Set(rows.map(o=>String(o.name||'').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()).filter(Boolean)).size>1;
 }
@@ -72,13 +72,13 @@ function hasDifferentProducts(offers){
 function shareVariantEAN(shops,requested,known=''){
  if(!validEAN(known)&&shops.some(shop=>shop.comparisonMode==='cheapest'))return {ean:'',shops};
  const candidates=shops.filter(s=>!s.stale).flatMap(s=>s.offers||[]).filter(o=>o.eanEvidence!=='datasheet'&&o.priceKind==='exact'&&variantMatches(o,requested));
- const identifiers=[...new Set(candidates.map(o=>validEAN(o.ean)).filter(Boolean))];
+ const identifiers=distinctEANs(candidates.map(o=>validEAN(o.ean)));
  // A shop may list several executions. Only an identifier shared by every
  // shop that actually extracted identifiers is unambiguous; never vote by count.
- const perShop=shops.filter(s=>!s.stale).map(s=>[...new Set((s.offers||[]).filter(o=>o.eanEvidence!=='datasheet'&&o.priceKind==='exact'&&variantMatches(o,requested)).map(o=>validEAN(o.ean)).filter(Boolean))]).filter(ids=>ids.length);
- const common=perShop.length?perShop[0].filter(ean=>perShop.every(ids=>ids.includes(ean))):[];
+ const perShop=shops.filter(s=>!s.stale).map(s=>distinctEANs((s.offers||[]).filter(o=>o.eanEvidence!=='datasheet'&&o.priceKind==='exact'&&variantMatches(o,requested)).map(o=>validEAN(o.ean)))).filter(ids=>ids.length);
+ const common=perShop.length?perShop[0].filter(ean=>perShop.every(ids=>ids.some(value=>equivalentEANs(value,ean)))):[];
  const ean=validEAN(known)||(common.length===1?common[0]:'');
- if(!ean||identifiers.length!==1||identifiers.some(value=>value!==ean))return {ean,shops};
+ if(!ean||identifiers.length!==1||identifiers.some(value=>!equivalentEANs(value,ean)))return {ean,shops};
  if(!requested?.trim())return {ean,shops};
  return {ean,shops:shops.map(shop=>({...shop,offers:(shop.offers||[]).map(o=>!shop.stale&&o.priceKind==='exact'&&variantMatches(o,requested)&&!validEAN(o.ean)?{...o,ean}:o)}))};
 }
@@ -87,7 +87,7 @@ function shareVariantEAN(shops,requested,known=''){
 // never be restored as a matching offer. Unread identifiers stay unconfirmed.
 function filterConflictingEANs(shops,ean){
  if(!validEAN(ean))return shops;
- const compatible=offer=>!validEAN(offer.ean)||validEAN(offer.ean)===ean;
+ const compatible=offer=>!validEAN(offer.ean)||equivalentEANs(offer.ean,ean);
  return shops.map(shop=>{
   const offers=(shop.offers||[]).filter(compatible);
   return {...shop,offers,suggestions:(shop.suggestions||[]).filter(compatible),

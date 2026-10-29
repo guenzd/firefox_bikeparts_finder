@@ -63,7 +63,7 @@ function structuredOffers(json,host,fallbackUrl,q){
    const name=[brandName,group?.name&&group.name+' ·',p.name].filter(Boolean).join(' ');
    for(const o of [].concat(p.offers)){
     const ean=productEAN(p,o);
-    if(!matches(name,q)&&ean!==q&&!['sku','mpn'].some(k=>String(p[k]||'')===q))continue;
+    if(!matches(name,q)&&!equivalentEANs(ean,q)&&!['sku','mpn'].some(k=>String(p[k]||'')===q))continue;
     const url=safeUrl(o.url||p.url||fallbackUrl,host),price=euro(o.price??o.lowPrice);
     if(!url||o.priceCurrency!=='EUR'||price===null)continue;
     const status=String(o.availability||'').split('/').pop();

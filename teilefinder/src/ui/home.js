@@ -91,7 +91,7 @@ platform.runtime.onMessage.addListener(d=>{
  if(['result','partial-result'].includes(d.type)){
   const offers=(d.offers||[]).filter(o=>{try{const u=new URL(o.url),search=new URL(d.url);return u.protocol==='https:'&&u.hostname.replace(/^www\./,'')===search.hostname.replace(/^www\./,'')&&typeof o.name==='string'&&Number.isFinite(o.price)&&o.price>0;}catch{return false;}});
   const suggestions=(d.suggestions||[]).filter(o=>{try{return new URL(o.url).protocol==='https:'&&new URL(o.url).hostname.replace(/^www\./,'')===new URL(d.url).hostname.replace(/^www\./,'')&&typeof o.name==='string';}catch{return false;}});
-  const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||validEAN(o.ean)===requestedEAN);
+  const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||equivalentEANs(o.ean,requestedEAN));
   const kept=!offers.length&&previousOffers.length;
   state.set(d.shop,{comparisonMode:d.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
  }
@@ -255,7 +255,7 @@ document.querySelector('#add-wish').addEventListener('click',async()=>{
  if(!q){document.querySelector('#query').reportValidity();return;}
  if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity()||!document.querySelector('#search-ean').reportValidity())return;
  const requested=document.querySelector('#search-variant').value.trim(),ean=validEAN(document.querySelector('#search-ean').value);
- const sameEAN=!ean||ean===searchedEAN||[...state.values()].some(shop=>(shop.offers||[]).some(offer=>validEAN(offer.ean)===ean));
+ const sameEAN=!ean||equivalentEANs(ean,searchedEAN)||[...state.values()].some(shop=>(shop.offers||[]).some(offer=>equivalentEANs(offer.ean,ean)));
  const reuseResults=!wishlistDetails&&q===query&&requested===searchedVariant&&sameEAN&&names.every(name=>state.get(name)?.done);
  const shops=q===query&&requested===searchedVariant?[...state.entries()].filter(([,s])=>s.done).map(([name,s])=>({name,...s})):[];
  const itemId=crypto.randomUUID();

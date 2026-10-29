@@ -68,7 +68,7 @@ function wishlistShopEntries(items,name,activeId='',live=new Map()){
 function knownSearchShops(current,items,ean){
  const groups=new Map(current.map(shop=>[shop.name,{name:shop.name,comparisonMode:shop.comparisonMode,offers:[...(shop.offers||[])]}]));
  if(validEAN(ean))for(const item of items)for(const shop of item.shops||[]){
-  const offers=(shop.offers||[]).filter(o=>validEAN(o.ean)===ean);
+  const offers=(shop.offers||[]).filter(o=>equivalentEANs(o.ean,ean));
   if(!offers.length)continue;
   if(!groups.has(shop.name))groups.set(shop.name,{name:shop.name,offers:[]});
   groups.get(shop.name).offers.push(...offers);

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Teilefinder – Fahrradteile vergleichen",
-  "version": "0.8.22",
+  "version": "0.8.23",
   "description": "Vergleicht Fahrradteile in vier Shops direkt in deinem Browser. Ohne lokalen Server.",
   "permissions": [
     "storage",
@@ -23,6 +23,7 @@
       "js": [
         "platform/api.js",
         "platform/content.js",
+        "core/identifiers.js",
         "core/products.js",
         "core/variant-match.js",
         "shops/extract.js",

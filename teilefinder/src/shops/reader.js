@@ -25,7 +25,7 @@ function bcCards(q,limit=8){
 function confirmBike24ProductMatch(result,data,productName){
  if(data.shopId!=='bike24')return result;
  const ean=validEAN(data.query);
- if(!ean||!data.variant?.trim()||!data.nameQuery||validEAN(data.nameQuery)||!matches(productName,data.nameQuery)||!result.eanCandidates?.includes(ean))return result;
+ if(!ean||!data.variant?.trim()||!data.nameQuery||validEAN(data.nameQuery)||!matches(productName,data.nameQuery)||!result.eanCandidates?.some(value=>equivalentEANs(value,ean)))return result;
  return {...result,offers:(result.offers||[]).map(offer=>!validEAN(offer.ean)&&offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.selection?.length&&offer.selection.every(option=>option.value)&&variantMatches(offer,data.variant)?{...offer,ean,eanEvidence:'datasheet'}:offer)};
 }
 // A timed-out message does not cancel DOM work. Share duplicate retries and
@@ -68,7 +68,7 @@ async function readShopPage(data){
   const priceNode=data.direct?(data.shopId==='bike-discount'?document.querySelector('.product-detail-price'):document.querySelector('#buy_form .price, #product-offer [itemprop="price"], [data-test="auto-product-price"], .product-detail-price, [itemprop="offers"] [itemprop="price"], .product-info .price, .product-price')):null;
   const priceText=(priceNode?.innerText||priceNode?.textContent||priceNode?.getAttribute('content')||'').trim();
   const amount=priceText.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);const freshPrice=amount?euro(amount[1]):euro(priceNode?.getAttribute('content'));
-  const offer=data.fallback?{...data.fallback,ean:currentProductEAN(),variant:[data.fallback.variant,productColor()].filter(Boolean).join(' · '),stock,...(data.direct?{price:freshPrice,priceKind:/^ab\s/i.test(priceText)?'from':'exact',name:document.querySelector('h1')?.innerText?.trim()||'',variant:[document.querySelector('h1')?.innerText?.trim(),productColor()].filter(Boolean).join(' · ')}:{})}:null;
+  const offer=data.fallback?{...data.fallback,ean:currentProductEAN(),variant:[data.fallback.variant,productColor()].filter(Boolean).join(' · '),stock,...(data.direct?{price:freshPrice,priceKind:/^ab\s/i.test(priceText)?'from':'exact',name:document.querySelector('h1')?.innerText?.trim()||'',variant:[document.querySelector('h1')?.innerText?.trim(),productColor(),fixedProductProperties()].filter(Boolean).join(' · ')}:{})}:null;
   return {ready:same&&!!document.querySelector('h1')&&(!data.direct||freshPrice!==null),stock,...(offer?{offers:[offer]}:{})};
  }
  // A single-result shop search can redirect directly to a product page.
@@ -79,8 +79,8 @@ async function readShopPage(data){
   const amount=priceText.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);
   const configurable=!!document.querySelector('#productDetailConfiguratorOptions');
   const stock=bikeDiscountStock();
-  const accepted=validEAN(data.query)?!ean||ean===data.query:matches(name,data.query);
-  const offers=accepted&&amount?[{name,ean,price:euro(amount[1]),priceKind:/^ab\s/i.test(priceText)?'from':'exact',variant:configurable?'Ausführung im Shop prüfen':productColor()||name,stock,url:location.href,source:'Firefox · Produktseite'}]:[];
+  const accepted=validEAN(data.query)?!ean||equivalentEANs(ean,data.query):matches(name,data.query);
+  const offers=accepted&&amount?[{name,ean,price:euro(amount[1]),priceKind:/^ab\s/i.test(priceText)?'from':'exact',variant:configurable?'Ausführung im Shop prüfen':[productColor()||name,fixedProductProperties()].filter(Boolean).join(' · '),stock,url:location.href,source:'Firefox · Produktseite'}]:[];
   return {blocked:false,offers,suggestions:[],ready:document.readyState==='complete',empty:!accepted,message:!accepted&&validEAN(data.query)&&ean?'Gefundenes Produkt hat EAN '+ean+' statt der gesuchten EAN '+data.query+'.':''};
  }
  const listingQuery=validEAN(data.query)?'':data.query;

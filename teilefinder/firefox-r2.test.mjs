@@ -733,3 +733,31 @@ test('General searches inspect cheaper unavailable products beyond three, then s
  for(const count of details.values())assert.equal(count,4);
  for(const result of results){assert.equal(result.comparisonMode,'cheapest');assert.equal(c.displayedShopOffers(result,{})[0].price,4);}
 });
+
+test('Empty UPC searches retry an equivalent EAN in the same four tabs and verify returned product identity',async()=>{
+ for(const wrong of [false,true]){
+  let listener,created=0;const home='moz-extension://unit/home.html',messages=[],tabs=new Map(),navigations=[];
+  const upc='810093163519',ean='0810093163519';
+  const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){const id=++created;tabs.set(id,o.url);return {id};},async update(id,o){tabs.set(id,o.url);navigations.push(o.url);},async get(){return {};},async sendMessage(tab,data){
+   if(data.type==='detail')return {ready:true,offers:[data.fallback]};
+   const query=new URL(tabs.get(tab));
+   if(!query.href.includes(ean))return {ready:true,empty:true,offers:[]};
+   return {ready:true,offers:[{name:'Silca Super Secret 2.0 Chain Lube Kettenwachs',ean:wrong?'10810093163519':ean,variant:'100 ml',price:26.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/wax'}]};
+  }}};
+  vm.runInNewContext(source,{platform,URL,clearTimeout,setTimeout:fastTimeout});
+  await listener({type:'search',id:'upc',query:'Silca Super Secret 2.0',ean:upc,variant:'100 ml'},{url:home,tab:{id:99}});
+  for(let i=0;i<180;i++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);assert.equal(created,4);
+  assert.equal(navigations.filter(url=>url.includes(ean)).length,4);
+  for(const result of results){assert.equal(result.query,upc);assert.equal(result.offers.length,wrong?0:1);assert.ok(result.url.includes(ean));if(!wrong)assert.equal(result.offers[0].ean,ean);}
+ }
+});
+
+test('Bike-Discount product search redirect accepts equivalent EAN and UPC labels together',async()=>{
+ let listener;
+ const document={readyState:'complete',body:{innerText:'Silca Super Secret 2.0 Chain Lube Kettenwachs'},querySelector:s=>({h1:{innerText:'Silca Super Secret 2.0 Chain Lube Kettenwachs'},'.product-detail-price':{innerText:'26,99 €'},'.product-detail-buy':{innerText:'Auf Lager'},'#description-tab-pane':{textContent:'EAN: 0810093163519\nUPC: 810093163519',querySelectorAll:selector=>selector==='tr'?[]:[{textContent:'Inhalt',nextElementSibling:{textContent:'100 ml'}}]}}[s]||null),querySelectorAll:()=>[]};
+ const c=vm.createContext({document,URL,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/silca-super-secret-2.0-chain-lube-kettenwachs'},platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});vm.runInContext(readSource('variant-match.js')+readSource('extract.js')+readSource('shop.js'),c);
+ for(const query of ['810093163519','0810093163519','00810093163519','10810093163519']){
+  const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query});assert.equal(result.offers.length,query.startsWith('1')?0:1);if(result.offers.length){assert.equal(result.offers[0].ean,'0810093163519');assert.equal(result.offers[0].price,26.99);assert.equal(c.variantMatches(result.offers[0],'100 ml'),true);assert.equal(c.variantMatches(result.offers[0],'500 ml'),false);}
+ }
+});

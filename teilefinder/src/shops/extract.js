@@ -16,7 +16,7 @@ function bike24SkuEAN(allowURLSKU=true){
  };
  try{scan(JSON.parse(cart?.getAttribute('data-props')||'null'));}catch{}
  for(const node of document.querySelectorAll('script[type="application/ld+json"]')){try{scan(JSON.parse(node.textContent));}catch{}}
- return identifiers.size===1?[...identifiers][0]:'';
+ const unique=distinctEANs([...identifiers]);return unique.length===1?unique[0]:'';
 }
 function bike24DataSheetEANs(){
  const identifiers=new Set();
@@ -24,7 +24,7 @@ function bike24DataSheetEANs(){
   if(!/^(?:GTIN|EAN|UPC)\s*:?$/i.test((label.textContent||'').trim()))continue;
   for(const match of (label.nextElementSibling?.textContent||'').matchAll(/(?<!\d)\d{8,14}(?!\d)/g))identifiers.add(match[0]);
  }
- return [...identifiers];
+ return distinctEANs([...identifiers]);
 }
 async function openBike24DataSheet(){
  const labels=()=>[...document.querySelectorAll('.product-detail-data-sheet__row td, .product-detail-data-sheet__row th, .product-detail-data-sheet dt')].filter(node=>/^(?:GTIN|EAN|UPC)\s*:?$/i.test((node.textContent||'').trim()));
@@ -47,7 +47,7 @@ async function openBike24DataSheet(){
 function currentProductEAN({allowURLSKU=true}={}){
  const mapped=bike24SkuEAN(allowURLSKU);if(mapped)return mapped;
  const description=document.querySelector('#tab-description')||document.querySelector('#description-tab-pane');
- const described=[...new Set([...(description?.textContent||'').matchAll(/\b(?:EAN|GTIN|UPC)\s*:?\s*(\d{8,14})(?!\d)/gi)].map(m=>m[1]))];
+ const described=distinctEANs([...(description?.textContent||'').matchAll(/\b(?:EAN|GTIN|UPC)\s*:?\s*(\d{8,14})(?!\d)/gi)].map(m=>m[1]));
  if(described.length===1)return described[0];
  if(described.length>1)return '';
  const direct=document.querySelector('.nele-fact-ean, .nele-fact-upc, [itemprop="gtin13"], [itemprop="gtin12"], [itemprop="gtin14"], [itemprop="gtin8"], [itemprop="gtin"]');
@@ -59,7 +59,7 @@ function currentProductEAN({allowURLSKU=true}={}){
   const cell=label.nextElementSibling;
   for(const match of (cell?.textContent||'').matchAll(/(?<!\d)\d{8,14}(?!\d)/g))identifiers.add(match[0]);
  }
- return identifiers.size===1?[...identifiers][0]:'';
+ const unique=distinctEANs([...identifiers]);return unique.length===1?unique[0]:'';
 }
 function productColor(){
  // Product property tables can be collapsed; their labelled text remains in DOM.
@@ -73,6 +73,23 @@ function productColor(){
  if(colors.size===1)return [...colors][0];if(colors.size>1)return '';
  const text=document.body?.innerText||'';
  return text.match(/(?:^|\n)Farbe\s*:?\s*\n?\s*(schwarz(?:\s*\/\s*transparent)?|black|weiß|weiss|white)\b/i)?.[1]||'';
+}
+// Fixed product facts may live in a collapsed description, outside the title.
+// Read labelled values only; amounts in prose, base prices and shipping are not variants.
+function fixedProductProperties(){
+ const root=document.querySelector('#description-tab-pane')||document.querySelector('#tab-description');
+ if(!root)return '';
+ const fields=new Map();
+ const add=(label,value)=>{
+  const key=String(label||'').replace(/\s+/g,' ').trim().replace(/:$/,'').toLowerCase();
+  if(!/^(?:inhalt|volumen|fullmenge|füllmenge|fassungsvermogen|fassungsvermögen|breite|lange|länge|durchmesser)$/.test(key))return;
+  const text=String(value||'').replace(/\s+/g,' ').trim();
+  if(!/^\d+(?:[.,]\d+)?\s*(?:ml|cl|l|g|kg|mm|cm|m)$/i.test(text))return;
+  const values=fields.get(key)||new Set();values.add(text);fields.set(key,values);
+ };
+ for(const node of root.querySelectorAll?.('h2, h3, h4, dt')||[])add(node.textContent,node.nextElementSibling?.textContent);
+ for(const row of root.querySelectorAll?.('tr')||[]){const cells=[...row.querySelectorAll('th, td')];if(cells.length===2)add(cells[0].textContent,cells[1].textContent);}
+ return [...fields].filter(([,values])=>values.size===1).map(([label,values])=>label+': '+[...values][0]).join(' · ');
 }
 function dedupe(rows){return typeof uniqueOffers==='function'?uniqueOffers(rows):[...new Map(rows.map(x=>[x.url+'|'+x.variant,x])).values()];}
 // This function runs in Chromium and reads only the visible shop DOM.
