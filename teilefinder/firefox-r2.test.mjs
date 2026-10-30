@@ -774,3 +774,15 @@ test('Bike-Discount restores checked radios whose shop label is still unselected
   const offers=await c.bikeDiscountVariants({name:'Generic gel box'},'Cola');assert.equal(offers.length,1);assert.equal(offers[0].ean,'4029679672666');assert.equal(offers[0].price,44.99);assert.equal(offers[0].selection[0].id,input.id);assert.equal(clicks,swallowFirst?2:1);
  }
 });
+
+test('Bike-Discount reads the selected labelled EAN when description also lists a different UPC',()=>{
+ let ean='4550170232771';
+ const description={get textContent(){return 'EAN: '+ean+' UPC: 192790232775';},querySelector:s=>s==='.nele-fact-ean'?{textContent:ean}:null};
+ const document={querySelector:s=>s==='#description-tab-pane'?description:null,querySelectorAll:()=>[]};
+ const c=vm.createContext({document,location:{hostname:'www.bike-discount.de'},URL});
+ vm.runInContext(readSource('identifiers.js')+readSource('extract.js'),c);
+ assert.equal(c.currentProductEAN(),'4550170232771');
+ ean='4550170232719';assert.equal(c.currentProductEAN(),'4550170232719');
+ description.querySelector=()=>null;
+ assert.equal(c.currentProductEAN(),'');
+});

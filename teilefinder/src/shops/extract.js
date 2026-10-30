@@ -47,6 +47,11 @@ async function openBike24DataSheet(){
 function currentProductEAN({allowURLSKU=true}={}){
  const mapped=bike24SkuEAN(allowURLSKU);if(mapped)return mapped;
  const description=document.querySelector('#tab-description')||document.querySelector('#description-tab-pane');
+ // Bike-Discount labels EAN and UPC separately. Both can identify the same
+ // selected variant without being zero-padding aliases; prefer its EAN field.
+ const labelled=description?.querySelector?.('.nele-fact-ean')||description?.querySelector?.('.nele-fact-upc');
+ const labelledValue=(labelled?.textContent||'').trim();
+ if(/^\d{8,14}$/.test(labelledValue))return labelledValue;
  const described=distinctEANs([...(description?.textContent||'').matchAll(/\b(?:EAN|GTIN|UPC)\s*:?\s*(\d{8,14})(?!\d)/gi)].map(m=>m[1]));
  if(described.length===1)return described[0];
  if(described.length>1)return '';
