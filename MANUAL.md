@@ -81,7 +81,7 @@ Im Editor übernimmt „Speichern“ die Änderungen gemeinsam. „Abbrechen“ 
 
 „Wunschliste prüfen“ aktualisiert alle Artikel nacheinander. Die Shops eines Artikels laufen parallel. Bei einer Einzelaktualisierung zeigt der obere Button den Fortschritt als 0/4 bis 4/4 Shops. Andere Aktionen, die dieselben Shop-Tabs benötigen, sind währenddessen gesperrt.
 
-Ein Klick auf den laufenden Fortschritt stoppt die Suche. Bereits gelesene Ergebnisse bleiben erhalten. Shopprüfungen haben Zeitlimits; blockierte oder nicht antwortende Shops sollen die Liste nicht dauerhaft aufhalten.
+Während der Prüfung ist die aktive Artikelzeile dezent grün hinterlegt; ihr Aktualisieren-Symbol dreht sich. Bei reduzierter Bewegung bleibt die Hervorhebung ohne Animation sichtbar. Ein Klick auf den laufenden Fortschritt stoppt die Suche. Bereits gelesene Ergebnisse bleiben erhalten. Shopprüfungen haben Zeitlimits; blockierte oder nicht antwortende Shops sollen die Liste nicht dauerhaft aufhalten.
 
 ## Bekannte Artikel direkt aktualisieren
 

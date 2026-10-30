@@ -294,3 +294,10 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .shop-summary{margin-left:auto;color:var(--muted);font-size:12px;font-weight:400;font-variant-numeric:tabular-nums;white-space:nowrap}
 .shop-results>.shop-heading>.shop-summary+.copy-list-button{margin-left:0}
 @media(max-width:760px){.shop-results>.shop-heading{flex-wrap:wrap;row-gap:6px}.shop-summary{white-space:normal}}
+
+/* Keep the active refresh visible without changing row dimensions. */
+.total-results .wishlist-item-refreshing>td{background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.wishlist-row-actions .recheck-button.is-refreshing{background:color-mix(in srgb,var(--accent) 16%,var(--surface));border-color:color-mix(in srgb,var(--accent) 40%,var(--field-line));color:var(--chart-line);opacity:1}
+.recheck-button.is-refreshing svg{animation:wishlist-refresh-turn 2.4s linear infinite;transform-origin:center}
+@keyframes wishlist-refresh-turn{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.recheck-button.is-refreshing svg{animation:none}}

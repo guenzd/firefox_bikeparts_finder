@@ -161,7 +161,7 @@ function wishlistRowActions(item){
   wishlistEditor={id:item.id,query:item.query,ean:item.ean||'',variant:item.variant||'',price:priceRangeText(item),useEAN:item.useEAN!==false};
   renderTotal();document.querySelector('#wish-editor-'+item.id+' input')?.focus();
  });actions.append(edit);
- const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
+ const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button'+(checkingList&&activeWishlistId===item.id?' is-refreshing':'');recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
  recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.addEventListener('click',()=>{wishlistEditor=null;void recheckWishlistItem(item.id);});
  const remove=el('button');remove.type='button';remove.className='secondary remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList||searchRunning;remove.dataset.shopAction='';
  remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.addEventListener('click',()=>{wishlist=wishlist.filter(row=>row.id!==item.id);if(wishlistEditor?.id===item.id)wishlistEditor=null;void saveList();renderWishlist();});
@@ -234,6 +234,7 @@ function renderTotal(){
  const previous=[];
  for(const {item,best,availableShops,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));product.append(productButton);
+  if(checkingList&&activeWishlistId===item.id){row.className='wishlist-item-refreshing';row.setAttribute('aria-busy','true');}
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
 
 

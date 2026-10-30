@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
-const uiContext=values=>{const ctx=vm.createContext({searchRunning:false,checkingList:false,wishlist:[],...values});vm.runInContext(readSource('identifiers.js'),ctx);return ctx;};
+const uiContext=values=>{const ctx=vm.createContext({searchRunning:false,checkingList:false,activeWishlistId:'',wishlist:[],...values});vm.runInContext(readSource('identifiers.js'),ctx);return ctx;};
 const home=readSource('home.js');
 const code=home.slice(home.indexOf('function suggestionRow('),home.indexOf('function eanRow('));
 test('Accepting a wishlist suggestion saves the name and immediately rechecks only that article, retaining EAN and filters',async()=>{
@@ -262,7 +262,11 @@ test('Unified wishlist keeps actions on unmatched rows and exposes a cancellable
  await actions().children[0].click();form=all(root).find(n=>n.tag==='form');fields=all(form).filter(n=>n.tag==='input');fields.at(-1).value='12-6';await form.listeners.submit({preventDefault(){}});assert.equal(writes,0);assert.ok(ctx.wishlistEditor);fields.at(-1).value='6-12';
  await form.listeners.submit({preventDefault(){}});assert.equal(writes,1);assert.equal(ctx.wishlist[0].minPrice,6);assert.equal(ctx.wishlist[0].maxPrice,12);assert.equal(ctx.wishlist[0].ean,item.ean);assert.equal(ctx.wishlist[0].useEAN,false);assert.equal(JSON.stringify(ctx.wishlist[0].shops),JSON.stringify(item.shops));assert.deepEqual(rechecks,[]);assert.equal(ctx.wishlistEditor,null);
  ctx.renderTotal();await actions().children[1].click();assert.deepEqual(rechecks,['one']);
- ctx.checkingList=true;ctx.renderTotal();assert.ok(actions().children.every(n=>n.disabled));
+ ctx.checkingList=true;ctx.activeWishlistId='one';ctx.renderTotal();assert.ok(actions().children.every(n=>n.disabled));
+ assert.ok(actions().children[1].className.includes('is-refreshing'));
+ const busyRow=all(root).find(n=>n.className==='wishlist-item-refreshing');assert.equal(busyRow.attrs['aria-busy'],'true');
+ ctx.activeWishlistId='another-item';ctx.renderTotal();assert.ok(!actions().children[1].className.includes('is-refreshing'));assert.ok(!all(root).some(n=>n.attrs['aria-busy']==='true'));
+ ctx.activeWishlistId='one';ctx.checkingList=false;ctx.renderTotal();assert.ok(!actions().children[1].className.includes('is-refreshing'));assert.ok(!all(root).some(n=>n.className==='wishlist-item-refreshing'));
  ctx.checkingList=false;ctx.renderTotal();await actions().children[2].click();assert.equal(ctx.wishlist.length,0);assert.equal(writes,2);assert.ok(renders>=2);
 });
 
