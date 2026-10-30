@@ -39,7 +39,8 @@ function matches(name,q){
   if(words.includes(token)||acronym(token,words))return true;
   // A pack count is meaningful even when attached to its per-item size (24x50g).
   // Keep numeric model identifiers and different counts strict.
-  if(/^\d+$/.test(token)&&[...text.matchAll(/(?:^|[^a-z0-9])(\d+)\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l)\b/g)].some(m=>m[1]===token))return true;
+  const packCount=token.match(/^(\d+)(?:er)?$/)?.[1];
+  if(packCount&&[...text.matchAll(/(?:^|[^a-z0-9])(\d+)(?:\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l)\b|er\b|\s*(?:stuck|stueck|pieces|pcs)\b)/g)].some(m=>m[1]===packCount))return true;
   // Accept abbreviations of consecutive words without a vocabulary of product names.
   for(let length=2;length<=4;length++)for(let start=Math.max(0,index-length+1);start<=index;start++){
    const phrase=requested.slice(start,start+length);

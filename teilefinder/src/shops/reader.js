@@ -98,7 +98,7 @@ async function bike24Details(fallback,followLinked,requested,savedSelection=[],r
  const cart=document.querySelector('#add-to-cart');if(!cart)return {ready:false,readIssue:'productNotReady'};
  let props;try{props=JSON.parse(cart.getAttribute('data-props'));}catch{return {ready:false,readIssue:'productNotReady'};}
  const clean=s=>String(s||'').replace(/\s*-\s*\d+[.,]\d{2}\s*(?:EUR|€).*$/i,'').trim();
- const linkedVariants=followLinked?(props.productVariantList?.variantList||[]).flatMap(v=>{const url=safeUrl(v.url,'www.bike24.de');return url?[{url,variant:clean(v.variant)}].filter(o=>!requested||variantMatches({...fallback,variant:o.variant},requested)):[];}):[];
+ const linkedVariants=followLinked?bike24LinkedCandidates(props,requested,clean):[];
  const pageBase=clean((props.productVariantList?.variantList||[]).find(v=>String(v.id)===String(props.productVariantList.currentVariantId))?.variant||'');
  const base=pageBase||fallback.baseVariant||'';
  let variants={offers:[],limited:false},readIssue='';
@@ -178,4 +178,15 @@ async function bike24PageProducts(props,base,requested){
   }
   return verified?{offers,limited}:null;
  }catch{return null;}finally{clearTimeout(timer);}
+}
+
+// A link can describe one axis (e.g. pack size) while a dropdown describes
+// another. Missing flavour/colour evidence on the link is not a contradiction.
+function bike24LinkedCandidates(props,requested,clean){
+ const rows=(props.productVariantList?.variantList||[]).flatMap(value=>{const url=safeUrl(value.url,'www.bike24.de');return url?[{url,variant:clean(value.variant)}]:[];});
+ if(!requested?.trim())return rows;
+ const choices=(props.productOptionList||[]).flatMap(group=>(group.optionValueList||[]).map(value=>value.name||'')).join(' ');
+ const plausible=rows.filter(row=>variantMatches({variant:[row.variant,choices].filter(Boolean).join(' ')},requested));
+ // Unknown axes require inspecting the linked page, never inventing a match.
+ return plausible.length?plausible:rows;
 }

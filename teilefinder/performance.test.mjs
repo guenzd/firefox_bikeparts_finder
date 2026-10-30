@@ -29,7 +29,7 @@ test('Security-check retries keep their slower interval and use the same four ta
  const result=await profileSearch({blockedReads:2});assert.equal(result.minBlockedRetryMs,2000);assert.equal(result.elapsedMs,6500);assert.equal(result.createdTabs,4);assert.equal(result.maxInFlightPerTab,1);
 });
 test('Cancelled linked-variant checks stop after the pending wait instead of issuing more detail reads',async()=>{
- let active=true,reads=0;const ctx=vm.createContext({URL,jobActive:()=>active,async navigateShop(){},async shopPause(){active=false;},async shopMessage(){reads++;return {ready:false};}});
+ let active=true,reads=0;const ctx=vm.createContext({URL,validEAN:q=>/^\d+$/.test(q),jobActive:()=>active,async navigateShop(){},async shopPause(){active=false;},async shopMessage(){reads++;return {ready:false};}});
  const source=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('async function bike24Linked(')),ctx);
  await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'Example product'},{},{offers:[],linkedVariants:[{url:'https://www.bike24.de/p1.html'}]});assert.equal(reads,0);
 });
@@ -225,4 +225,21 @@ test('Product readiness validates the target document and does not perform produ
  assert.equal((await listener({type:'ready',host:'bike24.de',url:'https://www.bike24.de/p2.html'})).ready,false);
  assert.equal((await listener({type:'ready',host:'r2-bike.com',url:'https://r2-bike.com/p1.html'})).ready,false);
  const pending=listener({type:'ready',host:'bike24.de',url:'https://www.bike24.de/p1.html'});await new Promise(setImmediate);assert.ok(loaded);loaded();assert.equal((await pending).ready,true);
+});
+
+test('BIKE24 linked product reads retain the requested dropdown variant and EAN query',async()=>{
+ const reads=[],navigations=[];const ctx=vm.createContext({URL,validEAN:q=>/^\d+$/.test(q),jobActive:()=>true,async navigateShop(_job,_shop,_tab,url){navigations.push(url);},async shopPause(){},async shopMessage(_job,_shop,_tab,data){reads.push(data);return {ready:true,offers:[]};}});
+ const source=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('async function bike24Linked(')),ctx);
+ await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'1234567890128',nameQuery:'Generic gel pack',variant:'Citrus'}, {url:'https://www.bike24.de/p1.html'}, {offers:[],linkedVariants:[{url:'https://www.bike24.de/p2.html',variant:'8x40ml'}]});
+ assert.equal(navigations.length,1);assert.equal(reads.length,1);assert.equal(reads[0].query,'1234567890128');assert.equal(reads[0].variant,'Citrus');assert.equal(reads[0].followLinked,false);
+});
+
+
+test('Linked names keep an explicitly requested pack count instead of choosing a cheaper different pack',async()=>{
+ const rows=[{name:'Generic Gel 2x40ml',price:5,url:'https://www.bike24.de/p2.html'},{name:'Generic Gel 8x40ml',price:18,url:'https://www.bike24.de/p8.html'}];
+ const ctx=vm.createContext({URL,jobActive:()=>true,async navigateShop(){},async shopPause(){},async shopMessage(_job,_shop,_tab,data){return {ready:true,offers:rows.filter(row=>row.url===data.url)};}});
+ for(const file of ['identifiers','products','variant-match'])vm.runInContext(readFileSync(new URL('./src/core/'+file+'.js',import.meta.url),'utf8'),ctx);
+ const source=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('async function bike24Linked(')),ctx);
+ const result=await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'Generic Gel 8er',nameQuery:'Generic Gel 8er',variant:'Citrus'},rows[0],{offers:[rows[0]],linkedVariants:rows.map(row=>({url:row.url}))});
+ assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,18);assert.equal(result.offers[0].name,'Generic Gel 8x40ml');
 });

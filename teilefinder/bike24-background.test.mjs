@@ -101,3 +101,27 @@ test('Unrendered metadata cannot confirm a requested variant using a cached base
  const {ctx,props}=fixture();props.productVariantList={};
  const result=await ctx.bike24Details({name:'Cached',price:999,baseVariant:'116'},false,'116');assert.equal(result.ready,true);assert.equal(result.offers.length,0);
 });
+
+test('Linked BIKE24 pack sizes are not discarded because the requested flavour lives in a dropdown',()=>{
+ const {ctx,props}=fixture();
+ props.productVariantList.variantList=[{url:'https://www.bike24.de/p1000001.html',variant:'2x40ml - 10,99 EUR'},{url:'https://www.bike24.de/p1000002.html',variant:'8x40ml - 30,99 EUR'}];
+ props.productOptionList=[{label:'Flavour',optionValueList:[{name:'Citrus'},{name:'Berry'}]}];
+ const candidates=ctx.bike24LinkedCandidates(props,'Citrus',s=>s.replace(/ - .*$/,''));assert.equal(candidates.length,2);assert.equal(candidates[1].variant,'8x40ml');
+ props.productVariantList.variantList=[{url:'https://www.bike24.de/p1000001.html',variant:'28 mm'},{url:'https://www.bike24.de/p1000002.html',variant:'30 mm'}];
+ props.productOptionList=[{label:'Colour',optionValueList:[{name:'Black'}]}];
+ const width=ctx.bike24LinkedCandidates(props,'30 mm black',s=>s);assert.equal(width.length,1);assert.equal(width[0].variant,'30 mm');
+ assert.equal(ctx.bike24LinkedCandidates(props,'special finish',s=>s).length,2,'Unknown axes require detail verification');
+});
+
+
+test('Pack counts match across generic shop notation without relaxing different counts, sizes or model numbers',()=>{
+ const {ctx}=fixture();
+ for(const title of ['Generic Gel 24x50g','Generic Gel 24er Box','Generic Gel 24 Stück','Generic Gel 24 pieces']){
+  assert.equal(ctx.matches(title,'Generic Gel 24er'),true,title);
+  assert.equal(ctx.matches(title,'Generic Gel 24'),true,title);
+  assert.equal(ctx.matches(title,'Generic Gel 12er'),false,title);
+ }
+ assert.equal(ctx.matches('Generic Gel 24ml','Generic Gel 24er'),false);
+ assert.equal(ctx.matches('Generic Model 24','Generic Model 24er'),false);
+ assert.equal(ctx.matches('Generic M-240 24x50g','Generic M-241 24er'),false);
+});

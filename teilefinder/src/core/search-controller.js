@@ -332,7 +332,8 @@ async function suggestionDetails(tab,shop,job,rows,send){
 }
 
 async function bike24Linked(tab,shop,job,fallback,initial,searchQuery=job.query){
- const offers=[...(initial.offers||[])];let limited=!!initial.limited;
+ const matching=rows=>!validEAN(searchQuery)&&job.nameQuery&&typeof matches==='function'?rows.filter(offer=>matches(offer.name||'',job.nameQuery)):rows;
+ const offers=matching(initial.offers||[]);let limited=!!initial.limited;
  for(const v of initial.linkedVariants.slice(0,24)){
   if(offers.length>=24){limited=true;break;}
   if(!jobActive(job))break;
@@ -340,9 +341,9 @@ async function bike24Linked(tab,shop,job,fallback,initial,searchQuery=job.query)
   await navigateShop(job,shop,tab.id,v.url);
   for(let i=0;i<10;i++){
    await shopPause(job,shop,1000);if(!jobActive(job))break;
-   let d;try{d=await shopMessage(job,shop,tab.id,{type:'detail',nameQuery:job.nameQuery,query:searchQuery,host:shop.host,shopId:shop.id,url:v.url,followLinked:false,fallback:{...fallback,url:v.url,baseVariant:v.variant}});}catch{continue;}
+   let d;try{d=await shopMessage(job,shop,tab.id,{type:'detail',nameQuery:job.nameQuery,query:searchQuery,variant:job.variant,host:shop.host,shopId:shop.id,url:v.url,followLinked:false,fallback:{...fallback,url:v.url,baseVariant:v.variant}});}catch{continue;}
    if(d.blocked)break;
-   if(d.ready){offers.push(...(d.offers||[]));limited ||= !!d.limited;break;}
+   if(d.ready){offers.push(...matching(d.offers||[]));limited ||= !!d.limited;break;}
   }
  }
  return {offers:offers.slice(0,24),limited:limited||offers.length>24||initial.linkedVariants.length>24};

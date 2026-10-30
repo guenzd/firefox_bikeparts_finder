@@ -231,3 +231,13 @@ Die anschließende Firefox-Abnahme mit der bestehenden 12-Artikel-Liste lief in 
 Hintergrund zur browserseitigen Einschränkung: [Chrome: Background tabs](https://developer.chrome.com/blog/background_tabs). Die shopseitige Render-Warteschlange wurde zusätzlich im während der Untersuchung ausgelieferten BIKE24-Produkt-JavaScript geprüft.
 
 Der abschließende Wiederholungslauf mit dem gepackten Chromium-Stand 0.8.36 bestätigte 33 Artikel-Shop-Zuordnungen bei 11 Artikeln in rund 66,5 Sekunden; vier Tabs wurden wiederverwendet. Alle BIKE24-Detailaufrufe antworteten ohne Lese- oder Transportfehler, ihre summierten Detailzeiten pro Artikel lagen bei rund 0,2 bis 0,8 Sekunden. Dieser Lauf enthielt keinen fehlgeschlagenen Bike-Discount-Erstaufruf mehr. Firefox und Chromium haben unterschiedliche vorhandene Listen; ihre Trefferzahlen sind daher kein direkter Browservergleich.
+
+## Verknüpfte Ausführungen und Packungsgrößen (0.8.37)
+
+Bei BIKE24 können Links nur die Packungsgröße beschreiben, während der Geschmack erst als Dropdown auf der Zielseite angeboten wird. Ein fehlender Geschmack im Linktext darf diese Seite nicht vorzeitig ausschließen. Die Detailabfrage erhält die gewünschte Variante und die unveränderte EAN. Bei einer Namenssuche werden außerdem die frisch gelesenen Namen verknüpfter Ausführungen erneut geprüft: Eine günstigere Einzelportion darf eine ausdrücklich gesuchte Mehrfachpackung nicht ersetzen.
+
+Der gemeinsame Namensvergleich erkennt Stückzahlen in generischen Packungsnotationen wie „24er“, „24 Stück“ und „24x50g“. Andere Stückzahlen, Größen und Modellnummern bleiben verschieden. Die Regressionstests verwenden allgemeine Beispieldaten, keine produktbezogenen Suchwortausnahmen.
+
+Live geprüft in Firefox und Chromium mit demselben vorhandenen Produktnamen, Geschmack und Maximalpreis 70 € bei ausgeschalteter EAN-Suche im Ad-hoc-Formular: Beide zeigten ausschließlich die gewünschte 24er-Box zum aktuellen BIKE24-Preis von 46,99 € statt des billigeren Einzelbeutels. Firefox benötigte rund 52,2 Sekunden für die vier Shops; Chromium rund 24,8 Sekunden. Je Erweiterungsseite blieben vier verwaltete Shop-Tabs. Die gespeicherte EAN-Einstellung des Wunschlistenartikels wurde nicht verändert.
+
+Die eigenständige Datenfrage bleibt ausdrücklich getrennt: Eine EAN in einer Liste mehrerer Datenblatt-GTINs bestätigt keine konkrete Box-/Geschmacksoption. Eine explizit anders zugeordnete Einzelartikel-EAN wird nicht zur Box-EAN umgedeutet. Die aktivierte EAN-Suche kann ein Angebot daher weiterhin als unbestätigt ablehnen. Die Korrektur erfindet weder Kennungen noch eine Zuordnung anhand der Tabellenreihenfolge. Stand: 245 erfolgreiche automatisierte Tests.
