@@ -295,7 +295,7 @@ document.querySelector('#check-wishlist').addEventListener('click',async()=>{
  try{
   for(let i=0;i<wishlist.length&&!stopRequested;i++){
    const item=wishlist[i];activeWishlistId=item.id;
-   wishlistProgress.completed=i;updateWishlistProgress();
+   wishlistProgress.completed=i;updateWishlistProgress();renderTotal();
    const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);const found=await pending;if(!stopRequested){wishlistProgress.completed=i+1;updateWishlistProgress();}wishlist=applyWishlistSearch(wishlist,item.id,found,new Date().toISOString());await saveList();renderTotal();
   }
   document.querySelector('#status').textContent=stopRequested?'Suche gestoppt.':'Wunschliste geprüft.';

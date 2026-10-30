@@ -293,3 +293,20 @@ test('Comparison results keep their display mode and never fill one product EAN 
  listener({type:'result',target:1,id:'job',shop:'BIKE24',query:'Spray',comparisonMode:'cheapest',url:'https://www.bike24.de/search',offers:[{name:'A Spray',price:6,priceKind:'exact',ean:'1234567890128',url:'https://www.bike24.de/p1.html'}]});
  assert.equal(ctx.state.get('BIKE24').comparisonMode,'cheapest');assert.equal(node('#search-ean').value,'');assert.equal(ctx.state.get('BIKE24').offers.length,1);
 });
+
+test('Full wishlist refresh highlights each current item before its search starts, including the first',async()=>{
+ let click;const renders=[],starts=[],items=[{id:'one',query:'First',shops:[]},{id:'two',query:'Second',shops:[]}];
+ const ctx=uiContext({wishlist:items,wishlistProgress:null,finishSearch:null,stopRequested:false,
+  document:{querySelector:()=>({addEventListener(_event,fn){click=fn;},textContent:''})},
+  updateWishlistProgress(){},renderWishlist(){ctx.renderTotal();},render(){},
+  renderTotal(){renders.push(ctx.checkingList?ctx.activeWishlistId:'');},
+  async startSearch(){starts.push(ctx.activeWishlistId);assert.equal(renders.at(-1),ctx.activeWishlistId,'Current row is drawn before any shop can respond');},
+  applyWishlistSearch:list=>list,async saveList(){}});
+ vm.runInContext(home.slice(home.indexOf("document.querySelector('#check-wishlist').addEventListener"),home.indexOf('function copyListButton(')),ctx);
+ const pending=click();await new Promise(setImmediate);
+ assert.deepEqual(starts,['one']);assert.equal(renders.at(-1),'one');
+ ctx.finishSearch([]);await new Promise(setImmediate);
+ assert.deepEqual(starts,['one','two']);assert.equal(renders.at(-1),'two');
+ ctx.finishSearch([]);await pending;
+ assert.equal(ctx.checkingList,false);assert.equal(renders.at(-1),'');
+});
