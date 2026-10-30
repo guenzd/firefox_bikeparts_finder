@@ -149,7 +149,7 @@ test('Delayed Aero 111 product details are retried beyond the old two attempts',
 test('BIKE24 inspects listing variants before opening details and retries ambiguous results with a discovered EAN',async()=>{
  let listener;const home='moz-extension://unit/home.html',messages=[],opened=[],reads=[];
  const ean='4019238283907';
- const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){opened.push(o.url);return {id:new URL(o.url).hostname};},async update(tab,o){opened.push(o.url);return {id:tab};},async get(){return {};},async sendMessage(tab,data){reads.push(data);if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'29 mm schwarz',priceKind:'exact',stock:'Auf Lager',ean}]};const base={name:'Continental Aero 111',variant:'29 mm schwarz',price:71.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/p1.html'};if(data.query===ean)return {offers:[{...base,ean}]};if(data.shopId==='bike24')return {offers:[base,{...base,url:'https://'+data.host+'/p2.html',variant:'26 mm schwarz'}]};return {offers:[{...base,variant:'Ausführung im Shop prüfen'}]};}}};
+ const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){opened.push(o.url);return {id:new URL(o.url).hostname};},async update(tab,o){opened.push(o.url);return {id:tab};},async get(){return {};},async sendMessage(tab,data){reads.push(data);if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'29 mm schwarz',priceKind:'exact',stock:'Auf Lager',ean}]};const base={name:'Continental Aero 111',variant:'29 mm schwarz',price:71.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/p1.html'};if(data.query===ean)return {offers:[{...base,ean}]};if(data.shopId==='bike24')return {offers:[base,{...base,url:'https://'+data.host+'/p2.html',variant:'26-622 schwarz'}]};return {offers:[{...base,variant:'Ausführung im Shop prüfen'}]};}}};
  vm.runInNewContext(source,{platform,URL,console,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'ean-narrow',query:'Continental Aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
  for(let i=0;i<100;i++)await new Promise(setImmediate);
@@ -175,6 +175,9 @@ test('Listing filter skips clearly wrong widths but inspects missing color or un
  assert.equal(c.listingVariantConflict({name:'CONTINENTAL 700 x 30C BlackChili',variant:'700 x 30C'},'30 mm schwarz'),false);
  assert.equal(c.listingOfferComplete({name:'CONTINENTAL 700 x 30C BlackChili',variant:'700 x 30C',price:54,priceKind:'exact',stock:'Auf Lager'},'30 mm schwarz'),false);
  assert.equal(c.listingVariantConflict({name:'Aero 111',variant:'Ausführung im Shop prüfen'},'29 mm'),false);
+ assert.equal(c.listingVariantConflict({name:'Generic component 31,7mm',variant:'Generic component 31,7mm'},'70 mm'),false);
+ assert.equal(c.listingVariantConflict({name:'Generic component',variant:'Breite: 28 mm'},'Länge 70 mm'),false);
+ assert.equal(c.listingVariantConflict({name:'Generic component',variant:'Breite: 28 mm'},'Breite 30 mm'),true);
 });
 
 test('Bike-Discount Cola caffeine dropdown confirms variant-specific bottom-page EAN',async()=>{
@@ -259,6 +262,19 @@ test('Bike-Discount EAN search redirects read the main product rather than recom
   assert.equal(result.offers.length,ean==='8020775045428'?1:0);
   if(ean!=='8020775045428')assert.match(result.message,/EAN 1234567890128 statt der gesuchten EAN 8020775045428/);
   if(result.offers.length){assert.equal(result.offers[0].ean,ean);assert.equal(result.offers[0].stock,'Lagernd, Lieferzeit 1-3 Tage');assert.equal(result.offers[0].price,22.99);}
+ }
+});
+
+test('Bike-Discount product redirects accept punctuated names and reject different short models',async()=>{
+ let listener;
+ const title='Busch + Müller Toplight 2C Permanent-Rücklicht';
+ const document={readyState:'complete',body:{innerText:title},querySelector(s){return {h1:{innerText:title},'.product-detail-price':{innerText:'17,99 €'},'.nele-product-availability-info':{innerText:'Lagernd, Lieferzeit 1-3 Tage'}}[s]||null;},querySelectorAll(s){if(s.includes('a[href]'))throw Error('Recommendations must not replace the main product');return [];}};
+ const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/busch-mueller-toplight-2c-permanent-ruecklicht'},URL,platform:{runtime:{onMessage:{addListener(f){listener=f;}}}},validEAN:()=>''});
+ vm.runInContext(readSource('extract.js')+readSource('shop.js'),ctx);vm.runInContext("productColor=()=>''",ctx);
+ for(const [query,count] of [['Busch + Müller Toplight 2C',1],['Busch+Müller Toplight 2C',1],['Busch + Müller Toplight 3C',0]]){
+  const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query});
+  assert.equal(result.ready,true);assert.equal(result.offers.length,count,query);
+  if(count){assert.equal(result.offers[0].name,title);assert.equal(result.offers[0].price,17.99);assert.equal(result.offers[0].stock,'Lagernd, Lieferzeit 1-3 Tage');}
  }
 });
 
@@ -622,13 +638,13 @@ test('BIKE24 combines original model, datasheet EAN and selected 116 option with
 
 test('Bike-Discount confirms equivalent volume labels and parses price footnotes without accepting other selections or ambiguous prices',async()=>{
  for(const [selected,price,expected] of [['1000 ml','24,95 €*',1],['1L','24,95 € inkl. MwSt.',1],['500 ml','24,95 €',0],['1 L','29,95 € 24,95 €',0]]){
-  let now=0;const input={id:'volume',checked:true,disabled:false,parentElement:{querySelector:()=>({innerText:'1 L'})}};
+  let now=0;const input={id:'volume',checked:true,disabled:false,parentElement:{querySelector:()=>({innerText:'1 L',click(){}})}};
   const picker={getAttribute:()=> 'true',innerText:selected};
   const document={querySelector:s=>({'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':input,'.product-detail-price':{innerText:price},'.nele-product-availability-info':{innerText:'Auf Lager'},h1:{innerText:'Generic liquid'}}[s]),querySelectorAll:()=>[input],getElementById:()=>input};
   const ctx=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/generic-liquid'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);}});
   vm.runInContext(readSource('extract.js')+readSource('variant-match.js')+readSource('variants.js'),ctx);
   const rows=await ctx.bikeDiscountVariants({name:'Generic liquid'},'1000 ml');assert.equal(rows.length,expected);assert.equal(rows.inspectionComplete,true);
-  if(expected){assert.equal(rows[0].price,24.95);assert.ok(now<2000);}else assert.ok(now<7000);
+  if(expected){assert.equal(rows[0].price,24.95);assert.ok(now<2000);}else assert.ok(now<13000);
  }
 });
 
@@ -656,4 +672,162 @@ test('Bike-Discount combines size radio options with an explicit collapsed produ
   const rows=await ctx.bikeDiscountVariants({name:'Generic bib shorts'},wanted);assert.equal(rows.length,expected,property+' / '+wanted);
   if(expected){assert.equal(rows[0].selection[0].id,'medium');assert.equal(rows[0].price,159.99);assert.ok(ctx.variantMatches(rows[0],wanted));}
  }
+});
+
+test('Bike-Discount refresh and redirects read only the main product price, never recommendation UVPs',async()=>{
+ let listener,hasPrice=true;
+ const nodes={h1:{innerText:'SIGMA HIRO 30 Rücklicht'},'.product-detail-price':{innerText:'19,99 €'},'.product-detail-buy':{innerText:'Lagernd, Lieferzeit 1-3 Tage'},'#description-tab-pane':{textContent:'EAN: 4016224152100'}};
+ const recommendation={innerText:'UVP* 12,95 € 6,99 €'};
+ const document={readyState:'complete',body:{innerText:'SIGMA HIRO 30 Rücklicht'},querySelector(selector){if(selector.includes(',')&&selector.includes('.product-price'))return recommendation;return selector==='.product-detail-price'&&!hasPrice?null:nodes[selector]||null;},querySelectorAll:()=>[]};
+ const ctx=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/sigma-hiro-30-ruecklicht',hostname:'www.bike-discount.de'},URL,platform:{runtime:{onMessage:{addListener(f){listener=f;}}}},productDropdowns:()=>[]});
+ for(const file of ['variant-match.js','extract.js','shop.js'])vm.runInContext(readSource(file),ctx);
+ for(const type of ['detail','extract']){
+  const result=await listener({type,direct:true,query:'SIGMA HIRO 30',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,fallback:{name:'Old title',price:12.95}});
+  assert.equal(result.ready,true);assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,19.99,type);assert.equal(result.offers[0].ean,'4016224152100');
+ }
+ hasPrice=false;
+ const missing=await listener({type:'detail',direct:true,query:'SIGMA HIRO 30',shopId:'bike-discount',host:'www.bike-discount.de',url:ctx.location.href,fallback:{name:'Old title',price:12.95}});
+ assert.equal(missing.ready,false);assert.equal(missing.offers[0].price,null);
+});
+
+test('Bike-Discount native dropdowns keep recommendation prices outside variant observations',async()=>{
+ let now=0,hasPrice=true;
+ const option={value:'M',textContent:'M',disabled:false};
+ const select={id:'size',name:'size',labels:[],value:'M',options:[option],getClientRects:()=>[{}],closest:()=>null,getAttribute:()=>'',dispatchEvent(){}};
+ const document={querySelectorAll:()=>[select],querySelector(selector){if(selector==='.product-detail-price')return hasPrice?{innerText:'19,99 €',getAttribute:()=>null}:null;if(selector.includes('.product-price'))return {innerText:'UVP 12,95 € 6,99 €',getAttribute:()=>null};if(selector.includes('availability'))return {innerText:'Auf Lager'};return null;}};
+ const ctx=vm.createContext({document,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/generic-item'},Event:class{},Date:{now:()=>now},setTimeout(f,ms){now+=ms;setImmediate(f);},euro:s=>Number(s.replace(',','.')),stockText:s=>s,dedupe:rows=>rows});
+ vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),ctx);
+ const result=await ctx.dropdownVariants({name:'Generic item'},'M');assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,19.99);
+ hasPrice=false;const missing=await ctx.dropdownVariants({name:'Generic item'},'M');assert.equal(missing.offers.length,0);
+});
+
+test('Broad name searches compare distinct products per shop without narrowing to a shared EAN; explicit EAN stays binding',async()=>{
+ for(const explicitEAN of [false,true]){
+  let listener;const home='moz-extension://unit/home.html',messages=[],urls=[];
+  const common='1234567890128';
+  const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){urls.push(o.url);return {id:new URL(o.url).hostname};},async update(_id,o){urls.push(o.url);},async get(){return {};},async sendMessage(_tab,data){
+   if(data.type==='detail'){assert.ok(explicitEAN);return {ready:true,offers:[data.fallback]};}
+   assert.equal(data.type,'extract','Complete listing prices and stock need no detail tabs');
+   const base={priceKind:'exact',stock:'Auf Lager',variant:'400 ml',url:'https://'+data.host+'/shared',name:'Brand A Silikonspray',price:10,ean:common};
+   return {ready:true,offers:[base,{...base,name:'Brand B Silikonspray',url:'https://'+data.host+'/best',price:6,ean:'2234567890128'},{...base,name:'Brand C Silikonspray',url:'https://'+data.host+'/unavailable',price:5,stock:'Nicht lieferbar',ean:'3234567890128'},{...base,name:'Brand D Silikonspray',url:'https://'+data.host+'/below-minimum',price:2,ean:'4234567890128'}]};
+  }}};
+  const c=vm.createContext({platform,URL,clearTimeout,setTimeout:fastTimeout});vm.runInContext(source+readSource('wishlist.js'),c);
+  await listener({type:'search',id:'general',query:'Silikonspray',minPrice:5,maxPrice:12,...(explicitEAN?{ean:common}:{})},{url:home,tab:{id:99}});
+  for(let i=0;i<100;i++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);if(!explicitEAN)assert.equal(urls.length,4);
+  for(const result of results){
+   assert.equal(result.comparisonMode,explicitEAN?undefined:'cheapest');
+   const displayed=c.displayedShopOffers(result,{minPrice:5,maxPrice:12,variant:''});assert.equal(displayed.length,1);assert.equal(displayed[0].price,explicitEAN?10:6);
+   if(!explicitEAN){assert.equal(result.offers.length,4);assert.equal(c.shareVariantEAN(results,'').ean,'');}
+  }
+ }
+});
+
+test('General searches inspect cheaper unavailable products beyond three, then stop once more expensive candidates cannot win',async()=>{
+ let listener;const home='moz-extension://unit/home.html',messages=[],details=new Map();
+ const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){return {id:new URL(o.url).hostname};},async update(){},async get(){return {};},async sendMessage(tab,data){
+  if(data.type==='detail'){details.set(tab,(details.get(tab)||0)+1);return {ready:true,offers:[{...data.fallback,stock:data.fallback.price<4?'Nicht lieferbar':'Auf Lager'}]};}
+  return {ready:true,offers:[6,5,4,3,2,1].map(price=>({name:'Brand '+price+' Spray',variant:'400 ml',price,priceKind:'exact',stock:'Lagerstatus nicht auslesbar',url:'https://'+data.host+'/spray-'+price}))};
+ }}};
+ const c=vm.createContext({platform,URL,clearTimeout,setTimeout:fastTimeout});vm.runInContext(source+readSource('wishlist.js'),c);
+ await listener({type:'search',id:'general-stock',query:'Spray'},{url:home,tab:{id:99}});
+ for(let i=0;i<130;i++)await new Promise(setImmediate);
+ const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);assert.equal(details.size,4);
+ for(const count of details.values())assert.equal(count,4);
+ for(const result of results){assert.equal(result.comparisonMode,'cheapest');assert.equal(c.displayedShopOffers(result,{})[0].price,4);}
+});
+
+test('Empty UPC searches retry an equivalent EAN in the same four tabs and verify returned product identity',async()=>{
+ for(const wrong of [false,true]){
+  let listener,created=0;const home='moz-extension://unit/home.html',messages=[],tabs=new Map(),navigations=[];
+  const upc='810093163519',ean='0810093163519';
+  const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){const id=++created;tabs.set(id,o.url);return {id};},async update(id,o){tabs.set(id,o.url);navigations.push(o.url);},async get(){return {};},async sendMessage(tab,data){
+   if(data.type==='detail')return {ready:true,offers:[data.fallback]};
+   const query=new URL(tabs.get(tab));
+   if(!query.href.includes(ean))return {ready:true,empty:true,offers:[]};
+   return {ready:true,offers:[{name:'Silca Super Secret 2.0 Chain Lube Kettenwachs',ean:wrong?'10810093163519':ean,variant:'100 ml',price:26.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/wax'}]};
+  }}};
+  vm.runInNewContext(source,{platform,URL,clearTimeout,setTimeout:fastTimeout});
+  await listener({type:'search',id:'upc',query:'Silca Super Secret 2.0',ean:upc,variant:'100 ml'},{url:home,tab:{id:99}});
+  for(let i=0;i<180;i++)await new Promise(setImmediate);
+  const results=messages.filter(m=>m.type==='result');assert.equal(results.length,4);assert.equal(created,4);
+  assert.equal(navigations.filter(url=>url.includes(ean)).length,4);
+  for(const result of results){assert.equal(result.query,upc);assert.equal(result.offers.length,wrong?0:1);assert.ok(result.url.includes(ean));if(!wrong)assert.equal(result.offers[0].ean,ean);}
+ }
+});
+
+test('Bike-Discount product search redirect accepts equivalent EAN and UPC labels together',async()=>{
+ let listener;
+ const document={readyState:'complete',body:{innerText:'Silca Super Secret 2.0 Chain Lube Kettenwachs'},querySelector:s=>({h1:{innerText:'Silca Super Secret 2.0 Chain Lube Kettenwachs'},'.product-detail-price':{innerText:'26,99 €'},'.product-detail-buy':{innerText:'Auf Lager'},'#description-tab-pane':{textContent:'EAN: 0810093163519\nUPC: 810093163519',querySelectorAll:selector=>selector==='tr'?[]:[{textContent:'Inhalt',nextElementSibling:{textContent:'100 ml'}}]}}[s]||null),querySelectorAll:()=>[]};
+ const c=vm.createContext({document,URL,location:{hostname:'www.bike-discount.de',href:'https://www.bike-discount.de/de/silca-super-secret-2.0-chain-lube-kettenwachs'},platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});vm.runInContext(readSource('variant-match.js')+readSource('extract.js')+readSource('shop.js'),c);
+ for(const query of ['810093163519','0810093163519','00810093163519','10810093163519']){
+  const result=await listener({type:'extract',shopId:'bike-discount',host:'www.bike-discount.de',query});assert.equal(result.offers.length,query.startsWith('1')?0:1);if(result.offers.length){assert.equal(result.offers[0].ean,'0810093163519');assert.equal(result.offers[0].price,26.99);assert.equal(c.variantMatches(result.offers[0],'100 ml'),true);assert.equal(c.variantMatches(result.offers[0],'500 ml'),false);}
+ }
+});
+
+test('Bike-Discount restores checked radios whose shop label is still unselected, including a swallowed initialization click',async()=>{
+ for(const [swallowFirst,timerFloor] of [[false,0],[true,0],[false,7000]]){
+  let now=0,selected='',clicks=0,expanded=false;
+  const input={id:'flavour-cola',checked:true,disabled:false};
+  const label={innerText:'Cola (mit Koffein)',click(){clicks++;input.checked=true;if(!swallowFirst||clicks>1)selected=this.innerText;}};input.parentElement={querySelector:()=>label};
+  const picker={get innerText(){return selected||'Bitte wählen Sie eine Variante';},getAttribute:()=>String(expanded),click(){expanded=!expanded;}};
+  const document={querySelector:selector=>({'#productDetailConfiguratorOptions':picker,'.nele-product-detail-configurator-option input[type="radio"]':input,'.product-detail-price':{innerText:'44,99 €'},'.nele-product-availability-info':{innerText:'Lagernd, Lieferzeit 1-3 Tage'},h1:{innerText:'Generic gel box'}}[selector]||null),querySelectorAll:()=>[input],getElementById:()=>input};
+  const c=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/generic-gel'},Date:{now:()=>now},setTimeout(fn,ms){now+=Math.max(ms,timerFloor);setImmediate(fn);},euro:text=>Number(text.replace(',','.')),stockText:text=>text,currentProductEAN:()=>selected?'4029679672666':''});
+  vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),c);
+  const offers=await c.bikeDiscountVariants({name:'Generic gel box'},'Cola');assert.equal(offers.length,1);assert.equal(offers[0].ean,'4029679672666');assert.equal(offers[0].price,44.99);assert.equal(offers[0].selection[0].id,input.id);assert.equal(clicks,swallowFirst?2:1);
+ }
+});
+
+test('Bike-Discount reads the selected labelled EAN when description also lists a different UPC',()=>{
+ let ean='4550170232771';
+ const description={get textContent(){return 'EAN: '+ean+' UPC: 192790232775';},querySelector:s=>s==='.nele-fact-ean'?{textContent:ean}:null};
+ const document={querySelector:s=>s==='#description-tab-pane'?description:null,querySelectorAll:()=>[]};
+ const c=vm.createContext({document,location:{hostname:'www.bike-discount.de'},URL});
+ vm.runInContext(readSource('identifiers.js')+readSource('extract.js'),c);
+ assert.equal(c.currentProductEAN(),'4550170232771');
+ ean='4550170232719';assert.equal(c.currentProductEAN(),'4550170232719');
+ description.querySelector=()=>null;
+ assert.equal(c.currentProductEAN(),'');
+});
+
+test('EAN variant inspection stops at a fresh exact identity and continues past a stale saved choice',async()=>{
+ for(const [target,expected] of [['1234567890128',1],['9999999999999',2],['',2]]){
+  let now=0,selected='',clicks=0;
+  const choices=[{id:'internal',text:'160mm intern',ean:'1234567890128'},{id:'external',text:'160mm extern',ean:'9999999999999'}];
+  const inputs=choices.map(v=>{const input={id:v.id,checked:false};input.parentElement={querySelector:()=>({innerText:v.text,click(){clicks++;selected=v.id;inputs.forEach(i=>i.checked=i.id===v.id);}})};return input;});
+  const picker={get innerText(){return choices.find(v=>v.id===selected)?.text||'Bitte wählen';},getAttribute:()=> 'true'};
+  const document={querySelector:s=>({'#productDetailConfiguratorOptions':picker,'.product-detail-price':{innerText:'38,99 €'},'.nele-product-availability-info':{innerText:'Lagernd'},h1:{innerText:'Generic disc'}}[s]||null),querySelectorAll:()=>inputs,getElementById:id=>inputs.find(i=>i.id===id)};
+  const c=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/disc'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);},stockText:t=>t,euro:t=>Number(t.replace(',','.')),currentProductEAN:()=>choices.find(v=>v.id===selected)?.ean||''});
+  vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),c);
+  const saved=target?[{kind:'radio',id:'internal',text:'160mm intern'}]:[];
+  const rows=await c.bikeDiscountVariants({name:'Generic disc'},'160 mm',saved,target);
+  assert.equal(clicks,expected);assert.equal(rows.length,expected);
+  if(target)assert.equal(rows.at(-1).ean,target);
+  assert.equal(c.confirmedVariantEAN({...rows[0],eanEvidence:'datasheet'},rows[0].ean,'160 mm'),false);
+  assert.equal(c.confirmedVariantEAN({...rows[0],stock:'Lagerstatus unbekannt'},rows[0].ean,'160 mm'),false);
+ }
+});
+
+test('bike-components waits for the EAN to settle together with an unchanged price before accepting an option',async()=>{
+ let now=0,selected=false;
+ const choice={id:'black',getAttribute:key=>key==='aria-selected'?String(selected):key==='data-label'?'black':'false',innerText:'black',click(){selected=true;}};
+ const picker={getAttribute:key=>key==='aria-expanded'?'true':key==='aria-activedescendant'&&selected?'black':'',click(){}};
+ const document={querySelector:s=>s.includes('combobox')?picker:s==='#options-list [role="option"]'?choice:s==='[data-test="auto-product-price"]'?{innerText:'25,00 €'}:s==='.stock-status'?{innerText:'Auf Lager'}:s==='h1'?{innerText:'Generic product'}:null,
+  querySelectorAll:s=>s==='#options-list [role="option"]'?[choice]:[],getElementById:()=>choice};
+ const c=vm.createContext({document,location:{href:'https://www.bike-components.de/product'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);},euro:text=>Number(text.replace(',','.')),stockText:text=>text,dedupe:rows=>rows,currentProductEAN:()=>now<950?'1234567890128':'9999999999999'});
+ vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),c);
+ const result=await c.bikeComponentsVariants({name:'Generic product'},'black',[],'9999999999999');
+ assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,'9999999999999');assert.ok(now>=1450);
+});
+
+test('An EAN listing with a clamp diameter still inspects its length dropdown before rejecting a requested length',async()=>{
+ let listener,finish;const messages=[],details=[];const completed=new Promise(resolve=>finish=resolve),home='moz-extension://unit/ui/home.html',ean='1234567890128';
+ const platform={runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);if(messages.filter(row=>row.type==='result').length===4)finish();}},tabs:{async create(data){return {id:new URL(data.url).hostname};},async update(id){return {id};},async get(id){return {id};},async sendMessage(_id,data){
+  const offer={name:'Generic component 31,7mm',variant:'31,7mm',ean,price:90,priceKind:'from',stock:'Ausführung im Shop prüfen',url:'https://'+data.host+'/generic-component'};
+  if(data.type==='detail'){details.push(data);return {ready:true,offers:[{...offer,variant:'Länge: 70 mm',priceKind:'exact',stock:'Auf Lager'}]};}
+  return {ready:true,offers:[offer]};
+ }}};
+ vm.runInNewContext(source,{platform,URL,setTimeout:fastTimeout,clearTimeout});
+ await listener({type:'search',id:'length',query:'Generic component',ean,variant:'70 mm',maxPrice:100},{url:home,tab:{id:99}});await completed;
+ assert.equal(details.length,4);assert.ok(messages.filter(row=>row.type==='result').every(row=>row.offers.length===1&&row.offers[0].variant==='Länge: 70 mm'));
 });

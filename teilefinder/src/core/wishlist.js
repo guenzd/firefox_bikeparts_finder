@@ -13,17 +13,22 @@ function priceFilteredSuggestions(suggestions,range){
  return suggestions.filter(o=>!bounded||withinPriceRange(o.price,range));
 }
 function inputPriceRange(input){try{const value=parsePriceRange(input.value);input.setCustomValidity('');return value;}catch(error){input.setCustomValidity(error.message);return null;}}
-function deliverable(stock){
- const s=String(stock||'');
- if(/\bWochen?\b|nicht|ausverkauft|out of stock|sold out|vorbestell|nachbestell|(?:verfügbar|lieferbar|erhältlich)\s+(?:ab|in)|available (?:from|in)|unbekannt|nicht auslesbar/i.test(s))return false;
- return /auf lager|lagernd|ab lager|sofort lieferbar|in stock|available from stock|(?:Versand in|Lieferzeit:?|lieferbar in)\s*\d+(?:\s*[-–]\s*\d+)?\s*(?:Werk|Arbeits)?tage[n]?|\b\d+(?:\s*[-–]\s*\d+)?\s*(?:Arbeits|Werk)tage[n]?/i.test(s);
-}
 // Use exactly the offers displayed in shop lists. This is presentation only:
 // completion flags, freshness and EAN metadata do not change whether a row exists.
 function allShopsHaveDisplayedOffers(shops,item={}){
  return ['BIKE24','Bike-Discount','bike-components','r2-bike'].every(name=>
   (shops.find(shop=>shop.name===name)?.offers||[]).some(offer=>
    Number.isFinite(offer.price)&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)));
+}
+
+// Retain all candidates in storage; presentation follows the current filters.
+function displayedShopOffers(shop,item={}){
+ const rows=uniqueOffers(shop.offers||[]).filter(offer=>Number.isFinite(offer.price)&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant));
+ if(shop.comparisonMode!=='cheapest')return rows;
+ const exact=rows.filter(offer=>offer.priceKind==='exact');
+ const available=exact.filter(offer=>deliverable(offer.stock));
+ // Unavailable matches stay inspectable if this shop has no deliverable offer.
+ return (available.length?available:exact).sort((a,b)=>a.price-b.price).slice(0,1);
 }
 
 function cheapestWishlist(items){
@@ -36,6 +41,22 @@ function cheapestWishlist(items){
  });
  const total=Math.round(rows.reduce((sum,row)=>sum+(row.best?.price||0),0)*100)/100;
  return {rows,total,complete:rows.length>0&&rows.every(row=>!!row.best),missing:rows.filter(row=>!row.best).length};
+}
+
+function validWishlistSort(value){return ['added','name','price','shop'].includes(value)?value:'added';}
+function sortWishlistItems(items,mode='added'){
+ mode=validWishlistSort(mode);if(mode==='added')return items.slice();
+ const compare=new Intl.Collator('de',{sensitivity:'base',numeric:true,ignorePunctuation:true}).compare;
+ const rows=cheapestWishlist(items).rows.map((row,index)=>({...row,index}));
+ return rows.sort((a,b)=>{
+  // Unmatched/unavailable articles and their suggestions form a stable tail.
+  if(!a.best||!b.best)return a.best?-1:b.best?1:a.index-b.index;
+  if(mode==='price'&&a.best?.price!==b.best?.price)return (a.best?.price??Infinity)-(b.best?.price??Infinity);
+  if(mode==='shop'){
+   const shop=compare(a.best?.shop||'',b.best?.shop||'');if(shop)return shop;
+  }
+  return compare(a.item.query,b.item.query)||a.index-b.index;
+ }).map(row=>row.item);
 }
 
 function renameWishlistItem(items,id,query){
@@ -61,9 +82,9 @@ function wishlistShopEntries(items,name,activeId='',live=new Map()){
 // Reuse known product URLs for direct EAN searches as well as wishlist refreshes.
 // These are hints only: the background reader verifies the EAN again on the page.
 function knownSearchShops(current,items,ean){
- const groups=new Map(current.map(shop=>[shop.name,{name:shop.name,offers:[...(shop.offers||[])]}]));
+ const groups=new Map(current.map(shop=>[shop.name,{name:shop.name,comparisonMode:shop.comparisonMode,offers:[...(shop.offers||[])]}]));
  if(validEAN(ean))for(const item of items)for(const shop of item.shops||[]){
-  const offers=(shop.offers||[]).filter(o=>validEAN(o.ean)===ean);
+  const offers=(shop.offers||[]).filter(o=>equivalentEANs(o.ean,ean));
   if(!offers.length)continue;
   if(!groups.has(shop.name))groups.set(shop.name,{name:shop.name,offers:[]});
   groups.get(shop.name).offers.push(...offers);
@@ -73,7 +94,7 @@ function knownSearchShops(current,items,ean){
 
 
 function wishlistPriceRows(entries,item){
- return entries.flatMap(({shop})=>uniqueOffers(shop?.offers||[]).filter(offer=>withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)).map(offer=>({shop,offer}))).sort((a,b)=>a.offer.price-b.offer.price||a.shop.name.localeCompare(b.shop.name));
+ return entries.flatMap(({shop})=>displayedShopOffers(shop||{},item).map(offer=>({shop,offer}))).sort((a,b)=>a.offer.price-b.offer.price||a.shop.name.localeCompare(b.shop.name));
 }
 
 

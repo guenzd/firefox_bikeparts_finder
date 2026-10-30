@@ -1,28 +1,42 @@
-# Mozilla-Signierung: Unlisted
+# Firefox: Unlisted signieren und selbst verteilen
 
-## Fertiges Paket
+Voraussetzung: Firefox Desktop 140+. Die Erweiterung verwendet Manifest V2 und die stabile ID `r2-teilefinder@local.invalid`. Sie benötigt keinen lokalen Server. Chrome wird separat über den [Chrome Web Store](CHROME-WEB-STORE.md) veröffentlicht.
 
-`npm run build` und `npm run lint:extension` ausführen. `outputs/teilefinder-firefox-0.8.19.zip` ist das unsigned Einreichungspaket. Es enthält nur Dateien der Erweiterung, nicht die frühere Website oder Browserprofile. Ein ZIP umzubenennen signiert es nicht.
+## Paket vorbereiten
 
-Version 0.8.19 setzt Firefox Desktop 140 voraus und verwendet Firefox' eingebaute Dateneinwilligung (`searchTerms`, `websiteActivity`). Die lokale Datenschutzseite ist über die Oberfläche erreichbar. Es gibt keine eigene Serververarbeitung, Telemetrie oder Werbung. Lizenz: alle Rechte vorbehalten, solange der Rechteinhaber keine andere Lizenz festlegt.
+Im Repository-Hauptverzeichnis:
 
-## Einreichen
+```sh
+npm ci
+npm run build:firefox
+NO_UPDATE_NOTIFIER=1 npm run lint:extension
+```
 
-1. Unter https://addons.mozilla.org/de/developers/ mit dem eigenen Mozilla-Konto anmelden.
-2. Eine neue Erweiterung einreichen. Als Verteilung **„On your own“ / Selbst verteilen** wählen, nicht öffentlich im Store listen.
-3. Das Versions-ZIP hochladen und die Validator-Ergebnisse prüfen.
-4. Datenschutzangaben aus `teilefinder/src/ui/privacy.html` und Prüfanweisungen aus `release/REVIEWER-NOTES.md` bereitstellen. Falls eine externe Datenschutz-URL verlangt wird, ist dafür noch eine öffentlich erreichbare Seite erforderlich.
-5. Das Paket enthält direkt lesbares, unverändertes JavaScript/HTML/CSS/SVG. Kein Bundling, Transpiling oder Minifizieren. Falls Mozilla zusätzlich Quellen anfordert, den Erweiterungsordner und Build-Anweisungen bereitstellen; keine Profile, Zugangsdaten oder Testdaten hochladen.
-6. Die Vertriebsvereinbarung persönlich lesen und akzeptieren. Die signierte XPI nach erfolgreicher Prüfung herunterladen.
+Das Einreichungspaket ist `outputs/teilefinder-firefox-<Version>.zip`; dieselben Inhalte stehen unter `outputs/teilefinder-firefox.zip`. Die Version kommt aus `teilefinder/manifests/firefox.json` und muss mit dem Chrome-Manifest übereinstimmen. Das ZIP enthält nur die Erweiterungsquellen und lokale Assets. Umbenennen in `.xpi` ersetzt keine Signierung.
 
-Die tatsächliche Freigabe und mögliche Rückfragen entscheidet Mozilla. Der lokale Build wird nicht automatisch eingereicht oder signiert.
+## Bei Mozilla einreichen
 
-## Installieren und aktualisieren
+1. Im [Mozilla Developer Hub](https://addons.mozilla.org/de/developers/) anmelden und eine Erweiterung beziehungsweise eine neue Version des bestehenden Eintrags einreichen.
+2. Für Selbstverteilung **„On your own“** wählen. „On this site“ wäre die Verteilung über einen öffentlichen AMO-Eintrag.
+3. Das Firefox-Versions-ZIP hochladen und die Validator-Meldungen beheben.
+4. [Reviewer notes](REVIEWER-NOTES.md) und [Datenschutz](../DATENSCHUTZ.md) bereitstellen. Mozilla-Dateneinwilligung: `searchTerms` und `websiteActivity`, wie im Manifest deklariert. Die lokale Datenschutzseite ist in der Oberfläche verlinkt.
+5. Das Paket enthält direkt lesbares JavaScript/HTML/CSS und lokale Assets, ohne Bundling, Transpilierung oder Minifizierung. Falls zusätzliche Quellen verlangt werden, den zum Tag passenden Quellstand samt Build-Anweisungen bereitstellen; keine Browserprofile oder lokalen Nutzerdaten.
+6. Die Vertriebsvereinbarung selbst prüfen und akzeptieren. Nach der Freigabe die signierte XPI herunterladen.
 
-Zuerst die Wunschliste als Datei sichern. Die signierte `.xpi` über `about:addons` → Zahnrad → „Add-on aus Datei installieren“ installieren. Die Add-on-ID bleibt `r2-teilefinder@local.invalid`. Nach einem Wechsel von der temporären Installation die Sicherung bei Bedarf importieren.
+Maßgeblich ist die [offizielle Mozilla-Einreichungsanleitung](https://extensionworkshop.com/documentation/publish/submitting-an-add-on/). Ein erfolgreicher lokaler Build oder Git-Tag ist noch keine Mozilla-Freigabe.
 
-Für weitere Releases die Versionsnummer erhöhen, bauen, prüfen und im bestehenden Mozilla-Eintrag als neue unlisted Version signieren lassen. Die neue signierte XPI über die vorhandene Erweiterung installieren; nicht deinstallieren. Automatische Updates sind hier noch nicht eingerichtet. Dafür wäre später ein HTTPS-Update-Manifest mit stabiler `update_url` und signierten Downloads nötig.
+Öffentlicher Datenschutz-Link für das Formular:
 
-## Datenschutz-Link für den Chrome Web Store
+[Datenschutzerklärung auf GitHub](https://github.com/guenzd/firefox_bikeparts_finder/blob/feature/chrome-cross-browser/DATENSCHUTZ.md)
 
-Die veröffentlichbare Erklärung steht in [DATENSCHUTZ.md](../DATENSCHUTZ.md). Die öffentlich erreichbare GitHub-Seite dieser Datei kann im Datenschutz-URL-Feld des Chrome Web Store Developer Dashboards verlinkt werden. Als Kontakt ist die Anbieter-Website verlinkt.
+## Download und Updates
+
+Die **signierte XPI** kann über eine eigene Website oder als GitHub-Release-Datei verteilt werden. Andere Benutzer benötigen dafür keinen Quellcode und keinen lokalen Build. Die Datei selbst muss nach der Signierung zum Download bereitgestellt werden; das hier erzeugte ZIP ist dafür kein Ersatz.
+
+Vor dem Installieren die vorhandene Wunschliste als Datei sichern. In Firefox `about:addons` → Zahnrad → „Add-on aus Datei installieren“ wählen. Bei Updates die neue signierte XPI über die bestehende Erweiterung installieren, nicht vorher deinstallieren. Bei einem Wechsel von temporärer Installation bei Bedarf die Sicherung importieren.
+
+Weitere Releases im bestehenden Mozilla-Eintrag mit höherer Versionsnummer signieren lassen. Automatische Updates über ein eigenes HTTPS-Update-Manifest sind derzeit nicht eingerichtet; dafür wären eine passende `update_url` und signierte Downloads erforderlich. Ein unlisted Mozilla-Paket und die Sichtbarkeit eines Chrome-Store-Eintrags sind unterschiedliche Vertriebswege.
+
+## Release im Repository
+
+Beide Browserziele bauen und prüfen, vollständige Quellen und Dokumentation committen, annotierten Tag `v<Version>` erstellen und Commit plus Tag pushen. Signierte Pakete bleiben außerhalb von Git und können anschließend als Release-Anhang veröffentlicht werden. Details: [AGENTS.md](../AGENTS.md).

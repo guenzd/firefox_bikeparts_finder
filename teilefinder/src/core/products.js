@@ -16,6 +16,13 @@ function modelSearchQuery(query){
  const models=productModelCodes(query),brand=String(query||'').trim().split(/\s+/)[0];
  return models.length&&/^[a-zäöüß]+$/i.test(brand)?[brand,...models.filter(model=>model.toLowerCase()!==brand.toLowerCase())].join(' '):null;
 }
+// One unambiguous model, never a size/count or a choice between several models.
+// This changes navigation only; matching still uses the complete original name.
+function modelRetryQuery(query){
+ const models=productModelCodes(query);
+ if(models.length!==1||!/^[a-z]{2,8}(?:-[a-z]{1,8})*-?\d{2,}[a-z]?$/i.test(models[0]))return null;
+ return productNameText(query)===productNameText(models[0])?null:models[0];
+}
 function modelNameMatches(name,query){
  const models=productModelCodes(query);if(!models.length)return false;
  if(!models.every(code=>hasModelCode(name,code)))return false;
@@ -29,14 +36,18 @@ function modelNameMatches(name,query){
 function matches(name,q){
  const text=productNameText(name),query=productNameText(q),words=text.split(/[^a-z0-9]+/).filter(Boolean);
  if(/\b(?:bundle|set|\d+er\s+set)\b/.test(text)&&!/\b(?:bundle|set|\d+er\s+set)\b/.test(query))return false;
- const requested=query.split(/\s+/).filter(Boolean);
+ // Tokenize both sides equally: punctuation in a brand/title is a separator,
+ // not a required word. Model identifiers are still checked separately below.
+ const requested=query.split(/[^a-z0-9]+/).filter(Boolean);
+ if(!requested.length)return !query;
  if(!productModelCodes(q).every(code=>hasModelCode(name,code)))return false;
  const acronym=(token,tokens)=>/^[a-z]{2,4}$/.test(token)&&tokens.some((_,i)=>tokens.slice(i,i+token.length).length===token.length&&tokens.slice(i,i+token.length).every((word,j)=>/^[a-z]{3,}$/.test(word)&&word[0]===token[j]));
  return requested.every((token,index)=>{
   if(words.includes(token)||acronym(token,words))return true;
   // A pack count is meaningful even when attached to its per-item size (24x50g).
   // Keep numeric model identifiers and different counts strict.
-  if(/^\d+$/.test(token)&&[...text.matchAll(/(?:^|[^a-z0-9])(\d+)\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l)\b/g)].some(m=>m[1]===token))return true;
+  const packCount=token.match(/^(\d+)(?:er)?$/)?.[1];
+  if(packCount&&[...text.matchAll(/(?:^|[^a-z0-9])(\d+)(?:\s*[x×]\s*\d+(?:[.,]\d+)?\s*(?:kg|g|ml|l)\b|er\b|\s*(?:stuck|stueck|pieces|pcs)\b)/g)].some(m=>m[1]===packCount))return true;
   // Accept abbreviations of consecutive words without a vocabulary of product names.
   for(let length=2;length<=4;length++)for(let start=Math.max(0,index-length+1);start<=index;start++){
    const phrase=requested.slice(start,start+length);
@@ -60,7 +71,7 @@ function structuredOffers(json,host,fallbackUrl,q){
    const name=[brandName,group?.name&&group.name+' ·',p.name].filter(Boolean).join(' ');
    for(const o of [].concat(p.offers)){
     const ean=productEAN(p,o);
-    if(!matches(name,q)&&ean!==q&&!['sku','mpn'].some(k=>String(p[k]||'')===q))continue;
+    if(!matches(name,q)&&!equivalentEANs(ean,q)&&!['sku','mpn'].some(k=>String(p[k]||'')===q))continue;
     const url=safeUrl(o.url||p.url||fallbackUrl,host),price=euro(o.price??o.lowPrice);
     if(!url||o.priceCurrency!=='EUR'||price===null)continue;
     const status=String(o.availability||'').split('/').pop();

@@ -16,10 +16,10 @@ function createPagePlatforms(nativePlatform){
  const search={...ui,tabs:{...ui.tabs,async create(options){
   const owner=await current,host=new URL(options.url).hostname;
   const existing=await nativePlatform.runtime.sendMessage({type:'find-shop-tab',owner:owner.id,host});
-  if(existing?.tab)return nativePlatform.tabs.update(existing.tab.id,options);
+  if(existing?.tab)return {...await nativePlatform.tabs.update(existing.tab.id,options),previousUrl:existing.tab.url};
   // Register and install image rules before the first shop request.
   const tab=await nativePlatform.tabs.create({...options,url:'about:blank',openerTabId:owner.id});
-  try{const result=await nativePlatform.runtime.sendMessage({type:'register-shop-tab',owner:owner.id,tabId:tab.id,url:options.url});if(!result?.registered)throw Error('Shop-Tab konnte nicht zugeordnet werden.');return await nativePlatform.tabs.update(tab.id,options);}
+  try{const result=await nativePlatform.runtime.sendMessage({type:'register-shop-tab',owner:owner.id,tabId:tab.id,url:options.url});if(!result?.registered)throw Error('Shop-Tab konnte nicht zugeordnet werden.');return {...await nativePlatform.tabs.update(tab.id,options),previousUrl:'about:blank'};}
   catch(error){await nativePlatform.tabs.remove(tab.id).catch(()=>{});throw error;}
  }}};
  return {ui,search};

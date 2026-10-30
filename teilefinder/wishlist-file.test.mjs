@@ -69,3 +69,21 @@ test('Export and import retain bounded concrete selections for native, radio and
  assert.ok(ctx.cleanVariantSelection([null,{kind:'submit',id:'cart',value:'anything'}]).every(value=>value.kind==='select'));
  assert.equal(ctx.cleanVariantSelection(Array(30).fill(selection[0])).length,20);
 });
+
+test('Snapshot roundtrip preserves cheapest-product comparison mode and its candidate offers',()=>{
+ const shop={name:'Bike-Discount',comparisonMode:'cheapest',offers:[{name:'A Spray',url:'https://www.bike-discount.de/de/a',price:6,priceKind:'exact',stock:'Auf Lager'},{name:'B Spray',url:'https://www.bike-discount.de/de/b',price:8,priceKind:'exact',stock:'Auf Lager'}]};
+ const snapshot=ctx.snapshotShops([shop]);assert.equal(snapshot[0].comparisonMode,'cheapest');assert.equal(snapshot[0].offers.length,2);
+ ctx.items=[{query:'Spray',variant:'',maxPrice:null,shops:[shop]}];const loaded=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(loaded[0].shops[0].comparisonMode,'cheapest');assert.equal(loaded[0].shops[0].offers.length,2);
+ assert.equal(ctx.snapshotShops([{...shop,comparisonMode:'unknown'}])[0].comparisonMode,undefined);
+});
+
+test('Name fallback results survive export/import without changing the requested EAN or inventing a missing offer EAN',()=>{
+ ctx.items=[{query:'Generic gel 24er',variant:'Citrus',ean:'1234567890128',useEAN:true,minPrice:10,maxPrice:20,shops:[{name:'BIKE24',matchMode:'name-fallback',offers:[{name:'Generic gel 24x40ml',variant:'Citrus',price:15,priceKind:'exact',stock:'Auf Lager',ean:'',url:'https://www.bike24.de/generic-pack'}]}]}];
+ const rows=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(rows[0].ean,'1234567890128');assert.equal(rows[0].useEAN,true);assert.equal(rows[0].shops[0].matchMode,'name-fallback');assert.equal(rows[0].shops[0].offers[0].ean,'');assert.equal(rows[0].minPrice,10);assert.equal(rows[0].maxPrice,20);
+});
+
+test('File export retains the selected display sort without rewriting insertion order',()=>{
+ const items=[{query:'Zug',variant:'',maxPrice:null},{query:'Ärmel',variant:'',maxPrice:null}],screen={query:'',variant:'',ean:'',maxPrice:null,shops:[],wishlistSort:'price'};
+ const parsed=ctx.parseWishlistFile(ctx.wishlistFile(items,screen));assert.equal(parsed.screen.wishlistSort,'price');assert.deepEqual(Array.from(parsed,i=>i.query),['Zug','Ärmel']);
+ screen.wishlistSort='invalid';assert.equal(ctx.parseWishlistFile(ctx.wishlistFile(items,screen)).screen.wishlistSort,'added');
+});

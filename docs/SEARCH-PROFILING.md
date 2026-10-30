@@ -1,8 +1,28 @@
-# Suchlauf-Profiling (0.8.3)
+# Suchlauf-Profiling
 
-## Messung und Grenzen
+## Aktuellen Suchlauf aufzeichnen
 
-Die native Browsersteuerung lieferte am 25.10.2026 erneut `Sky Computer Use native pipe startup failed`, ohne erreichbare Browser. Deshalb gibt es hier **keine Messung realer Shop- oder Netzwerkzeiten**. Gemessen wurde der echte Suchcontroller mit deterministischer virtueller Uhr und simulierten Shopantworten. Matching, Cache-Auswahl, Wartezeiten, Wiederverwendung und Ergebnisabschluss laufen durch den produktiven Code.
+1. Die aktualisierte Erweiterung laden und die Teilefinder-Seite neu öffnen.
+2. Einen Artikel über ↻ aktualisieren oder eine Einzelteilsuche ausführen. Für einen Vergleich Produktname, EAN-Schalter, Variante, Preisbereich und „Bilder laden“ unverändert lassen.
+3. Nach Abschluss in der Entwicklerkonsole **der Teilefinder-Seite** ausführen:
+
+```js
+JSON.stringify(getSearchProfiles(), null, 2)
+```
+
+4. Die vollständige Ausgabe bei Bedarf in `tmp.log` im Repository-Hauptverzeichnis ablegen. Die Datei ist ignoriert und wird nicht gepusht. Das Add-on schreibt sie nicht automatisch.
+
+Die letzten 20 abgeschlossenen oder abgebrochenen Jobs liegen nur im Arbeitsspeicher. Ein Neuladen leert sie; `[]` während des ersten laufenden Jobs ist ebenfalls möglich. Profile enthalten Namen, EAN und Varianten und sollten vor einer Weitergabe geprüft werden. Einzelmessungen und komplette Listenläufe nicht ohne gleiche Bedingungen vergleichen.
+
+Hohe `detail`-Zeiten können DOM-, Datenblatt- und Variantenwartezeiten enthalten. `navigation` misst nur den API-Aufruf, nicht den vollständigen Netzwerkabruf. Shops laufen parallel; ihre Zeiten dürfen nicht zur Gesamtlaufzeit addiert werden. Ein weiter rotierendes Browser-Ladesymbol misst nicht den Abschluss der Produktauslesung. `pageMismatch` und `readIssues` sind Diagnosehinweise, kein alleiniger Beweis einer bestimmten Ursache.
+
+Bekannte Wunschlisten-URLs und gespeicherte Optionen sollten direkt unter `detail` geprüft werden, ohne vorheriges Listing. Shops ohne geeigneten gespeicherten Link benötigen weiterhin die Suche. Ältere oder nicht bestätigte Angebote sind kein Beleg für erfolgreiche frische Auslesungen.
+
+`npm run profile:search` führt dagegen einen **simulierten** Controller-Benchmark aus, keinen echten Shop- oder Netzwerkvergleich. Die folgenden Abschnitte bewahren die historischen Messungen und Änderungen. Frühe Testzahlen und technische Zwischenstände gelten jeweils für die dort genannte Version.
+
+## Historischer Ausgangsversuch 0.8.3: Messung und Grenzen
+
+Die native Browsersteuerung lieferte am 25.10.2026 erneut `Sky Computer Use native pipe startup failed`, ohne erreichbare Browser. Deshalb enthält dieser erste Versuch **keine Messung realer Shop- oder Netzwerkzeiten**. Spätere Abschnitte werten vom Nutzer bereitgestellte echte Laufzeitprofile aus. Gemessen wurde der echte Suchcontroller mit deterministischer virtueller Uhr und simulierten Shopantworten. Matching, Cache-Auswahl, Wartezeiten, Wiederverwendung und Ergebnisabschluss laufen durch den produktiven Code.
 
 `npm run profile:search` erzeugt einen JSON-Bericht. Die Szenarien liefern vier gültige Angebote; ein fehlendes Ergebnis lässt den Lauf fehlschlagen. Erfasst werden Controller-Laufzeit, Navigationen, Listing-/Detail-Auslesungen, erstellte Tabs und gleichzeitige Auslesungen pro Tab.
 
@@ -187,3 +207,61 @@ Die Regression mit zwei abhängigen BIKE24-Dropdowns prüft bei der Wiederholung
 Die Farbe wurde bisher nur über wenige Farbwörter im sichtbaren Seitentext erkannt. Das reicht bei eingeklappten Produkteigenschaften nicht. Der gemeinsame Leser wertet deshalb explizit beschriftete Farbzeilen in Tabellen und Definitionslisten sowie `itemprop="color"` aus. Widersprüchliche Eigenschaften werden nicht bestätigt. Zusammengeschriebene Wörter mit Großbuchstaben im expliziten Farbfeld werden getrennt; Produktnamen und Beschreibungstexte werden dafür nicht umgedeutet.
 
 Die allgemeine Bekleidungsregression kombiniert eine M-Radiooption mit einer nur im DOM vorhandenen Farbzeile. Sie prüft Schwarz, eine zusammengesetzte Farbbezeichnung, eine falsche Größe und eine abweichende Farbe. Vorhandene Tests stellen weiterhin sicher, dass ein Produktname mit einem farbähnlichen Technologiebegriff nicht als Farbbestätigung gilt. Der vom Nutzer genannte aktuelle Tab nennt Schwarz; der abrufbare externe Seitenstand nennt eine andere Farbe und ist daher kein Live-Nachweis für diesen Tab.
+
+## Wunschlisten-Warteschlangen und Bereitschaftssignal (0.8.32)
+
+Jeder Shop besitzt eine serielle Warteschlange für Initialprüfung und spätere EAN-Eingrenzung. Ein langsamer Shop blockiert die folgenden Artikel der anderen Shops nicht mehr. Pro Teilefinder-Tab bleibt es bei höchstens vier verwalteten Shop-Tabs. Profile entstehen je Artikel; ihre `elapsedMs` enthalten nun auch die Wartezeit in den Shop-Warteschlangen. Diese Zeiten dürfen bei einem Listenlauf **nicht addiert** werden. Für einen vollständigen Lauf mit gemeinsam gestarteten Artikeln entspricht das Maximum näherungsweise der Gesamtdauer.
+
+Ein leichtes Bereitschaftssignal kann die erste feste Produktseiten-Pause verkürzen, wenn die Navigation zu einem anderen Produktpfad sicher erkennbar ist. Bei gleichem Pfad, unbekanntem Ausgangsdokument, fehlendem Empfänger oder ausbleibender Bereitschaft bleibt der bisherige begrenzte Wartepfad erhalten. Listing-Stabilität und langsamere Sicherheitsprüfungsintervalle bleiben unverändert. Dropdowns enden früher nur bei frisch bestätigter EAN, passender Variante, exaktem Preis und bekanntem Lagerstatus; eine Datenblatt-EAN reicht nicht. Gleichzeitige Statusmeldungen werden für die Darstellung gebündelt, die zugrunde liegenden Ergebnisse sofort verarbeitet.
+
+Ein Live-Vergleich am 30.10.2026 mit derselben vorhandenen 12-Artikel-Wunschliste ergab weiterhin 35 bestätigte Shop-Angebote mit identischer Abdeckung je Artikel und denselben 445,95 € als Teilsumme. Der vorangegangene sequenzielle Lauf lieferte rund 223,5 Sekunden summierte Artikelzeiten; der Warteschlangenlauf rund 136,4 Sekunden bis zum letzten Artikel. Das entspricht in diesem einzelnen Vergleich etwa 39 % weniger Zeit. Netzwerk, Seitencaches und Hintergrundtab-Timer sind damit nicht kontrolliert; dies ist keine allgemeine Geschwindigkeitsgarantie. Während des Warteschlangenlaufs waren genau vier Tabs verwaltet. Beim Entwicklungs-Neuladen zurückgebliebene ältere Test-Tabs wurden anschließend geschlossen.
+
+Die zusätzlichen Szenarien `readyProductSignal` und `loadingProductSignal` in `npm run profile:search` sind weiterhin **Simulationen**. Bei sofort beziehungsweise nach 100 ms verfügbarem Produktdokument entfällt dort die bisherige 750-ms-Pause, ohne zusätzliche Produkt-Auslesungen oder Shop-Tabs. Regressionstests prüfen außerdem unabhängigen Fortschritt, einen aktiven Auftrag pro Shop, EAN-Eingrenzung in derselben Warteschlange und Abbruch vor dem Start wartender Aufträge.
+
+## Chromium: verzögertes BIKE24-Rendering (0.8.36)
+
+Ein Live-Lauf der vorhandenen 11-Artikel-Liste in Chromium benötigte vor der Korrektur rund 205,7 Sekunden. Die ersten BIKE24-Produkte liefen in das 60-Sekunden-Limit; im Hintergrund fehlten Preis- und Verfügbarkeitselemente trotz vollständig geladenem Dokument. Derselbe Artikel wurde mit sichtbarem Shop-Tab in 10,5 Sekunden bestätigt. Der veröffentlichte BIKE24-Produktcode stellt die Widget-Montage in eine `requestAnimationFrame`-Warteschlange; diese läuft im versteckten Chromium-Tab nicht zuverlässig an.
+
+Der Fallback ist deshalb ausdrücklich auf Chromium und ungerenderte BIKE24-Widgets beschränkt. Er liest aktuelle Metadaten der geladenen Produktseite und die schreibgeschützte Verfügbarkeitsantwort desselben Shops. Ein Optionssatz muss vollständig und ohne doppelte oder unbekannte Werte auf eine konkrete Antwortzeile abgebildet sein. Aufpreise sind nur mit dem aktuellen Steuersatz berechenbar. Eine GTIN einer anderen Option oder eine unzugeordnete Datenblattliste darf die Auswahl nicht bestätigen. Weder gespeicherte Preise noch gespeicherte Varianten ersetzen frische Nachweise. Firefox und bereits gerenderte Widgets behalten ihren DOM-/Dropdown-Pfad; Tab-Anzahl und Shop-Warteschlangen bleiben gleich.
+
+Der erneute Chromium-Lauf mit denselben 11 Artikeln dauerte rund 66,6 Sekunden bis zum letzten Artikel. BIKE24-Details der ersten Produkte lagen bei ungefähr 0,2 bis 0,8 Sekunden und liefen nicht mehr in das 60-Sekunden-Limit. Ein isolierter Hintergrundtest dauerte 4,6 Sekunden statt 60 Sekunden; der zusätzliche Test mit Produktname, EAN und einer konkreten Zahlenvariante wurde in 7,3 Sekunden bestätigt. Es blieben vier verwaltete Shop-Tabs. Ein separater `noReceiver`-Fehler bei Bike-Discount im ersten Listenartikel wurde beim anschließenden Einzel-Refresh nicht wiederholt; danach war dieser Artikel in allen vier Shops frisch bestätigt. Netzwerk und Cachezustände sind bei diesen Einzelmessungen nicht kontrolliert.
+
+Die anschließende Firefox-Abnahme mit der bestehenden 12-Artikel-Liste lief in rund 134,3 Sekunden durch: 36 frisch bestätigte Artikel-Shop-Zuordnungen, unverändert 445,95 € Teilsumme und vier verwaltete Tabs. Der Adapter meldete `firefox`; der Chromium-Fallback war damit deaktiviert. Die automatisierten Regressionen prüfen zusätzlich diesen Ausschluss, den unveränderten Pfad bereits gerenderter Widgets, exakte Mehrfachoptionen und SKU/EAN-Zuordnungen, Aufpreise/Steuern sowie das Ablehnen unvollständiger und veralteter Daten. Stand: 241 erfolgreiche Tests, Firefox-Lint ohne Meldungen und Chrome-Paketprüfung erfolgreich.
+
+Hintergrund zur browserseitigen Einschränkung: [Chrome: Background tabs](https://developer.chrome.com/blog/background_tabs). Die shopseitige Render-Warteschlange wurde zusätzlich im während der Untersuchung ausgelieferten BIKE24-Produkt-JavaScript geprüft.
+
+Der abschließende Wiederholungslauf mit dem gepackten Chromium-Stand 0.8.36 bestätigte 33 Artikel-Shop-Zuordnungen bei 11 Artikeln in rund 66,5 Sekunden; vier Tabs wurden wiederverwendet. Alle BIKE24-Detailaufrufe antworteten ohne Lese- oder Transportfehler, ihre summierten Detailzeiten pro Artikel lagen bei rund 0,2 bis 0,8 Sekunden. Dieser Lauf enthielt keinen fehlgeschlagenen Bike-Discount-Erstaufruf mehr. Firefox und Chromium haben unterschiedliche vorhandene Listen; ihre Trefferzahlen sind daher kein direkter Browservergleich.
+
+## Verknüpfte Ausführungen und Packungsgrößen (0.8.37)
+
+Bei BIKE24 können Links nur die Packungsgröße beschreiben, während der Geschmack erst als Dropdown auf der Zielseite angeboten wird. Ein fehlender Geschmack im Linktext darf diese Seite nicht vorzeitig ausschließen. Die Detailabfrage erhält die gewünschte Variante und die unveränderte EAN. Bei einer Namenssuche werden außerdem die frisch gelesenen Namen verknüpfter Ausführungen erneut geprüft: Eine günstigere Einzelportion darf eine ausdrücklich gesuchte Mehrfachpackung nicht ersetzen.
+
+Der gemeinsame Namensvergleich erkennt Stückzahlen in generischen Packungsnotationen wie „24er“, „24 Stück“ und „24x50g“. Andere Stückzahlen, Größen und Modellnummern bleiben verschieden. Die Regressionstests verwenden allgemeine Beispieldaten, keine produktbezogenen Suchwortausnahmen.
+
+Live geprüft in Firefox und Chromium mit demselben vorhandenen Produktnamen, Geschmack und Maximalpreis 70 € bei ausgeschalteter EAN-Suche im Ad-hoc-Formular: Beide zeigten ausschließlich die gewünschte 24er-Box zum aktuellen BIKE24-Preis von 46,99 € statt des billigeren Einzelbeutels. Firefox benötigte rund 52,2 Sekunden für die vier Shops; Chromium rund 24,8 Sekunden. Je Erweiterungsseite blieben vier verwaltete Shop-Tabs. Die gespeicherte EAN-Einstellung des Wunschlistenartikels wurde nicht verändert.
+
+Die eigenständige Datenfrage bleibt ausdrücklich getrennt: Eine EAN in einer Liste mehrerer Datenblatt-GTINs bestätigt keine konkrete Box-/Geschmacksoption. Eine explizit anders zugeordnete Einzelartikel-EAN wird nicht zur Box-EAN umgedeutet. Die aktivierte EAN-Suche kann ein Angebot daher weiterhin als unbestätigt ablehnen. Die Korrektur erfindet weder Kennungen noch eine Zuordnung anhand der Tabellenreihenfolge. Stand: 245 erfolgreiche automatisierte Tests.
+
+## EAN zuerst, anschließend Name mit demselben Preisfilter (0.8.38)
+
+Einzelteilsuche, Einzelaktualisierung und Wunschlistenprüfung verwenden nun dieselbe zweistufige Folge je Shop: erst EAN; wenn kein exakt bepreistes Angebot zur gewünschten Variante innerhalb beider Preisgrenzen vorliegt, anschließend Name mit denselben Filtern. Ein passender, aber nicht lieferbarer EAN-Treffer im Preisbereich löst diesen Rückfall nicht aus. Ausgewiesene Sicherheits-/Transportfehler führen ebenfalls nicht zu einer zusätzlichen Suche.
+
+Namensangebote tragen `matchMode: name-fallback`. UI, Sammellauf, gespeicherte Ergebnisse und Dateiexport erhalten diese Kennzeichnung. Solche Angebote werden nicht nachträglich am ursprünglichen EAN-Filter entfernt und bekommen keine EAN aus anderen Shops zugewiesen. Die gespeicherte Such-EAN bleibt unverändert; eine tatsächlich andere gelesene Kennung bleibt am Angebot erhalten. Erfolgreiche EAN-Ergebnisse anderer Shops bleiben bestehen. Passend benannte bekannte Produkt-URLs werden auch im Rückfall zuerst frisch geprüft, statt stets eine neue Suche zu öffnen.
+
+Zusätzlich vergleicht der Listing-Vorfilter unbeschriftete Millimeterangaben nicht pauschal als dieselbe Eigenschaft: Ein Klemmdurchmesser darf die Suche nach einer Länge nicht vor der Dropdown-Prüfung ausschließen. Eindeutige Reifenbreiten und ausdrücklich gleich benannte Achsen bleiben vorfilterbar. Die Reifen-Regression verwendet dafür eine eindeutige ETRTO-Ausführung; eine separate Regression prüft den Durchmesser-/Längenfall über den echten Suchcontroller.
+
+Bei einem zusätzlichen Firefox-Test blieb das BIKE24-Widget trotz geladenem Dokument teilweise uninitialisiert (17 nicht bereite Detailantworten, 60-Sekunden-Limit). Der vorhandene Abruf frischer Seitenmetadaten und explizit zugeordneter Verfügbarkeitsdaten darf deshalb inzwischen in beiden Browsern einspringen, wenn Produktfelder fehlen oder die DOM-Auswertung kein Angebot liefert. Erfolgreiche DOM-/Dropdown-Auslesungen behalten ihren bisherigen Pfad ohne zusätzlichen Abruf. Pro Detailprüfung wird dieser Datenabruf höchstens einmal versucht. Aktuelle Optionszuordnungen, Preise, Aufpreise/Steuern und GTIN-Evidenz werden weiterhin geprüft; alte Wunschlistenpreise werden nicht verwendet.
+
+Die abschließende vollständige Firefox-Abnahme verarbeitete 13 Artikel in rund 135,3 Sekunden: 43 frische Artikel-Shop-Zuordnungen, davon drei Namensrückfälle, bei genau vier verwalteten Tabs. Beide zuvor untersuchten Artikel behielten EAN und eingeschalteten EAN-Schalter. Bestätigt wurden unter anderem die 24er-Box zum aktuellen BIKE24-Preis 46,99 € sowie die 70-mm-Ausführung mit 90,99 € bei BIKE24 und 91,99 € bei Bike-Discount. Die Deda-Gegenprüfung in Chromium lieferte dieselben beiden Preise. Die Formular-EAN-Option stand anschließend in beiden Browsern wieder auf dem eingeschalteten Standard.
+
+Ein Wiederholungs-Refresh der bereits gespeicherten Box in Chromium verwendete ausschließlich bekannte Produktseiten: keine Listing-Auslesung, drei BIKE24-Detailantworten mit zusammen rund 0,44 Sekunden und rund 1,72 Sekunden erfasster Wartezeit. Die Such-EAN blieb eingeschaltet und erhalten, das BIKE24-Namensangebot blieb ohne erfundene EAN gespeichert. Die Messwerte sind einzelne Live-Beobachtungen, keine allgemeine Geschwindigkeitsgarantie. Stand: 260 erfolgreiche Tests; die Sortierung der Wunschliste wurde in dieser Version nicht geändert.
+
+## Begrenzte Modellnummer-Suche und Kaltstartvergleich (0.8.39)
+
+Eine Namenssuche ohne passendes Angebot erhält höchstens einen Zusatzversuch mit genau einer eindeutig erkannten Modellkennung. Die kürzere Kennung dient ausschließlich zur Navigation; Listing und Detailauslesung behalten den vollständigen ursprünglichen Namen und die Variante. Zusätzlich prüft der Zusatzversuch Marke, exakte Modellkennung und gemeinsame beschreibende Wörter. Zubehör-/Kompatibilitätsverweise, andere Modelle und Marken werden nicht als passendes Produkt übernommen. Mehrdeutige Modellangaben und Größen-/Mengenangaben starten keinen Versuch. Der Zusatzversuch läuft in derselben seriellen Shop-Warteschlange und demselben Tab, dauert höchstens 30 Sekunden und erweitert sich nicht weiter. Erfolgreiche Angebote – auch nicht lieferbare – bleiben unverändert. Scheitert der Zusatzversuch im Preis-/Variantenfilter, bleibt das ursprüngliche Ergebnis erhalten. EAN bleibt der erste Schritt; der Zusatzversuch kann erst in der anschließenden Namenssuche erfolgen. Sicherheitsprüfungen, technische Fehler und nicht lesbare Listings starten ihn nicht.
+
+Live-Abnahme in Firefox: 13 vorhandene Wunschlistenartikel mit unveränderten Namen, EAN-Einstellungen, Varianten und Preisgrenzen in einer getrennten temporären Add-on-Instanz gesucht. Keine gespeicherten Produkt-URLs, Auswahlhilfen oder Treffer importiert. Ausgangsbasis: 44 vorhandene Artikel-Shop-Treffer, davon einer zuvor nicht bestätigt. Vor der Änderung wurde ein bisheriger Treffer nicht neu gefunden. Mit Modellnummer-Fallback wurden alle 44 bisherigen Treffer mit exakt identischen Produkt- und Varianten-URLs wiedergefunden. Zusätzlich erschien bei einem Artikel ein passender BIKE24-Treffer, dessen Ausführungen zuvor fehlten. Kein Verlust einer bisherigen Angebots-URL im Preisbereich. Die ursprüngliche Wunschliste und Historie bleiben vom getrennten Testzustand unberührt. Nach zusätzlicher Absicherung für nicht lesbare Seiten wurde der betroffene Artikel mit dem endgültigen Code nochmals ohne Cache gesucht und in allen vier Shops gefunden.
+
+Automatisierte Abnahme: 277 erfolgreiche Tests. Die neuen Tests verwenden erfundene Modell-/Produktnamen und prüfen direkte Suche und Wunschliste, EAN→Name→Modell, unveränderte erfolgreiche bzw. nicht lieferbare Angebote, falsche Modelle, Zubehör, Marke, Preisgrenzen, Varianten, Sicherheitsprüfungen und nicht lesbare Seiten. Build, Firefox-Lint und Chrome-Paketvalidierung erfolgreich. Lokale Vergleichsdateien mit Wunschlistendaten bleiben ausschließlich in `outputs/`; sie gehören nicht zum Repository.
+
+Chromium-Gegenprobe mit endgültigem Code und leerem Produkt-URL-Cache: derselbe Artikel ohne Eingabe-EAN und mit unverändertem Preisbereich in allen vier Shops gefunden, URLs identisch zum Firefox-Einzeltest, vier verwaltete Tabs. Der erste Durchlauf konnte r2-bike wegen eines noch offenen Cookie-Dialogs nicht auslesen; nach Ablehnen des Dialogs und erneutem Leeren des Testcaches war auch dieser Shop erfolgreich. Die Chromium-Original-Wunschliste wurde nicht verwendet oder geändert.

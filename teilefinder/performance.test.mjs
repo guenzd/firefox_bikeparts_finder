@@ -29,7 +29,7 @@ test('Security-check retries keep their slower interval and use the same four ta
  const result=await profileSearch({blockedReads:2});assert.equal(result.minBlockedRetryMs,2000);assert.equal(result.elapsedMs,6500);assert.equal(result.createdTabs,4);assert.equal(result.maxInFlightPerTab,1);
 });
 test('Cancelled linked-variant checks stop after the pending wait instead of issuing more detail reads',async()=>{
- let active=true,reads=0;const ctx=vm.createContext({URL,jobActive:()=>active,async navigateShop(){},async shopPause(){active=false;},async shopMessage(){reads++;return {ready:false};}});
+ let active=true,reads=0;const ctx=vm.createContext({URL,validEAN:q=>/^\d+$/.test(q),jobActive:()=>active,async navigateShop(){},async shopPause(){active=false;},async shopMessage(){reads++;return {ready:false};}});
  const source=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('async function bike24Linked(')),ctx);
  await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'Example product'},{},{offers:[],linkedVariants:[{url:'https://www.bike24.de/p1.html'}]});assert.equal(reads,0);
 });
@@ -37,7 +37,7 @@ test('Cancelled linked-variant checks stop after the pending wait instead of iss
 test('A saved URL already checked in this shop run is not revisited by the empty-EAN fallback',async()=>{
  const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
  const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}}}},setTimeout:(fn,ms)=>ms<10000?setImmediate(fn):setTimeout(fn,ms),clearTimeout,URL});
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/catalog.js',import.meta.url),'utf8')+controller,ctx);
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/catalog.js',import.meta.url),'utf8')+controller,ctx);
  let navigations=0,details=0;const url='https://r2-bike.com/example-product',ean='1234567890128';
  const shop={id:'r2-bike',name:'r2-bike',host:'r2-bike.com',search:q=>'https://r2-bike.com/suchergebnisse#search?query='+q};
  const hint={url,name:'Example Model 123',ean,variant:'black',price:25,priceKind:'exact',stock:'Auf Lager'};
@@ -58,8 +58,8 @@ test('bike-components products without a selector read current price and stock i
   if(selector.includes('.stock-status'))return {innerText:'Auf Lager'};
   return null;
  }};
- const ctx=vm.createContext({URL,document,location:{hostname:'www.bike-components.de',href:url},platform:{runtime:{onMessage:{addListener(){}}}},dedupe:rows=>rows,productDropdowns:()=>[],currentProductEAN:()=> '1234567890128',productColor:()=>''});
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
+ const ctx=vm.createContext({URL,document,location:{hostname:'www.bike-components.de',href:url},platform:{runtime:{onMessage:{addListener(){}}}},dedupe:rows=>rows,productDropdowns:()=>[],currentProductEAN:()=> '1234567890128',productColor:()=>'',fixedProductProperties:()=>''});
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/shops/reader.js',import.meta.url),'utf8'),ctx);
  const result=await ctx.readShopPage({type:'detail',query:'Example Model 123',shopId:'bike-components',host:'www.bike-components.de',url,direct:true,fallback:{name:'Old product',price:999,variant:'Old variant',ean:'9999999999999'}});
  assert.equal(result.ready,true);assert.equal(result.offers[0].price,29.99);assert.equal(result.offers[0].ean,'1234567890128');assert.equal(result.offers[0].stock,'Auf Lager');
  priceAvailable=false;const missing=await ctx.readShopPage({type:'detail',query:'Example Model 123',shopId:'bike-components',host:'www.bike-components.de',url,direct:true,fallback:{name:'Old product',price:999}});assert.equal(missing.ready,false);assert.equal(missing.offers[0].price,null);
@@ -112,7 +112,7 @@ test('Already interactive and complete documents can be read immediately',async(
 test('Profiles keep the requested product identity through query refinement and distinguish a disabled EAN',async()=>{
  const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');let listener;
  const ctx=vm.createContext({searchPlatform:{runtime:{getURL:path=>'extension://unit/'+path,onMessage:{addListener(fn){listener=fn;}}}},setTimeout,clearTimeout});
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
  ctx.searchAll=async job=>{job.query='internally refined query';job.nameQuery='normalized name';};
  for(const useEAN of [true,false]){
   await listener({type:'search',id:'identity-'+useEAN,query:'  Example Model 123  ',ean:'1234567890128',variant:' black ',useEAN},{url:'extension://unit/ui/home.html',tab:{id:99}});
@@ -127,7 +127,7 @@ test('Profiles keep the requested product identity through query refinement and 
 test('A completed but unconfirmed saved variant is checked once, retains its diagnostic and never starts wishlist search',async()=>{
  const ctx=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(){}}},URL,setTimeout,clearTimeout});
  const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
- vm.runInContext(readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
+ vm.runInContext(readFileSync(new URL('./src/core/identifiers.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/products.js',import.meta.url),'utf8')+readFileSync(new URL('./src/core/variant-match.js',import.meta.url),'utf8')+controller,ctx);
  const url='https://www.bike-discount.de/de/generic-liquid',ean='1234567890128',shop={id:'bike-discount',name:'Bike-Discount',host:'www.bike-discount.de',search(){throw Error('Known URL must not start search');}};
  const job={id:'one',source:99,refreshKnown:true,query:ean,variant:'1000 ml',knownShops:[{name:shop.name,offers:[{url,name:'Generic liquid',ean}]}],results:new Map(),counts:new Map()};
  ctx.job=job;vm.runInContext('jobs.set(job.source,job)',ctx);ctx.shopTab=async()=>({id:1});ctx.shopPause=async()=>{};
@@ -146,4 +146,100 @@ test('Known variants sharing one URL are restored separately without revisiting 
  let navigations=0;const selected=[];
  ctx.searchPlatform.tabs={async update(){navigations++;},async sendMessage(_id,data){assert.equal(data.fallback.price,null);assert.equal(data.fallback.selection.length,0);const value=data.savedSelection[0].value;selected.push(value);return {ready:true,productName:'Generic product',offers:[{url,name:'Generic product',variant:value,price:value==='A'?10:20,priceKind:'exact',selection:data.savedSelection}]};}};
  const offers=await ctx.readKnownProducts(job,shop,{id:1},job.query);assert.deepEqual(selected,['A','B']);assert.equal(navigations,0);assert.deepEqual(Array.from(offers,row=>row.price),[10,20]);
+});
+
+test('Known product URLs survive slow reused-tab navigation without consuming all six product-read attempts',async()=>{
+ const c=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(){}}},URL,setTimeout,clearTimeout});
+ const files=['identifiers.js','products.js','variant-match.js','catalog.js','search-controller.js'];for(const file of files)vm.runInContext(readFileSync(new URL('./src/core/'+file,import.meta.url),'utf8'),c);
+ const url='https://www.bike-discount.de/de/known-product',ean='4029679672666',shop={id:'bike-discount',name:'Bike-Discount',host:'www.bike-discount.de',search(){throw Error('Known refresh must not navigate to a search');}};
+ const job={id:'slow-known',source:99,refreshKnown:true,query:ean,variant:'Cola',knownShops:[{name:shop.name,offers:[{name:'Old title',url,ean,price:99,variant:'Cola'}]}],results:new Map(),counts:new Map()};
+ c.job=job;vm.runInContext('jobs.set(job.source,job)',c);c.shopPause=async()=>{};
+ let reads=0;c.searchPlatform.tabs={async sendMessage(_id,data){assert.equal(data.url,url);assert.equal(data.direct,true);assert.equal(data.fallback.price,null);reads++;return reads<10?{ready:false,pageMatchesRequested:false,offers:[]}:{ready:true,pageMatchesRequested:true,productName:'Fresh title',offers:[{name:'Fresh title',url,ean,variant:'Cola',price:44.99,priceKind:'exact',stock:'Auf Lager'}]};}};
+ const offers=await c.readKnownProducts(job,shop,{id:1},ean);assert.equal(reads,10);assert.equal(offers.length,1);assert.equal(offers[0].price,44.99);assert.ok(job.checkedKnownUrls.has(url));
+});
+
+test('Product document readiness skips the fixed pause, wakes on navigation and always removes event listeners',async()=>{
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
+ const source=controller.slice(controller.indexOf('async function waitForProductDocument('),controller.indexOf('function recordReadError('));
+ for(const initiallyReady of [true,false]){
+  const listeners=new Set();let ready=initiallyReady,calls=0;
+  const c=vm.createContext({setTimeout,clearTimeout,profileNow:()=>Date.now(),jobActive:()=>true,boundedOperation:p=>p,searchPlatform:{tabs:{onUpdated:{addListener:fn=>listeners.add(fn),removeListener:fn=>listeners.delete(fn)},async sendMessage(){calls++;return {ready};}}}});
+  vm.runInContext(source,c);const pending=c.waitForProductDocument({}, {host:'bike24.de'}, {tab:3,url:'https://www.bike24.de/p1.html'},500);
+  await new Promise(setImmediate);
+  if(!initiallyReady){ready=true;for(const fn of listeners)fn(3);}
+  await pending;assert.equal(listeners.size,0);assert.equal(calls,initiallyReady?1:2);
+ }
+});
+
+test('Wishlist shop lanes advance independently, serialize EAN reconciliation and reuse exactly one tab per shop',async()=>{
+ const {readSource}=await import('./test-sources.mjs');let listener,releaseSlow,finish;const complete=new Promise(resolve=>finish=resolve),slow=new Promise(resolve=>releaseSlow=resolve);
+ const messages=[],started=[],active=new Map(),max=new Map(),tabs=new Map();let created=0;
+ const api={runtime:{getURL:p=>'extension://unit/'+p,onMessage:{addListener(fn){listener=fn;}},async sendMessage(d){messages.push(d);if(d.type==='batch-complete')finish();}},tabs:{onRemoved:{addListener(){}},async create(o){const tab={id:++created,...o};tabs.set(tab.id,tab);return tab;},async get(id){return tabs.get(id);},async update(id,o){Object.assign(tabs.get(id),o);return tabs.get(id);}}};
+ const c=vm.createContext({platform:api,URL,setTimeout,clearTimeout});vm.runInContext(readSource('products.js')+readSource('variant-match.js')+readSource('wishlist.js')+readSource('background.js'),c);
+ c.runShop=async(job,shop,q)=>{
+  const tab=await c.shopTab(job.source,shop,'https://'+shop.host+'/product');assert.ok(tab.id);
+  const count=(active.get(shop.id)||0)+1;active.set(shop.id,count);max.set(shop.id,Math.max(max.get(shop.id)||0,count));started.push([job.itemId,shop.id,q]);
+  try{
+   if(job.itemId==='first'&&shop.id==='bike24'&&!/^\d+$/.test(q))await slow;
+   const ean=job.itemId==='first'?'1234567890128':'9999999999999';
+   const offer={name:job.productName,ean,variant:'black',price:25,priceKind:'exact',stock:'Auf Lager',url:'https://'+shop.host+'/product'};
+   job.counts.set(shop.id,job.itemId==='first'&&!/^\d+$/.test(q)?2:1);
+   job.results.set(shop.id,{type:'result',target:job.source,id:job.id,query:q,shop:shop.name,url:shop.search(q),offers:[offer]});
+  }finally{active.set(shop.id,count-1);}
+ };
+ await listener({type:'wishlist-search',id:'batch',items:[{itemId:'first',query:'First product',variant:'black'},{itemId:'second',query:'Second product',ean:'9999999999999',variant:'black'}]},{url:'extension://unit/ui/home.html',tab:{id:99}});
+ for(let i=0;i<20&&!started.some(([item,shop])=>item==='second'&&shop==='bike-discount');i++)await new Promise(setImmediate);
+ assert.ok(started.some(([item,shop])=>item==='second'&&shop==='bike-discount'));
+ assert.ok(!started.some(([item,shop])=>item==='second'&&shop==='bike24'),'Slow shop retains its first item without blocking other shops');
+ releaseSlow();await complete;
+ assert.equal(created,4);assert.ok([...max.values()].every(n=>n===1));
+ assert.equal(started.filter(([item,,q])=>item==='first'&&q==='1234567890128').length,4,'Cross-shop EAN refinement still runs in each shop lane');
+ const final=messages.filter(m=>m.type==='result');assert.equal(final.length,8);
+ for(const message of final){assert.equal(message.batchId,'batch');assert.equal(message.offers[0].ean,message.itemId==='first'?'1234567890128':'9999999999999');}
+ assert.equal(messages.filter(m=>m.type==='batch-item-done').length,2);
+});
+
+test('Readiness profiling avoids unused navigation wait without extra product reads or shop tabs',async()=>{
+ const ready=await profileSearch({cached:true,readySignals:true});assert.equal(ready.elapsedMs,0);assert.equal(ready.detailReads,4);assert.equal(ready.createdTabs,4);
+ const loading=await profileSearch({cached:true,readySignals:true,loadMs:100});assert.equal(loading.elapsedMs,100);assert.equal(loading.detailReads,4);assert.equal(loading.maxInFlightPerTab,1);
+});
+
+test('Cancelling a wishlist batch prevents queued shop work and discards late lane events',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve),events=[];
+ const c=vm.createContext({URL,setTimeout,clearTimeout,searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(data){events.push(data);}}}});
+ vm.runInContext(readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8'),c);
+ const root={source:99,id:'batch',batch:true,lanes:new Map()},shop={id:'bike24',name:'BIKE24'},started=[];
+ c.root=root;vm.runInContext('jobs.set(root.source,root)',c);
+ c.runInShopLane=async job=>{started.push(job.itemId);await gate;};
+ const one=c.run({root,source:99,batchId:'batch',itemId:'one'},shop),two=c.run({root,source:99,batchId:'batch',itemId:'two'},shop);
+ await new Promise(setImmediate);assert.deepEqual(started,['one']);
+ vm.runInContext('jobs.delete(root.source)',c);release();await Promise.all([one,two]);
+ assert.deepEqual(started,['one']);assert.equal(events.length,1);assert.equal(events[0].active,true);
+});
+
+test('Product readiness validates the target document and does not perform product extraction',async()=>{
+ const {readSource}=await import('./test-sources.mjs');let listener,loaded;
+ const document={readyState:'loading',addEventListener(type,fn){assert.equal(type,'DOMContentLoaded');loaded=fn;}};
+ const c=vm.createContext({URL,document,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html'},platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
+ vm.runInContext(readSource('shop.js'),c);c.readShopPage=()=>{throw Error('Readiness must not inspect products');};
+ assert.equal((await listener({type:'ready',host:'bike24.de',url:'https://www.bike24.de/p2.html'})).ready,false);
+ assert.equal((await listener({type:'ready',host:'r2-bike.com',url:'https://r2-bike.com/p1.html'})).ready,false);
+ const pending=listener({type:'ready',host:'bike24.de',url:'https://www.bike24.de/p1.html'});await new Promise(setImmediate);assert.ok(loaded);loaded();assert.equal((await pending).ready,true);
+});
+
+test('BIKE24 linked product reads retain the requested dropdown variant and EAN query',async()=>{
+ const reads=[],navigations=[];const ctx=vm.createContext({URL,validEAN:q=>/^\d+$/.test(q),jobActive:()=>true,async navigateShop(_job,_shop,_tab,url){navigations.push(url);},async shopPause(){},async shopMessage(_job,_shop,_tab,data){reads.push(data);return {ready:true,offers:[]};}});
+ const source=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('async function bike24Linked(')),ctx);
+ await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'1234567890128',nameQuery:'Generic gel pack',variant:'Citrus'}, {url:'https://www.bike24.de/p1.html'}, {offers:[],linkedVariants:[{url:'https://www.bike24.de/p2.html',variant:'8x40ml'}]});
+ assert.equal(navigations.length,1);assert.equal(reads.length,1);assert.equal(reads[0].query,'1234567890128');assert.equal(reads[0].variant,'Citrus');assert.equal(reads[0].followLinked,false);
+});
+
+
+test('Linked names keep an explicitly requested pack count instead of choosing a cheaper different pack',async()=>{
+ const rows=[{name:'Generic Gel 2x40ml',price:5,url:'https://www.bike24.de/p2.html'},{name:'Generic Gel 8x40ml',price:18,url:'https://www.bike24.de/p8.html'}];
+ const ctx=vm.createContext({URL,jobActive:()=>true,async navigateShop(){},async shopPause(){},async shopMessage(_job,_shop,_tab,data){return {ready:true,offers:rows.filter(row=>row.url===data.url)};}});
+ for(const file of ['identifiers','products','variant-match'])vm.runInContext(readFileSync(new URL('./src/core/'+file+'.js',import.meta.url),'utf8'),ctx);
+ const source=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');vm.runInContext(source.slice(source.indexOf('async function bike24Linked(')),ctx);
+ const result=await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'Generic Gel 8er',nameQuery:'Generic Gel 8er',variant:'Citrus'},rows[0],{offers:[rows[0]],linkedVariants:rows.map(row=>({url:row.url}))});
+ assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,18);assert.equal(result.offers[0].name,'Generic Gel 8x40ml');
 });

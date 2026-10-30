@@ -24,6 +24,24 @@ test('Compression sorts chronologically and retains endpoints inside the selecte
  assert.deepEqual(keys(rows.slice(1,4).reverse()),['1','3']);
  assert.deepEqual(rows.map(row=>row.key),['0','1','2','3','4']);
 });
+test('Daily history removes higher prices and simultaneous spikes without changing stored observations',()=>{
+ const rows=observations([54.50,54.99,54.50,54.99,54.50]);
+ rows[1].at='2026-10-13T10:00:00Z';
+ rows[2].at='2026-10-13T10:00:00Z';
+ rows[3].at='2026-10-13T10:05:00Z';
+ const original=JSON.stringify(rows);
+ assert.deepEqual(keys(rows.slice().reverse()),['0','4']);
+ assert.equal(JSON.stringify(rows),original);
+ const higherLast=rows.slice(0,4);
+ assert.deepEqual(keys(higherLast),['0','2']);
+ assert.equal(higherLast.at(-1).offers[0].price,54.99);
+});
+test('Daily history retains genuine increases on later days and uses the latest equal minimum',()=>{
+ const rows=observations([10,10,20]);rows[1].at=rows[0].at;
+ assert.deepEqual(keys(rows),['0','2']);
+ rows[1].at=new Date(Date.parse(rows[0].at)+60000).toISOString();
+ assert.deepEqual(keys(rows),['1','2']);
+});
 
 test('Product datasheet EAN matches do not become variant-specific price observations',()=>{
  const vmContext=vm.createContext({URL});

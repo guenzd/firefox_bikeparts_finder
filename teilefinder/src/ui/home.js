@@ -4,10 +4,34 @@ let searchDeadline;
 let searchRunning=false;
 let wishlistProgress=null;
 let wishlistEditor=null;
+let wishlistBatch=null,resultRenderTimer;
+let wishlistSort='added',wishlistSortOrder=null;
+function wishlistDisplayItems(){
+ if(!checkingList&&!searchRunning){wishlistSortOrder=null;return sortWishlistItems(wishlist,wishlistSort);}
+ wishlistSortOrder ||= sortWishlistItems(wishlist,wishlistSort).map(item=>item.id);
+ const rank=new Map(wishlistSortOrder.map((id,index)=>[id,index]));
+ return wishlist.slice().sort((a,b)=>(rank.get(a.id)??Infinity)-(rank.get(b.id)??Infinity));
+}
+function queueResultRender(){if(resultRenderTimer===undefined)resultRenderTimer=setTimeout(()=>{resultRenderTimer=undefined;render();},50);}
+function isWishlistItemActive(itemId){return checkingList&&(wishlistBatch?wishlist.find(item=>!wishlistBatch.done.has(item.id))?.id===itemId:activeWishlistId===itemId);}
+function syncWishlistActivity(){
+ for(const row of document.querySelectorAll('[data-wishlist-item]')){
+  const active=isWishlistItemActive(row.dataset.wishlistItem);row.classList.toggle('wishlist-item-refreshing',active);
+  if(active)row.setAttribute('aria-busy','true');else row.removeAttribute('aria-busy');
+  row.querySelector('.recheck-button')?.classList.toggle('is-refreshing',active);
+ }
+}
+
+
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
 const saveList=()=>platform.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
-platform.storage.local.get('wishlist').then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
+platform.storage.local.get(['wishlist','wishlistSort']).then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistSort=validWishlistSort(d.wishlistSort);document.querySelector('#wishlist-sort').value=wishlistSort;wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
+document.querySelector('#wishlist-sort').addEventListener('change',async event=>{
+ if(checkingList||searchRunning)return;
+ wishlistSort=validWishlistSort(event.target.value);renderWishlist();
+ try{await platform.storage.local.set({wishlistSort});}catch{document.querySelector('#status').textContent='Sortierung konnte nicht gespeichert werden.';}
+});
 const el=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(tag==='th'){n.scope='col';if(text==='Preis')n.className='price-heading';}return n;};
 function appendTableHead(table,row){const head=el('thead');head.append(row);table.append(head);}
 function resultMessage(message){
@@ -30,30 +54,31 @@ function render(){
  for(const {item,shop:s} of entries){
  const section=el('section'),message=resultMessage(s.message);if(item){section.append(el('h4',item.query),el('small',item.variant||'Alle Varianten'));if(s.url){const link=el('a','Im Shop suchen');link.href=s.url;link.target='_blank';link.rel='noopener noreferrer';section.append(link,copyButton(s.url));}}
  const range=item||inputPriceRange(document.querySelector('#max')),requested=item?item.variant:document.querySelector('#search-variant').value;
- const rows=uniqueOffers(s.offers||[]).filter(o=>typeof o.price==='number'&&withinPriceRange(o.price,range||{minPrice:Infinity,maxPrice:0})&&variantMatches(o,requested));
+ const rows=displayedShopOffers(s,{...(range||{minPrice:Infinity,maxPrice:0}),variant:requested});
  const hideEAN=allShopsHaveDisplayedOffers([...state.entries()].map(([name,shop])=>({name,...shop})),{...(range||{minPrice:Infinity,maxPrice:0}),variant:requested});
  if(rows.length){const wrap=el('div');wrap.className='table-wrap';const t=el('table'),head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Link'].forEach(v=>head.append(el('th',v)));appendTableHead(t,head);t.setAttribute('aria-label',name+' · Suchergebnisse');
  for(const o of rows){const tr=el('tr'),product=el('td');product.append(el('strong',o.name));if(o.variant&&o.variant!==o.name)product.append(el('small',o.variant));if(validEAN(o.ean)&&!hideEAN)product.append(eanRow(o.ean,item?.id));const price=el('td',(o.priceKind==='from'?'ab ':'')+new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(o.price));price.className='price';const cell=el('td');cell.className='result-links';cell.append(resultLinkActions('Öffnen',o.url));tr.append(product,price,el('td',o.stock),cell);t.append(tr);}wrap.append(t);section.append(wrap);
  }else section.append(el('p',(s.offers||[]).length?'Keine Angebote innerhalb des Preisbereichs.':message));
  if(!(s.offers||[]).length&&s.suggestions?.length)appendSuggestions(section,s.suggestions,range||{minPrice:Infinity,maxPrice:0},item,s.variantAlternatives);
- if((s.offers||[]).length>rows.length)section.append(el('small',((s.offers||[]).length-rows.length)+' Angebote durch Preisfilter ausgeblendet.'));
+ if(s.comparisonMode!=='cheapest'&&(s.offers||[]).length>rows.length)section.append(el('small',((s.offers||[]).length-rows.length)+' Angebote durch Preisfilter ausgeblendet.'));
  if(rows.length&&message)section.append(el('p',message));
  a.append(section);
  }root.append(a);
  }
 }
 function renderWishlistDetails(root){
- const displayedItems=wishlist.map(item=>({...item,shops:names.map(name=>({name,...((checkingList&&item.id===activeWishlistId?state.get(name):null)||(item.shops||[]).find(shop=>shop.name===name)||{})}))}));
+ const ordered=wishlistDisplayItems(),detailItems=wishlistBatch?ordered.map(item=>({...item,shops:[...(wishlistBatch.states.get(item.id)?.values()||item.shops||[])]})):ordered;
+ const displayedItems=detailItems.map(item=>({...item,shops:names.map(name=>({name,...((checkingList&&item.id===activeWishlistId?state.get(name):null)||(item.shops||[]).find(shop=>shop.name===name)||{})}))}));
  const hideEANs=new Map(displayedItems.map(item=>[item.id,allShopsHaveDisplayedOffers(item.shops,item)]));
  const bestOffers=new Map(cheapestWishlist(displayedItems).rows.map(row=>[row.item.id,row.best]));
  for(const name of names){
-  const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
+  const entries=wishlistShopEntries(detailItems,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
-  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant))),name));article.append(heading);
+  const article=el('article'),heading=el('div');article.className='shop-results';article.id='wishlist-shop-'+names.indexOf(name);article.tabIndex=-1;heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:displayedShopOffers(shop,item)),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';table.setAttribute('aria-label',name+' · Wunschliste');
   const head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
   for(const {item,shop} of entries){
-   const offers=uniqueOffers(shop.offers||[]).filter(o=>Number.isFinite(o.price)&&withinPriceRange(o.price,item)&&variantMatches(o,item.variant));
+   const offers=displayedShopOffers(shop,item);
    const group=el('tbody');
    for(const [index,offer] of (offers.length?offers:[null]).entries()){
     const row=el('tr'),product=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';
@@ -86,14 +111,15 @@ function renderWishlistDetails(root){
  }
 }
 platform.runtime.onMessage.addListener(d=>{
+ if(d.batchId){return handleWishlistBatchMessage(d);}
  if(d.target!==currentTab||d.id!==id||!names.includes(d.shop))return;
  const previous=state.get(d.shop);if(d.type==='status')state.set(d.shop,{...previous,message:d.message});
  if(['result','partial-result'].includes(d.type)){
   const offers=(d.offers||[]).filter(o=>{try{const u=new URL(o.url),search=new URL(d.url);return u.protocol==='https:'&&u.hostname.replace(/^www\./,'')===search.hostname.replace(/^www\./,'')&&typeof o.name==='string'&&Number.isFinite(o.price)&&o.price>0;}catch{return false;}});
   const suggestions=(d.suggestions||[]).filter(o=>{try{return new URL(o.url).protocol==='https:'&&new URL(o.url).hostname.replace(/^www\./,'')===new URL(d.url).hostname.replace(/^www\./,'')&&typeof o.name==='string';}catch{return false;}});
-  const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||validEAN(o.ean)===requestedEAN);
+  const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||equivalentEANs(o.ean,requestedEAN));
   const kept=!offers.length&&previousOffers.length;
-  state.set(d.shop,{queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
+  state.set(d.shop,{...((kept?previous?.matchMode:d.matchMode)==='name-fallback'?{matchMode:'name-fallback'}:{}),comparisonMode:d.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
  }
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
@@ -103,7 +129,7 @@ platform.runtime.onMessage.addListener(d=>{
   if(!activeItem)document.querySelector('#search-ean').value=!useEAN?(currentEAN||shared.ean):shared.ean;filterConflictingEANs(shared.shops,useEAN?shared.ean:'').forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:item.useEAN===false?(item.ean||shared.ean||''):(shared.ean||item.ean||'')}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
- document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress([...state.values()].filter(s=>s.checked||s.done).length);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
+ document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);queueResultRender();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress([...state.values()].filter(s=>s.checked||s.done).length);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
 });
 document.querySelector('#max').addEventListener('input',()=>{inputPriceRange(document.querySelector('#max'));render();});
 document.querySelector('#search-variant').addEventListener('input',render);
@@ -117,7 +143,7 @@ function setWishlistCollapsed(collapsed){
 document.querySelector('#wishlist-toggle').addEventListener('click',()=>setWishlistCollapsed(document.querySelector('#wishlist-toggle').getAttribute('aria-expanded')==='true'));
 function setSearchRunning(running){
  searchRunning=running;const busy=running||checkingList;
- for(const control of document.querySelectorAll?.('#search input, #search button, #add-wish, #import-wishlist, [data-shop-action], .wishlist-editor input, .wishlist-editor button')||[])control.disabled=busy;
+ for(const control of document.querySelectorAll?.('#search input, #search button, #add-wish, #import-wishlist, #wishlist-sort, [data-shop-action], .wishlist-editor input, .wishlist-editor button')||[])control.disabled=busy;
  document.querySelector('#check-wishlist').disabled=!wishlist.length||(running&&!checkingList);
  document.querySelector('#stop-search').hidden=!running;
  const progress=document.querySelector('#status');progress.disabled=!running;progress.title=running?'Suche stoppen':'';
@@ -132,7 +158,7 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  const range=item?{minPrice:item.minPrice,maxPrice:item.maxPrice}:inputPriceRange(document.querySelector('#max'));
  searchedEAN=ean;
  const useEAN=item?item.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
- try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,comparisonMode:s.comparisonMode,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
@@ -152,16 +178,18 @@ function wishlistActionIcon(path){
  for(const [name,value] of Object.entries({viewBox:'0 0 24 24',width:'18',height:'18',fill:'none',stroke:'currentColor','stroke-width':'2','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true',focusable:'false'}))svg.setAttribute(name,value);
  const shape=document.createElementNS(svg.namespaceURI,'path');shape.setAttribute('d',path);svg.append(shape);return svg;
 }
-function wishlistRowActions(item){
- const actions=el('div');actions.className='wishlist-row-actions';
- const edit=el('button','Bearbeiten');edit.type='button';edit.className='secondary';edit.disabled=checkingList||searchRunning;edit.dataset.shopAction='';
+function wishlistEditButton(item){
+ const edit=el('button');edit.type='button';edit.className='secondary wishlist-edit-button';edit.title='Artikel bearbeiten';edit.append(wishlistActionIcon('m16 3 5 5-13 13H3v-5L16 3Z M13 6l5 5'));edit.disabled=checkingList||searchRunning;edit.dataset.shopAction='';
  edit.dataset.editItem=item.id;edit.setAttribute('aria-label','Artikel bearbeiten: '+item.query);edit.setAttribute('aria-expanded',String(wishlistEditor?.id===item.id));if(wishlistEditor?.id===item.id)edit.setAttribute('aria-controls','wish-editor-'+item.id);
  edit.addEventListener('click',()=>{
   if(wishlistEditor?.id===item.id){wishlistEditor=null;renderTotal();return;}
   wishlistEditor={id:item.id,query:item.query,ean:item.ean||'',variant:item.variant||'',price:priceRangeText(item),useEAN:item.useEAN!==false};
   renderTotal();document.querySelector('#wish-editor-'+item.id+' input')?.focus();
- });actions.append(edit);
- const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button';recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
+ });return edit;
+}
+function wishlistRowActions(item){
+ const actions=el('div');actions.className='wishlist-row-actions';
+ const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button'+(isWishlistItemActive(item.id)?' is-refreshing':'');recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
  recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.addEventListener('click',()=>{wishlistEditor=null;void recheckWishlistItem(item.id);});
  const remove=el('button');remove.type='button';remove.className='secondary remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList||searchRunning;remove.dataset.shopAction='';
  remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.addEventListener('click',()=>{wishlist=wishlist.filter(row=>row.id!==item.id);if(wishlistEditor?.id===item.id)wishlistEditor=null;void saveList();renderWishlist();});
@@ -227,18 +255,19 @@ function eanRow(value,itemId=activeWishlistId){
 }
 function renderTotal(){
  const root=document.querySelector('#wishlist-total');root.replaceChildren();if(!wishlist.length){root.append(el('p','Noch keine Artikel gespeichert.'));return;}
- const summary=cheapestWishlist(wishlist),box=el('div');box.className='total';
+ const summary=cheapestWishlist(wishlistDisplayItems()),box=el('div');box.className='total';
  const heading=el('div');heading.className='total-heading';heading.append(el('strong',(summary.complete?'Günstigster Gesamtpreis: ':'Teilsumme: ')+money(summary.total)),el('small',summary.complete?wishlist.length+' Artikel lieferbar':summary.missing+' Artikel ohne lieferbares Angebot im Preisbereich'));heading.append(copyListButton(summary.rows.flatMap(({best})=>best?[best]:[])));box.append(heading);
  const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='total-results';table.setAttribute('aria-label','Günstigste lieferbare Angebote');
  const head=el('tr');['Artikel / Variante','Günstigster Shop','Preis','Lagerstatus / Stand','Link','Aktionen'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
  const previous=[];
  for(const {item,best,availableShops,missingMessage} of summary.rows){
-  const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));product.append(productButton);
-  const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
+  const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));const nameLine=el('div');nameLine.className='wishlist-product-name';nameLine.append(productButton,wishlistEditButton(item));product.append(nameLine);
+  row.dataset.wishlistItem=item.id;if(isWishlistItemActive(item.id)){row.className='wishlist-item-refreshing';row.setAttribute('aria-busy','true');}
+  const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)nameLine.append(el('small',variant));
 
 
-  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
-  else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
+  if(best){const shopLink=el('a',best.shop);shopLink.className='wishlist-shop-jump';shopLink.href='#wishlist-shop-'+names.indexOf(best.shop);shopLink.title='Zur Liste von '+best.shop;shop.append(shopLink);price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
+  else{shop.textContent='—';price.textContent='—';const badge=el('span',missingMessage);if(missingMessage==='Nicht lieferbar')badge.className='stock-unavailable';stock.append(badge);}
   const history=el('button',price.textContent);history.type='button';history.className='price-history-trigger';history.title='Preisverlauf';history.setAttribute('aria-label','Preisverlauf für '+item.query);history.addEventListener('click',()=>showPriceHistory(item));price.replaceChildren(history);
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));
   const actions=el('td');actions.className='wishlist-actions-cell';actions.append(wishlistRowActions(item));row.append(product,shop,price,stock,links,actions);table.append(row);appendWishlistEditor(table,item);
@@ -255,7 +284,7 @@ document.querySelector('#add-wish').addEventListener('click',async()=>{
  if(!q){document.querySelector('#query').reportValidity();return;}
  if(!inputPriceRange(document.querySelector('#max'))||!document.querySelector('#max').reportValidity()||!document.querySelector('#search-ean').reportValidity())return;
  const requested=document.querySelector('#search-variant').value.trim(),ean=validEAN(document.querySelector('#search-ean').value);
- const sameEAN=!ean||ean===searchedEAN||[...state.values()].some(shop=>(shop.offers||[]).some(offer=>validEAN(offer.ean)===ean));
+ const sameEAN=!ean||equivalentEANs(ean,searchedEAN)||[...state.values()].some(shop=>(shop.offers||[]).some(offer=>equivalentEANs(offer.ean,ean)));
  const reuseResults=!wishlistDetails&&q===query&&requested===searchedVariant&&sameEAN&&names.every(name=>state.get(name)?.done);
  const shops=q===query&&requested===searchedVariant?[...state.entries()].filter(([,s])=>s.done).map(([name,s])=>({name,...s})):[];
  const itemId=crypto.randomUUID();
@@ -281,23 +310,64 @@ function updateWishlistProgress(shopsDone=0){
  button.classList.toggle('is-checking',!!wishlistProgress);
  if(!wishlistProgress){button.style.removeProperty('--wishlist-progress');button.removeAttribute('aria-label');button.textContent='Wunschliste prüfen';return;}
  const {completed,total}=wishlistProgress;
- const fraction=(completed+Math.min(4,Math.max(0,shopsDone))/4)/total;
+ const fraction=wishlistProgress.checkedShops!==undefined?wishlistProgress.checkedShops/(total*4):(completed+Math.min(4,Math.max(0,shopsDone))/4)/total;
  wishlistProgress.percent=Math.max(wishlistProgress.percent,Math.min(100,Math.round(fraction*100)));
  button.style.setProperty('--wishlist-progress',wishlistProgress.percent+'%');
  button.textContent=wishlistProgress.single?Math.min(4,Math.max(0,shopsDone))+' / 4 Shops…':'Prüfe '+Math.min(completed+1,total)+' / '+total+'…';
  button.setAttribute('aria-label','Wunschliste prüfen: '+wishlistProgress.percent+' Prozent abgeschlossen. Klicken zum Stoppen.');
 }
-document.querySelector('#check-wishlist').addEventListener('click',async()=>{
- if(checkingList){stopCurrentSearch();return;}if(searchRunning||!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
+function resetWishlistBatchDeadline(batch){
+ clearTimeout(searchDeadline);searchDeadline=setTimeout(()=>{if(wishlistBatch===batch){stopCurrentSearch();document.querySelector('#status').textContent='Zeitlimit überschritten · vorhandene Ergebnisse bleiben erhalten.';}},120000);
+}
+function batchShopResult(data,previous){
+ const safe=offer=>{try{return new URL(offer.url).protocol==='https:'&&new URL(offer.url).hostname.replace(/^www\./,'')===new URL(data.url).hostname.replace(/^www\./,'')&&typeof offer.name==='string';}catch{return false;}};
+ const offers=(data.offers||[]).filter(o=>safe(o)&&Number.isFinite(o.price)&&o.price>0),ean=validEAN(data.query),old=(previous?.offers||[]).filter(o=>!ean||equivalentEANs(o.ean,ean)),kept=!offers.length&&old.length;
+ return {name:data.shop,...((kept?previous?.matchMode:data.matchMode)==='name-fallback'?{matchMode:'name-fallback'}:{}),comparisonMode:data.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:ean,offers:uniqueOffers(kept?old:offers),stale:!!kept,suggestions:(data.suggestions||[]).filter(safe),variantAlternatives:!!data.variantAlternatives,url:data.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(data.message||''):data.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:data.type==='result'};
+}
+function updateWishlistBatchProgress(batch){
+ wishlistProgress.completed=batch.done.size;
+ wishlistProgress.checkedShops=[...batch.states.values()].reduce((count,states)=>count+[...states.values()].filter(s=>s.done).length,0);
+ updateWishlistProgress();
+ document.querySelector('#status').textContent=batch.done.size+' / '+batch.states.size+' Artikel geprüft';
+}
+function handleWishlistBatchMessage(data){
+ const batch=wishlistBatch;if(!batch||data.target!==currentTab||data.batchId!==batch.id||stopRequested)return;
+ resetWishlistBatchDeadline(batch);
+ if(data.type==='batch-complete'){batch.error=!!data.error;return batch.writes.finally(()=>batch.resolve());}
+ const states=batch.states.get(data.itemId);if(!states)return;
+ if(data.type==='batch-item-done'){
+  const shops=[...states.values()].map(s=>({...s}));
+  batch.writes=batch.writes.then(async()=>{
+   wishlist=applyWishlistSearch(wishlist,data.itemId,shops,new Date().toISOString());await saveList();
+   await recordPriceHistory(shops,data.id);batch.done.add(data.itemId);updateWishlistBatchProgress(batch);renderTotal();queueResultRender();
+  }).catch(()=>{document.querySelector('#status').textContent='Ergebnisse konnten nicht vollständig gespeichert werden.';});return batch.writes;
+ }
+ if(!names.includes(data.shop))return;
+ const previous=states.get(data.shop);
+ if(data.type==='batch-shop-active'){
+  if(data.active){batch.active.set(data.shop,data.itemId);states.set(data.shop,{...previous,done:false,checked:false,message:'Produktseite wird geprüft…'});}
+  else if(batch.active.get(data.shop)===data.itemId)batch.active.delete(data.shop);
+  syncWishlistActivity();
+ }else if(data.type==='status')states.set(data.shop,{...previous,message:data.message});
+ else if(['result','partial-result'].includes(data.type))states.set(data.shop,batchShopResult(data,previous));
+ updateWishlistBatchProgress(batch);queueResultRender();
+}
+async function checkWishlistBatch(){
+ if(checkingList||searchRunning||!wishlist.length)return;
+ checkingList=true;stopRequested=false;activeWishlistId='';wishlistDetails=true;wishlistEditor=null;
+ const batch={id:crypto.randomUUID(),states:new Map(wishlist.map(item=>[item.id,new Map(names.map(name=>[name,{name,...(item.shops||[]).find(shop=>shop.name===name),done:false,checked:false}]))])),active:new Map(),done:new Set(),writes:Promise.resolve()};
+ wishlistBatch=batch;id=batch.id;wishlistProgress={completed:0,total:wishlist.length,percent:0,checkedShops:0};
+ const finished=new Promise(resolve=>{batch.resolve=resolve;});setWishlistCollapsed(false);setSearchRunning(true);updateWishlistProgress();renderWishlist();resetWishlistBatchDeadline(batch);
  try{
-  for(let i=0;i<wishlist.length&&!stopRequested;i++){
-   const item=wishlist[i];activeWishlistId=item.id;
-   wishlistProgress.completed=i;updateWishlistProgress();
-   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);const found=await pending;if(!stopRequested){wishlistProgress.completed=i+1;updateWishlistProgress();}wishlist=applyWishlistSearch(wishlist,item.id,found,new Date().toISOString());await saveList();renderTotal();
-  }
+  const accepted=await platform.runtime.sendMessage({type:'wishlist-search',id:batch.id,items:wishlist.map(item=>({itemId:item.id,query:item.query,ean:item.ean,variant:item.variant||'',useEAN:item.useEAN!==false,minPrice:item.minPrice,maxPrice:item.maxPrice,knownShops:knownSearchShops(item.shops||[],wishlist,item.ean)}))});
+  if(!accepted?.accepted)throw Error('Prüfung konnte nicht gestartet werden.');await finished;await batch.writes;if(batch.error)throw Error('Prüfung fehlgeschlagen.');
   document.querySelector('#status').textContent=stopRequested?'Suche gestoppt.':'Wunschliste geprüft.';
- }catch{document.querySelector('#status').textContent='Wunschlistenprüfung konnte nicht abgeschlossen werden.';}finally{checkingList=false;finishSearch=null;wishlistProgress=null;updateWishlistProgress();renderWishlist();render();}
-});
+ }catch{void platform.runtime.sendMessage({type:'cancel'});document.querySelector('#status').textContent='Wunschlistenprüfung konnte nicht abgeschlossen werden.';}
+ finally{
+  if(stopRequested){await batch.writes;for(const [itemId,states] of batch.states){if(batch.done.has(itemId))continue;const confirmed=[...states.values()].filter(shop=>shop.done);if(confirmed.length){wishlist=applyWishlistSearch(wishlist,itemId,confirmed,new Date().toISOString());await saveList();await recordPriceHistory(confirmed,batch.id+':'+itemId);}}}
+  clearTimeout(searchDeadline);wishlistBatch=null;checkingList=false;wishlistProgress=null;setSearchRunning(false);updateWishlistProgress();renderWishlist();}
+}
+document.querySelector('#check-wishlist').addEventListener('click',()=>{if(checkingList){stopCurrentSearch();return;}return checkWishlistBatch();});
 
 function copyListButton(offers,shopName=''){
  const rows=[...new Map(offers.filter(o=>o.url&&deliverable(o.stock)).map(o=>{
@@ -332,7 +402,7 @@ function copyButton(url,onUse){
 document.querySelector('#export-wishlist').addEventListener('click',async()=>{
  if(checkingList||(!wishlist.length&&!state.size))return;
  const raw=document.querySelector('#max').value;if(!inputPriceRange(document.querySelector('#max'))){document.querySelector('#max').reportValidity();return;}
- const screen={wishlistDetails,query:document.querySelector('#query').value,variant:document.querySelector('#search-variant').value,ean:document.querySelector('#search-ean').value,useEAN:document.querySelector('#search-use-ean').checked!==false,...parsePriceRange(raw),searchedQuery:query,searchedVariant,shops:[...state.entries()].map(([name,s])=>({name,...s}))};
+ const screen={wishlistDetails,wishlistSort,query:document.querySelector('#query').value,variant:document.querySelector('#search-variant').value,ean:document.querySelector('#search-ean').value,useEAN:document.querySelector('#search-use-ean').checked!==false,...parsePriceRange(raw),searchedQuery:query,searchedVariant,shops:[...state.entries()].map(([name,s])=>({name,...s}))};
  let history;try{await historyWrites;history=await priceHistoryDB.all();}catch{document.querySelector('#status').textContent='Preishistorie konnte nicht exportiert werden.';return;}
  const blob=new Blob([wishlistFile(wishlist,screen,history)],{type:'application/json'}),url=URL.createObjectURL(blob);
  const link=el('a');link.href=url;link.download='teilefinder-wunschliste-'+new Date().toISOString().slice(0,10)+'.json';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
@@ -346,8 +416,8 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
   const incoming=parseWishlistFile(await file.text());if(checkingList||searchRunning)return;
   await priceHistoryDB.put(incoming.history||[]);
   const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
-  await platform.storage.local.set({wishlist:cleanSavedUrls(updated)});wishlist=updated;
-  if(incoming.screen){const screen=incoming.screen;wishlistDetails=!!screen.wishlistDetails;void platform.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
+  await platform.storage.local.set({wishlist:cleanSavedUrls(updated),...(incoming.screen?{wishlistSort:incoming.screen.wishlistSort}:{})});wishlist=updated;
+  if(incoming.screen){const screen=incoming.screen;wishlistSort=validWishlistSort(screen.wishlistSort);document.querySelector('#wishlist-sort').value=wishlistSort;wishlistDetails=!!screen.wishlistDetails;void platform.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
   renderWishlist();
   document.querySelector('#status').textContent=added+' Artikel importiert · Ergebnisse wiederhergestellt.';
  }catch(error){document.querySelector('#status').textContent='Import fehlgeschlagen: '+(error instanceof SyntaxError?'Ungültige JSON-Datei.':error.message);}
@@ -355,7 +425,7 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
 
 
 function stopCurrentSearch(){
- clearTimeout(searchDeadline);stopRequested=true;void platform.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);
+ clearTimeout(searchDeadline);stopRequested=true;void platform.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);wishlistBatch?.resolve();
  if(finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,shop])=>({name,...shop})));}
  document.querySelector('#status').textContent='Suche gestoppt.';
 }
@@ -370,8 +440,8 @@ document.querySelector('#close-shop-tabs').addEventListener('click',async()=>{
 });
 
 let historyWrites=Promise.resolve();
-function recordPriceHistory(){
- const rows=priceObservations([...state.entries()].map(([name,s])=>({name,...s})),id,new Date().toISOString());
+function recordPriceHistory(shops=[...state.entries()].map(([name,s])=>({name,...s})),searchId=id){
+ const rows=priceObservations(shops,searchId,new Date().toISOString());
  historyWrites=historyWrites.then(()=>priceHistoryDB.put(rows)).catch(()=>{document.querySelector('#status').textContent='Preishistorie konnte nicht gespeichert werden.';});return historyWrites;
 }
 function dialogCloseButton(dialog){
@@ -388,8 +458,8 @@ async function showPriceHistory(item){
  const controls=el('div');controls.className='history-controls';const range=el('select');for(const [value,label] of [['30','30 Tage'],['90','90 Tage'],['365','1 Jahr'],['0','Gesamter Verlauf']]){const option=el('option',label);option.value=value;range.append(option);}range.value='0';range.setAttribute('aria-label','Zeitraum');controls.append(range);const content=el('div');dialog.append(controls,content);document.body.append(dialog);dialog.addEventListener('close',()=>{dialog.remove();trigger?.focus();});dialog.showModal();close.focus();content.textContent='Preisverlauf wird geladen…';
  try{await historyWrites;const all=await priceHistoryDB.all(item.ean);const draw=()=>{content.replaceChildren();const cutoff=range.value==='0'?0:Date.now()-Number(range.value)*86400000;const rows=all.filter(r=>Date.parse(r.at)>=cutoff&&r.offers.length);if(!rows.length){content.append(el('p','Keine Preise in diesem Zeitraum.'));return;}
  const points=priceHistoryPoints(rows);const low=Math.min(...points.map(p=>p.price)),high=Math.max(...points.map(p=>p.price)),start=points[0].at,end=points.at(-1).at;const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('class','history-chart');svg.setAttribute('viewBox','0 0 640 220');svg.setAttribute('role','img');svg.setAttribute('aria-label','Günstigster lieferbarer Preis über die Zeit');const node=(tag,attrs,text)=>{const n=document.createElementNS(svg.namespaceURI,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));if(text)n.textContent=text;svg.append(n);return n;};
- const x=p=>55+(end===start?260:(p.at-start)/(end-start)*550),y=p=>180-(high===low?65:(p.price-low)/(high-low)*135);node('line',{x1:55,y1:180,x2:605,y2:180,stroke:'var(--line)'});node('text',{x:5,y:48,fill:'var(--muted)','font-size':12},money(high));node('text',{x:5,y:180,fill:'var(--muted)','font-size':12},money(low));node('polyline',{points:points.map(p=>x(p)+','+y(p)).join(' '),fill:'none',stroke:'var(--chart-line)','stroke-width':2});for(const p of points){const dot=node('circle',{cx:x(p),cy:y(p),r:4,fill:'var(--chart-line)'});const title=document.createElementNS(svg.namespaceURI,'title');title.textContent=new Date(p.at).toLocaleString('de-DE')+' · '+money(p.price);dot.append(title);}node('text',{x:55,y:210,fill:'var(--muted)','font-size':12},new Date(start).toLocaleDateString('de-DE'));node('text',{x:605,y:210,'text-anchor':'end',fill:'var(--muted)','font-size':12},new Date(end).toLocaleDateString('de-DE'));content.append(svg);
- content.append(el('p','Tiefstpreis '+money(low)+' · Aktuell '+money(points.at(-1).price)));const table=el('table');table.setAttribute('aria-label','Preisverlauf für '+item.query);const head=el('tr');for(const label of ['Abfrage','Shop','Preis'])head.append(el('th',label));appendTableHead(table,head);for(const point of points.slice(-100).reverse()){const best=point.row.offers.reduce((a,b)=>a.price<=b.price?a:b);const row=el('tr'),price=el('td',money(best.price));price.className='price';row.append(el('td',new Date(point.at).toLocaleString('de-DE')),el('td',best.shop),price);table.append(row);}content.append(table);};range.addEventListener('change',draw);draw();}catch{content.textContent='Preisverlauf konnte nicht geladen werden.';}
+ const x=p=>55+(end===start?260:(p.at-start)/(end-start)*550),y=p=>180-(high===low?65:(p.price-low)/(high-low)*135);node('line',{x1:55,y1:180,x2:605,y2:180,stroke:'var(--line)'});node('text',{x:5,y:high===low?115:48,fill:'var(--muted)','font-size':12},money(high));if(high!==low)node('text',{x:5,y:180,fill:'var(--muted)','font-size':12},money(low));node('polyline',{points:points.map(p=>x(p)+','+y(p)).join(' '),fill:'none',stroke:'var(--chart-line)','stroke-width':2});for(const p of points){const dot=node('circle',{cx:x(p),cy:y(p),r:4,fill:'var(--chart-line)'});const title=document.createElementNS(svg.namespaceURI,'title');title.textContent=new Date(p.at).toLocaleString('de-DE')+' · '+money(p.price);dot.append(title);}node('text',{x:55,y:210,fill:'var(--muted)','font-size':12},new Date(start).toLocaleDateString('de-DE'));node('text',{x:605,y:210,'text-anchor':'end',fill:'var(--muted)','font-size':12},new Date(end).toLocaleDateString('de-DE'));content.append(svg);
+ const latest=rows.reduce((a,b)=>Date.parse(a.at)>Date.parse(b.at)?a:b);content.append(el('p','Tiefstpreis '+money(low)+' · Aktuell '+money(Math.min(...latest.offers.map(o=>o.price)))));const table=el('table');table.setAttribute('aria-label','Preisverlauf für '+item.query);const head=el('tr');for(const label of ['Abfrage','Shop','Preis'])head.append(el('th',label));appendTableHead(table,head);for(const point of points.slice(-100).reverse()){const best=point.row.offers.reduce((a,b)=>a.price<=b.price?a:b);const row=el('tr'),price=el('td',money(best.price));price.className='price';row.append(el('td',new Date(point.at).toLocaleString('de-DE')),el('td',best.shop),price);table.append(row);}content.append(table);};range.addEventListener('change',draw);draw();}catch{content.textContent='Preisverlauf konnte nicht geladen werden.';}
 }
 
 function appendSuggestions(root,all,range,item,variantAlternatives){
