@@ -163,7 +163,7 @@ test('Displayed four-shop matches hide repeated EAN rows in totals and shop list
  const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},setAttribute(){},addEventListener(){}});
  const root=make('div'),names=['BIKE24','Bike-Discount','bike-components','r2-bike'],ean='4524667879565';let eanRows=0;
  const item={id:'one',query:'Different wishlist wording',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
- const ctx=uiContext({wishlistRowActions:()=>make('div'),appendWishlistEditor(){},el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
+ const ctx=uiContext({wishlistEditButton:()=>make('button'),wishlistRowActions:()=>make('div'),appendWishlistEditor(){},el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
  vm.runInContext(home.slice(home.indexOf('function resultLinkActions('),home.indexOf('function render(){')),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
@@ -206,7 +206,7 @@ test('Shop prices show a muted best-price comparison only for unequal current ex
   {name:names[1],offers:[offer(25),offer(40)]},
   {name:names[2],stale:true,offers:[offer(15)]},
   {name:names[3],offers:[offer(18,{stock:'Nicht lieferbar'})]}]};
- const ctx=uiContext({wishlistRowActions:()=>make('div'),appendWishlistEditor(){},el:make,names,wishlist:[item],checkingList:false,state:new Map(),money:String,copyListButton:()=>make('button'),resultLinkActions:()=>make('div'),eanRow:()=>make('small'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
+ const ctx=uiContext({wishlistEditButton:()=>make('button'),wishlistRowActions:()=>make('div'),appendWishlistEditor(){},el:make,names,wishlist:[item],checkingList:false,state:new Map(),money:String,copyListButton:()=>make('button'),resultLinkActions:()=>make('div'),eanRow:()=>make('small'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderWishlistDetails('),home.indexOf('platform.runtime.onMessage.addListener')),ctx);
  ctx.renderWishlistDetails(root);
@@ -250,24 +250,24 @@ test('Unified wishlist keeps actions on unmatched rows and exposes a cancellable
  const ctx=uiContext({showPriceHistory:item=>histories.push(item.id),wishlistEditor:null,el:make,wishlist:[item],checkingList:false,wishlistActionIcon:()=>make('svg'),document:{querySelector:selector=>selector==='#wishlist-total'?root:selector==='#status'?status:null},money:String,copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),async saveList(){writes++;},async recheckWishlistItem(id){rechecks.push(id);},renderWishlist(){renders++;},cleanSavedUrls:value=>value,platform:{storage:{local:{async set(){writes++;}}}}});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
  ctx.inputPriceRange=input=>{try{return ctx.parsePriceRange(input.value);}catch{return null;}};
- vm.runInContext(home.slice(home.indexOf('function wishlistRowActions('),home.indexOf('function renderWishlist(){')),ctx);
+ vm.runInContext(home.slice(home.indexOf('function wishlistEditButton('),home.indexOf('function renderWishlist(){')),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
  ctx.renderTotal();assert.equal(all(root).filter(n=>n.tag==='input').length,0);
  await all(root).find(n=>n.className==='price-history-trigger').click();assert.deepEqual(histories,['one']);
- const actions=()=>all(root).find(n=>n.className==='wishlist-row-actions');assert.equal(actions().children.length,3);assert.equal(actions().children[0].textContent,'Bearbeiten');
- await actions().children[0].click();let form=all(root).find(n=>n.tag==='form');assert.ok(form);assert.ok(!all(form).some(n=>n.textContent==='Preisverlauf'));assert.equal(actions().children[0].attrs['aria-expanded'],'true');
+ const actions=()=>all(root).find(n=>n.className==='wishlist-row-actions'),edit=()=>all(root).find(n=>n.className==='secondary wishlist-edit-button');assert.equal(actions().children.length,2);assert.equal(edit().title,'Artikel bearbeiten');assert.equal(edit().attrs['aria-label'],'Artikel bearbeiten: '+item.query);assert.equal(edit().parentElement.children[0].textContent,item.query);
+ await edit().click();let form=all(root).find(n=>n.tag==='form');assert.ok(form);assert.ok(!all(form).some(n=>n.textContent==='Preisverlauf'));assert.equal(edit().attrs['aria-expanded'],'true');
  let fields=all(form).filter(n=>n.tag==='input');assert.deepEqual(fields.map(n=>n.type==='checkbox'?n.checked:n.value),['Example product','1234567890128',false,'black','5-10']);
  assert.ok(!all(form).some(n=>n.tag==='label'&&all(n).slice(1).some(child=>child.tag==='label')),'No nested labels');
  fields[0].value='Unsaved name';fields[0].listeners.input();await all(form).find(n=>n.textContent==='Abbrechen').click();assert.equal(writes,0);assert.equal(item.query,'Example product');assert.equal(all(root).filter(n=>n.tag==='input').length,0);
- await actions().children[0].click();form=all(root).find(n=>n.tag==='form');fields=all(form).filter(n=>n.tag==='input');fields.at(-1).value='12-6';await form.listeners.submit({preventDefault(){}});assert.equal(writes,0);assert.ok(ctx.wishlistEditor);fields.at(-1).value='6-12';
+ await edit().click();form=all(root).find(n=>n.tag==='form');fields=all(form).filter(n=>n.tag==='input');fields.at(-1).value='12-6';await form.listeners.submit({preventDefault(){}});assert.equal(writes,0);assert.ok(ctx.wishlistEditor);fields.at(-1).value='6-12';
  await form.listeners.submit({preventDefault(){}});assert.equal(writes,1);assert.equal(ctx.wishlist[0].minPrice,6);assert.equal(ctx.wishlist[0].maxPrice,12);assert.equal(ctx.wishlist[0].ean,item.ean);assert.equal(ctx.wishlist[0].useEAN,false);assert.equal(JSON.stringify(ctx.wishlist[0].shops),JSON.stringify(item.shops));assert.deepEqual(rechecks,[]);assert.equal(ctx.wishlistEditor,null);
- ctx.renderTotal();await actions().children[1].click();assert.deepEqual(rechecks,['one']);
- ctx.checkingList=true;ctx.activeWishlistId='one';ctx.renderTotal();assert.ok(actions().children.every(n=>n.disabled));
- assert.ok(actions().children[1].className.includes('is-refreshing'));
+ ctx.renderTotal();await actions().children[0].click();assert.deepEqual(rechecks,['one']);
+ ctx.checkingList=true;ctx.activeWishlistId='one';ctx.renderTotal();assert.ok(actions().children.every(n=>n.disabled));assert.ok(edit().disabled);
+ assert.ok(actions().children[0].className.includes('is-refreshing'));
  const busyRow=all(root).find(n=>n.className==='wishlist-item-refreshing');assert.equal(busyRow.attrs['aria-busy'],'true');
- ctx.activeWishlistId='another-item';ctx.renderTotal();assert.ok(!actions().children[1].className.includes('is-refreshing'));assert.ok(!all(root).some(n=>n.attrs['aria-busy']==='true'));
- ctx.activeWishlistId='one';ctx.checkingList=false;ctx.renderTotal();assert.ok(!actions().children[1].className.includes('is-refreshing'));assert.ok(!all(root).some(n=>n.className==='wishlist-item-refreshing'));
- ctx.checkingList=false;ctx.renderTotal();await actions().children[2].click();assert.equal(ctx.wishlist.length,0);assert.equal(writes,2);assert.ok(renders>=2);
+ ctx.activeWishlistId='another-item';ctx.renderTotal();assert.ok(!actions().children[0].className.includes('is-refreshing'));assert.ok(!all(root).some(n=>n.attrs['aria-busy']==='true'));
+ ctx.activeWishlistId='one';ctx.checkingList=false;ctx.renderTotal();assert.ok(!actions().children[0].className.includes('is-refreshing'));assert.ok(!all(root).some(n=>n.className==='wishlist-item-refreshing'));
+ ctx.checkingList=false;ctx.renderTotal();await actions().children[1].click();assert.equal(ctx.wishlist.length,0);assert.equal(writes,2);assert.ok(renders>=2);
 });
 
 test('Single-item refresh shows four-shop progress, rejects concurrent refreshes and unlocks shared-tab controls after completion',async()=>{

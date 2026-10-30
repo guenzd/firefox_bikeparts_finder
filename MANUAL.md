@@ -73,7 +73,7 @@ Eingaben und günstigste Ergebnisse stehen in einer gemeinsamen Liste:
 | --- | --- |
 | Artikelname anklicken | Shopvergleich mit gefilterten Angeboten, günstigster Preis zuerst |
 | Preis anklicken | Lokalen Preisverlauf öffnen |
-| Bearbeiten | Name, EAN samt Schalter, Ausführung und Preisbereich unter der Zeile bearbeiten |
+| Stift neben dem Artikelnamen | Name, EAN samt Schalter, Ausführung und Preisbereich unter der Zeile bearbeiten |
 | ↻ | Nur diesen Artikel aktualisieren |
 | × | Artikel aus der Wunschliste entfernen |
 

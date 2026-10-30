@@ -301,3 +301,10 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .recheck-button.is-refreshing svg{animation:wishlist-refresh-turn 2.4s linear infinite;transform-origin:center}
 @keyframes wishlist-refresh-turn{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.recheck-button.is-refreshing svg{animation:none}}
+
+.wishlist-product-name{display:flex;align-items:center;gap:8px}
+.wishlist-product-name>.wish-product-button{min-width:0}
+.wishlist-product-name>.wishlist-edit-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;padding:0;color:var(--muted);border:1px solid var(--field-line)}
+.wishlist-edit-button svg{display:block;width:18px;height:18px}
+.wishlist-product-name>.wishlist-edit-button:hover{color:var(--ink);border-color:var(--muted)}
+.wishlist-edit-button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
