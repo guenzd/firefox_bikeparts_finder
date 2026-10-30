@@ -81,7 +81,7 @@ teilefinder/*.test.mjs   Regressionstests; zusätzliche Parsertests in local-bro
 scripts/                Paketbau und Profiling
 ```
 
-UI und fachliche Logik sind gemeinsam; native Browserzugriffe liegen in `platform/`. Shop-spezifische DOM-Reader sind nötig, Produktnamen-Sonderregeln oder Suchbegriff-Wörterbücher sind nicht vorgesehen. Tests verwenden Fixtures und API-Mocks; sie ersetzen keine Prüfung der aktuellen Shopseiten in beiden Browsern.
+UI und fachliche Logik sind gemeinsam; native Browserzugriffe liegen in `platform/`. Bei noch nicht gerenderten BIKE24-Widgets verwendet Chromium frische Produktmetadaten und die schreibgeschützte Verfügbarkeitsabfrage desselben Shops. Varianten erfordern eine eindeutige Optionszuordnung und einen vollständig berechenbaren Preis. Firefox behält seinen DOM-/Dropdown-Pfad. Shop-spezifische DOM-Reader sind nötig, Produktnamen-Sonderregeln oder Suchbegriff-Wörterbücher sind nicht vorgesehen. Tests verwenden Fixtures und API-Mocks; sie ersetzen keine Prüfung der aktuellen Shopseiten in beiden Browsern.
 
 Die übrigen Website- und Chromium-Prototypdateien unter `teilefinder/` sind historischer Bestand. Deren verschachteltes `npm run build` baut die frühere Website, **nicht** die Erweiterung. Siehe [Quellordner](teilefinder/README.md) und [lokaler Prototyp](teilefinder/LOKAL.md).
 

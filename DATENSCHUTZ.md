@@ -2,7 +2,7 @@
 
 **Teilefinder – Fahrradteile vergleichen**
 
-**Stand: 25. Oktober 2026**
+**Stand: 30. Oktober 2026**
 
 ## Kontakt
 
@@ -32,7 +32,7 @@ Wunschliste, Ergebnisse, Produktlink-Cache und Einstellungen liegen im lokalen E
 
 ## Verbindungen zu den Shops
 
-Wenn du eine Suche oder Aktualisierung startest, öffnet beziehungsweise verwendet Teilefinder Shop-Tabs. Suchbegriffe und gegebenenfalls Artikelnummern oder EAN werden dabei als normale Shop-Suchanfragen übermittelt. Bei bekannten Artikeln werden gespeicherte Produktseiten direkt aufgerufen. Varianten werden über die Bedienelemente des Shops ausgewählt. Die Erweiterung kann Cookie-Hinweise über die angebotenen Ablehnen- beziehungsweise Nur-notwendige-Cookies-Optionen schließen.
+Wenn du eine Suche oder Aktualisierung startest, öffnet beziehungsweise verwendet Teilefinder Shop-Tabs. Suchbegriffe und gegebenenfalls Artikelnummern oder EAN werden dabei als normale Shop-Suchanfragen übermittelt. Bei bekannten Artikeln werden gespeicherte Produktseiten direkt aufgerufen. Varianten werden über die Bedienelemente des Shops ausgewählt. Bei noch nicht gerenderten BIKE24-Produktfeldern kann Chromium die Produktdaten der aktuellen Seite mit einer schreibgeschützten Lieferdatenabfrage bei BIKE24 abgleichen; dabei werden die Produktkennung und das auf der Shopseite eingestellte Lieferland übermittelt. Die Erweiterung kann Cookie-Hinweise über die angebotenen Ablehnen- beziehungsweise Nur-notwendige-Cookies-Optionen schließen.
 
 Die angesprochenen Shops sind:
 

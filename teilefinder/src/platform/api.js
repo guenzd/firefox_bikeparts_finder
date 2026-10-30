@@ -15,6 +15,7 @@ function createNativePlatform(native){
  const call=(object,method,...args)=>Promise.resolve().then(()=>object[method](...args)).then(unwrap);
  const messageListeners=new Map();
  return {
+  browserFamily:native.runtime.getURL('').startsWith('moz-extension:')?'firefox':'chromium',
   tabs:{get:id=>call(native.tabs,'get',id),getCurrent:()=>call(native.tabs,'getCurrent'),query:query=>call(native.tabs,'query',query),create:options=>call(native.tabs,'create',options),update:(id,options)=>call(native.tabs,'update',id,options),remove:id=>call(native.tabs,'remove',id),sendMessage:(id,data)=>call(native.tabs,'sendMessage',id,data),onRemoved:native.tabs?.onRemoved,onUpdated:native.tabs?.onUpdated},
   storage:{local:{get:key=>call(native.storage.local,'get',key),set:data=>call(native.storage.local,'set',data)},session:native.storage.session?{get:key=>call(native.storage.session,'get',key),set:data=>call(native.storage.session,'set',data)}:null},
   images:native.declarativeNetRequest?{setTabIds:ids=>{
