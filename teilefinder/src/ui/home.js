@@ -62,7 +62,7 @@ function renderWishlistDetails(root){
  for(const name of names){
   const entries=wishlistShopEntries(detailItems,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
-  const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:displayedShopOffers(shop,item)),name));article.append(heading);
+  const article=el('article'),heading=el('div');article.className='shop-results';article.id='wishlist-shop-'+names.indexOf(name);article.tabIndex=-1;heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:displayedShopOffers(shop,item)),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';table.setAttribute('aria-label',name+' · Wunschliste');
   const head=el('tr');['Produkt / Ausführung','Preis','Lagerstatus','Links'].forEach(text=>head.append(el('th',text)));appendTableHead(table,head);
   for(const {item,shop} of entries){
@@ -254,7 +254,7 @@ function renderTotal(){
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)nameLine.append(el('small',variant));
 
 
-  if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
+  if(best){const shopLink=el('a',best.shop);shopLink.className='wishlist-shop-jump';shopLink.href='#wishlist-shop-'+names.indexOf(best.shop);shopLink.title='Zur Liste von '+best.shop;shop.append(shopLink);price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
   else{shop.textContent='—';price.textContent='—';const badge=el('span',missingMessage);if(missingMessage==='Nicht lieferbar')badge.className='stock-unavailable';stock.append(badge);}
   const history=el('button',price.textContent);history.type='button';history.className='price-history-trigger';history.title='Preisverlauf';history.setAttribute('aria-label','Preisverlauf für '+item.query);history.addEventListener('click',()=>showPriceHistory(item));price.replaceChildren(history);
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));

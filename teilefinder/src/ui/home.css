@@ -312,3 +312,8 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .wishlist-edit-button svg{display:block;width:18px;height:18px}
 .wishlist-product-name>.wishlist-edit-button:hover{color:var(--ink);border-color:var(--muted)}
 .wishlist-edit-button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+.total-results .wishlist-shop-jump{color:inherit;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--field-line);text-underline-offset:4px}
+.total-results .wishlist-shop-jump:hover{color:var(--link);text-decoration-color:currentColor}
+.wishlist-shop-jump:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:2px}
+.shop-results[id^="wishlist-shop-"]{scroll-margin-block-start:12px}

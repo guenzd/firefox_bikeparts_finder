@@ -72,6 +72,7 @@ Eingaben und günstigste Ergebnisse stehen in einer gemeinsamen Liste:
 | Aktion | Wirkung |
 | --- | --- |
 | Artikelname anklicken | Shopvergleich mit gefilterten Angeboten, günstigster Preis zuerst |
+| Shopnamen in der Übersicht anklicken | Zur jeweiligen Shopliste weiter unten springen |
 | Preis anklicken | Lokalen Preisverlauf öffnen |
 | Stift in der festen Spalte rechts im Artikelbereich | Name, EAN samt Schalter, Ausführung und Preisbereich unter der Zeile bearbeiten |
 | ↻ | Nur diesen Artikel aktualisieren |
