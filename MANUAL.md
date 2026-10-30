@@ -113,7 +113,7 @@ Jede Shopüberschrift nennt Summe und Abdeckung als x/x Produkte. Pro Wunschlist
 
 ## Preisverlauf
 
-Nach abgeschlossenen Suchen werden bestätigte, lieferbare Angebote je EAN lokal in IndexedDB gespeichert. Im Diagramm und in der Tabelle bleiben bei mehr als zwei gleichen Preisen hintereinander die Randpunkte erhalten; mittlere Wiederholungen entfallen. Preisgrenzen begrenzen diese Aufzeichnung nicht. Die Anzeige nennt Tiefstpreis und aktuellen aufgezeichneten Preis.
+Nach abgeschlossenen Suchen werden bestätigte, lieferbare Angebote je EAN lokal in IndexedDB gespeichert. Diagramm und Tabelle zeigen je Kalendertag den niedrigsten Preis. Höhere Messungen desselben Tages entfallen in der Ansicht. Bei mehr als zwei gleichen Tagespreisen hintereinander bleiben die Randpunkte erhalten; mittlere Wiederholungen entfallen. Die gespeicherten Messungen bleiben vollständig erhalten. Preisgrenzen begrenzen diese Aufzeichnung nicht. Die Anzeige nennt Tiefstpreis und aktuellen aufgezeichneten Preis.
 
 Die Aufzeichnung beginnt mit den Suchläufen; alte importierte Ergebnisse werden nicht als neue Messung ausgegeben. Export und Import enthalten auch die Historie. Ohne bestätigte EAN gibt es keinen zugeordneten Preisverlauf.
 
