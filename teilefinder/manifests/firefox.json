@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Teilefinder – Fahrradteile vergleichen",
-  "version": "0.8.38",
+  "version": "0.8.39",
   "description": "Vergleicht Fahrradteile in vier Shops direkt in deinem Browser. Ohne lokalen Server.",
   "browser_specific_settings": {
     "gecko": {

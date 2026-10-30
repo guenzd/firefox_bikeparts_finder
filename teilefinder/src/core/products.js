@@ -16,6 +16,13 @@ function modelSearchQuery(query){
  const models=productModelCodes(query),brand=String(query||'').trim().split(/\s+/)[0];
  return models.length&&/^[a-zäöüß]+$/i.test(brand)?[brand,...models.filter(model=>model.toLowerCase()!==brand.toLowerCase())].join(' '):null;
 }
+// One unambiguous model, never a size/count or a choice between several models.
+// This changes navigation only; matching still uses the complete original name.
+function modelRetryQuery(query){
+ const models=productModelCodes(query);
+ if(models.length!==1||!/^[a-z]{2,8}(?:-[a-z]{1,8})*-?\d{2,}[a-z]?$/i.test(models[0]))return null;
+ return productNameText(query)===productNameText(models[0])?null:models[0];
+}
 function modelNameMatches(name,query){
  const models=productModelCodes(query);if(!models.length)return false;
  if(!models.every(code=>hasModelCode(name,code)))return false;

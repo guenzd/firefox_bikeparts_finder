@@ -15,6 +15,8 @@ Browser-Erweiterung für **Firefox und Chrome**: Preise, Varianten und Lagerstat
 
 Pro Teilefinder-Tab wird höchstens ein Such-Tab je Shop wiederverwendet. Jeder Shop arbeitet die Wunschliste in einer eigenen seriellen Warteschlange ab. Schnellere Shops können bereits den nächsten Artikel prüfen; es bleiben maximal vier Shop-Tabs. Ein Klick auf den Fortschritt stoppt die Suche und erhält bereits gefundene Ergebnisse. Es gibt keine Warenkorb- oder Bestellaktionen.
 
+Wenn eine Namenssuche kein passendes Angebot im Preis- und Variantenfilter liefert, wird bei genau einer eindeutig erkannten Modellnummer einmal zusätzlich nach dieser gesucht. Treffer müssen weiterhin zum ursprünglichen Namen passen; Marke, Modell und Produktbeschreibung werden geprüft. Sicherheitsprüfungen und technische Fehler lösen diesen Zusatzversuch nicht aus. Erfolgreiche Suchen bleiben unverändert, je Shop wird derselbe Tab wiederverwendet.
+
 ## Installation und Benutzung
 
 Firefox Desktop ab 140, Chrome ab 114. Für die Entwicklungsinstallation zuerst bauen und dann `outputs/firefox-addon/manifest.json` unter `about:debugging` beziehungsweise `outputs/chrome-addon/` unter `chrome://extensions` laden. Für Firefox außerhalb der temporären Entwicklungsinstallation wird eine von Mozilla signierte XPI benötigt.

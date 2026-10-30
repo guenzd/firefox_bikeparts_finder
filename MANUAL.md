@@ -133,3 +133,7 @@ Die Oberfläche folgt dem Browser-Farbschema. Sonne/Mond schaltet manuell um, bi
 Build-Befehle und Quellstruktur stehen im [README](README.md), Laufzeitmessungen unter [Profiling](docs/SEARCH-PROFILING.md). Ein leeres `getSearchProfiles()` nach dem Neuladen ist normal: Profile liegen nur im Arbeitsspeicher der geöffneten Teilefinder-Seite.
 
 Datenspeicherung und Berechtigungen: [Datenschutzerklärung](DATENSCHUTZ.md).
+
+## Modellnummern bei der Suche
+
+Wenn eine Namenssuche kein passendes Angebot im Preis- und Variantenfilter liefert, wird bei genau einer eindeutig erkannten Modellnummer einmal zusätzlich nach dieser gesucht. Treffer müssen weiterhin zum ursprünglichen Namen passen; Marke, Modell und Produktbeschreibung werden geprüft. Sicherheitsprüfungen und technische Fehler lösen diesen Zusatzversuch nicht aus. Erfolgreiche Suchen bleiben unverändert, je Shop wird derselbe Tab wiederverwendet.

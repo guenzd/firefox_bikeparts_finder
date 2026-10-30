@@ -236,12 +236,22 @@ async function runInShopLane(job,shop,searchQuery=job.query){
    const previous=job.results.get(shop.id);
    job.results.set(shop.id,{...previous,type:'result',target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(searchQuery),offers:previous?.offers||[],suggestions:previous?.suggestions||[],message:'Zeitlimit oder Shopfehler · bisherige Ergebnisse'});
   }
- }finally{task.cancelled=true;}
+ }finally{
+  const previous=job.results.get(shop.id),model=typeof modelRetryQuery==='function'&&!validEAN(searchQuery)?modelRetryQuery(searchQuery):null;
+  if(jobActive(task)&&task.modelRetryReadable&&model&&previous&&!searchHasInRangeOffer(previous,job)&&!/Sicherheitsprüfung|Zeitlimit|Shopfehler|geschlossen|fehlgeschlagen|nicht abgeschlossen|Keine Angebote ausgelesen/i.test(previous.message||'')){
+   try{
+    await searchMessage(task,{...previous,type:'status',message:'Kein passendes Angebot · Modellnummer wird gesucht…'}).catch(()=>{});
+    await boundedOperation(runShop(task,shop,searchQuery,model),30000);
+    if(!searchHasInRangeOffer(job.results.get(shop.id),job))job.results.set(shop.id,previous);
+   }catch{job.results.set(shop.id,previous);}
+  }
+  task.cancelled=true;
+ }
  if(jobActive(job)&&!job.results.has(shop.id))job.results.set(shop.id,{type:'result',target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(searchQuery),offers:[],message:'Shopprüfung nicht abgeschlossen.'});
 }
-async function runShop(job,shop,searchQuery=job.query){
- let tab,resolvedQuery=searchQuery;
- const send=async data=>{if(!jobActive(job))return;const requestedEAN=validEAN(searchQuery);if(requestedEAN){data={...data,offers:narrowEANResults((data.offers||[]).filter(o=>equivalentEANs(o.ean,requestedEAN)),job.nameQuery),suggestions:[]};
+async function runShop(job,shop,searchQuery=job.query,modelNavigation=''){
+ let tab,resolvedQuery=modelNavigation||searchQuery;
+ const send=async data=>{if(!jobActive(job))return;if(modelNavigation)data={...data,offers:(data.offers||[]).filter(o=>modelNameMatches(o.name||'',searchQuery))};const requestedEAN=validEAN(searchQuery);if(requestedEAN){data={...data,offers:narrowEANResults((data.offers||[]).filter(o=>equivalentEANs(o.ean,requestedEAN)),job.nameQuery),suggestions:[]};
   if(data.type==='result'&&!data.offers.length&&tab&&jobActive(job)){
    const known=job.knownShops.find(s=>s.name===shop.name);
    const candidates=(Array.isArray(known?.offers)?known.offers:[]).filter(o=>{try{const u=new URL(o.url);return !job.checkedKnownUrls?.has(cleanShopUrl(o.url))&&!exceedsSearchBudget(o,job)&&equivalentEANs(o.ean,requestedEAN)&&u.protocol==='https:'&&u.hostname.replace(/^www\./,'')===shop.host.replace(/^www\./,'');}catch{return false;}}).slice(0,3);
@@ -259,16 +269,17 @@ async function runShop(job,shop,searchQuery=job.query){
   }
  }if(!jobActive(job))return;const payload={...data,...(job.matchMode==='name-fallback'?{matchMode:'name-fallback'}:{}),target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(resolvedQuery)};if(data.type==='result'){job.results.set(shop.id,payload);void saveProductHints(job,shop,payload.offers||[]);await searchMessage(job,{...payload,type:'partial-result'}).catch(()=>{});return;}await searchMessage(job,payload).catch(()=>{});};
  try{
-  const hints=trustedProductHints(job.knownShops.find(s=>s.name===shop.name)?.offers,shop).filter(o=>!validEAN(searchQuery)||!validEAN(o.ean)||equivalentEANs(o.ean,searchQuery));
-  tab=await profileStep(job,shop,'navigation',()=>shopTab(job.source,shop,hints[0]?.url||shop.search(searchQuery)));job.pendingNavigation={tab:tab.id,url:hints[0]?.url||shop.search(searchQuery),samePath:sameProductPath(tab.previousUrl,hints[0]?.url||shop.search(searchQuery))};
+  const hints=modelNavigation?[]:trustedProductHints(job.knownShops.find(s=>s.name===shop.name)?.offers,shop).filter(o=>!validEAN(searchQuery)||!validEAN(o.ean)||equivalentEANs(o.ean,searchQuery));
+  tab=await profileStep(job,shop,'navigation',()=>shopTab(job.source,shop,hints[0]?.url||shop.search(resolvedQuery)));job.pendingNavigation={tab:tab.id,url:hints[0]?.url||shop.search(resolvedQuery),samePath:sameProductPath(tab.previousUrl,hints[0]?.url||shop.search(resolvedQuery))};
   if(hints.length){await send({type:'status',message:'Bekannte Produktseiten werden direkt aktualisiert…'});const direct=await readKnownProducts(job,shop,tab,searchQuery);if(!jobActive(job))return;if(direct.length){await send({type:'result',offers:direct,message:''});return;}if(job.refreshKnown){await send({type:'result',offers:[],message:'Gespeicherte Produktseite aktuell nicht bestätigt. Bitte im Shop prüfen.'});return;}await navigateShop(job,shop,tab.id,shop.search(searchQuery));}
-  let previous='',stable=0,last,broadened=false,emptyReads=0;
+  let previous='',stable=0,last,broadened=!!modelNavigation,emptyReads=0;
   for(let i=0;i<12&&jobActive(job);i++){
    // Keep the initial/navigation wait and slow/blocked retries. Once cards
    // exist, only their stability check needs a shorter local DOM interval.
    await shopPause(job,shop,last&&!last.blocked&&(last.offers?.length||last.suggestions?.length)?500:2000);if(!jobActive(job))return;
    try{last=await shopMessage(job,shop,tab.id,{type:'extract',query:searchQuery,variant:job.variant,host:shop.host,shopId:shop.id});}catch{try{await searchPlatform.tabs.get(tab.id);}catch{throw Error('Tab geschlossen');}continue;}
    if(last.blocked){emptyReads=0;await send({type:'status',message:'Sicherheitsprüfung: '+shop.name+'-Tab öffnen und Prüfung abschließen.'});continue;}
+   job.modelRetryReadable=!!(last.ready||last.empty||last.offers?.length||last.suggestions?.length);
    last.offers=Array.isArray(last.offers)?last.offers:[];
    emptyReads=!last.offers.length&&!last.suggestions?.length?emptyReads+1:0;
    const signature=JSON.stringify([last.offers,last.suggestions]);stable=signature===previous?stable+1:0;previous=signature;

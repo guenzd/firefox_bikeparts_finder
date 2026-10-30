@@ -103,3 +103,7 @@ Umsetzungsversion: **0.8.0**. Commits: eigener Plan-Commit, gemeinsame Plattform
 - Damals: Sonne/Mond-Schalter mit gespeicherter Auswahl und „Automatisch“. Dieser Zwischenstand wurde durch den heutigen, nur bis zum Neuladen geltenden Schalter ersetzt.
 
 Automatisierter Stand 0.8.1: 161 Tests bestanden, Firefox-Lint ohne Fehler/Warnungen und Chrome-Paketvalidierung bestanden. Die Live-Abnahme bleibt offen.
+
+## Begrenzter Modellnummer-Fallback (0.8.39)
+
+Wenn eine Namenssuche kein passendes Angebot im Preis- und Variantenfilter liefert, wird bei genau einer eindeutig erkannten Modellnummer einmal zusätzlich nach dieser gesucht. Treffer müssen weiterhin zum ursprünglichen Namen passen; Marke, Modell und Produktbeschreibung werden geprüft. Sicherheitsprüfungen und technische Fehler lösen diesen Zusatzversuch nicht aus. Erfolgreiche Suchen bleiben unverändert, je Shop wird derselbe Tab wiederverwendet. Die Navigationsanfrage ist getrennt vom vollständigen Matching-Auftrag. Der Zusatzversuch ist auf 30 Sekunden begrenzt, erweitert die Suche nicht weiter und erhält die vorherigen Ergebnisse, wenn er kein passendes Angebot liefert. Reine Größen-/Mengenangaben und mehrere unterschiedliche Modellkennungen starten keinen Zusatzversuch.
