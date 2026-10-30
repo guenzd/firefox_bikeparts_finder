@@ -241,7 +241,7 @@ function renderTotal(){
 
 
   if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}
-  else{shop.textContent='—';price.textContent='—';stock.append(el('span',missingMessage));}
+  else{shop.textContent='—';price.textContent='—';const badge=el('span',missingMessage);if(missingMessage==='Nicht lieferbar')badge.className='stock-unavailable';stock.append(badge);}
   const history=el('button',price.textContent);history.type='button';history.className='price-history-trigger';history.title='Preisverlauf';history.setAttribute('aria-label','Preisverlauf für '+item.query);history.addEventListener('click',()=>showPriceHistory(item));price.replaceChildren(history);
   if(item.checkedAt)stock.append(el('small',new Date(item.checkedAt).toLocaleString('de-DE')));
   const actions=el('td');actions.className='wishlist-actions-cell';actions.append(wishlistRowActions(item));row.append(product,shop,price,stock,links,actions);table.append(row);appendWishlistEditor(table,item);

@@ -123,7 +123,7 @@ Pro Teilefinder-Tab werden vier Shop-Tabs wiederverwendet. „Shop-Tabs schließ
 
 „Bilder laden“ ist standardmäßig ausgeschaltet. Die Bildsperre gilt nur in verwalteten Shop-Tabs, auch für CDN-Fotos. Skripte, CSS und Datenabfragen bleiben aktiv. Die Einstellung wird lokal gespeichert und wirkt bei der nächsten Navigation beziehungsweise beim Neuladen der Shopseite. Sicherheitsprüfungen bei Bedarf selbst im Shop-Tab abschließen.
 
-Die Oberfläche folgt dem Browser-Farbschema. Sonne/Mond schaltet manuell um, bis die Oberfläche neu geladen wird; dann gilt wieder das Browser-Design. Schrift und Symbole sind lokal enthalten.
+Die Oberfläche folgt dem Browser-Farbschema. Sonne/Mond schaltet manuell um, bis die Oberfläche neu geladen wird; dann gilt wieder das Browser-Design. „Nicht lieferbar“ ist in einem gedeckten Orange gekennzeichnet, unbekannter Lagerstatus bleibt neutral. Schrift und Symbole sind lokal enthalten.
 
 ## Technik und Fehlersuche
 

@@ -252,7 +252,7 @@ test('Unified wishlist keeps actions on unmatched rows and exposes a cancellable
  ctx.inputPriceRange=input=>{try{return ctx.parsePriceRange(input.value);}catch{return null;}};
  vm.runInContext(home.slice(home.indexOf('function wishlistEditButton('),home.indexOf('function renderWishlist(){')),ctx);
  vm.runInContext(home.slice(home.indexOf('function renderTotal('),home.indexOf("document.querySelector('#add-wish').addEventListener")),ctx);
- ctx.renderTotal();assert.equal(all(root).filter(n=>n.tag==='input').length,0);
+ ctx.renderTotal();assert.equal(all(root).filter(n=>n.tag==='input').length,0);assert.equal(all(root).find(n=>n.textContent==='Nicht lieferbar').className,'stock-unavailable');
  await all(root).find(n=>n.className==='price-history-trigger').click();assert.deepEqual(histories,['one']);
  const actions=()=>all(root).find(n=>n.className==='wishlist-row-actions'),edit=()=>all(root).find(n=>n.className==='secondary wishlist-edit-button');assert.equal(actions().children.length,2);assert.equal(edit().title,'Artikel bearbeiten');assert.equal(edit().attrs['aria-label'],'Artikel bearbeiten: '+item.query);assert.equal(edit().parentElement.children[0].textContent,item.query);
  await edit().click();let form=all(root).find(n=>n.tag==='form');assert.ok(form);assert.ok(!all(form).some(n=>n.textContent==='Preisverlauf'));assert.equal(edit().attrs['aria-expanded'],'true');
