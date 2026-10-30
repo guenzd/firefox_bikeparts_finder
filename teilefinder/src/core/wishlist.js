@@ -13,17 +13,18 @@ function priceFilteredSuggestions(suggestions,range){
  return suggestions.filter(o=>!bounded||withinPriceRange(o.price,range));
 }
 function inputPriceRange(input){try{const value=parsePriceRange(input.value);input.setCustomValidity('');return value;}catch(error){input.setCustomValidity(error.message);return null;}}
+function verifiedWishlistItems(items){return items.map(item=>({...item,shops:filterConflictingEANs(item.shops||[],item.useEAN===false?'':item.ean)}));}
 // Use exactly the offers displayed in shop lists. This is presentation only:
-// completion flags, freshness and EAN metadata do not change whether a row exists.
+// Completion flags and freshness do not hide rows; explicit EAN conflicts do.
 function allShopsHaveDisplayedOffers(shops,item={}){
  return ['BIKE24','Bike-Discount','bike-components','r2-bike'].every(name=>
-  (shops.find(shop=>shop.name===name)?.offers||[]).some(offer=>
+  (filterConflictingEANs(shops,item.useEAN===false?'':item.ean).find(shop=>shop.name===name)?.offers||[]).some(offer=>
    Number.isFinite(offer.price)&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)));
 }
 
 // Retain all candidates in storage; presentation follows the current filters.
 function displayedShopOffers(shop,item={}){
- const rows=uniqueOffers(shop.offers||[]).filter(offer=>Number.isFinite(offer.price)&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant));
+ const rows=uniqueOffers(filterConflictingEANs([shop],item.useEAN===false?'':item.ean)[0].offers||[]).filter(offer=>Number.isFinite(offer.price)&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant));
  if(shop.comparisonMode!=='cheapest')return rows;
  const exact=rows.filter(offer=>offer.priceKind==='exact');
  const available=exact.filter(offer=>deliverable(offer.stock));
@@ -33,7 +34,7 @@ function displayedShopOffers(shop,item={}){
 
 function cheapestWishlist(items){
  const rows=items.map(item=>{
-  const matching=(item.shops||[]).flatMap(shop=>(shop.stale?[]:shop.offers||[]).filter(o=>Number.isFinite(o.price)&&o.price>0&&o.priceKind==='exact'&&variantMatches(o,item.variant)).map(o=>({...o,shop:shop.name})));
+  const matching=filterConflictingEANs(item.shops||[],item.useEAN===false?'':item.ean).flatMap(shop=>(shop.stale?[]:shop.offers||[]).filter(o=>Number.isFinite(o.price)&&o.price>0&&o.priceKind==='exact'&&variantMatches(o,item.variant)).map(o=>({...o,shop:shop.name})));
   const inRange=matching.filter(o=>withinPriceRange(o.price,item));
   const candidates=inRange.filter(o=>deliverable(o.stock));candidates.sort((a,b)=>a.price-b.price);
   const missingMessage=inRange.length?(inRange.some(o=>!o.stock||/nicht auslesbar|unbekannt/i.test(o.stock))?'Lagerstatus unbekannt':'Nicht lieferbar'):matching.length?'Kein passendes Angebot im Preisbereich':item.checkedAt?'Kein passendes Angebot':'Noch nicht geprüft';
@@ -76,7 +77,7 @@ function mergeShopResults(previous,incoming){
 }
 
 function wishlistShopEntries(items,name,activeId='',live=new Map()){
- return items.map(item=>({item,shop:(item.id===activeId?live.get(name):null)||(item.shops||[]).find(s=>s.name===name)||{name,offers:[],suggestions:[],message:'Noch nicht geprüft.'}}));
+ return items.map(item=>{const shop=(item.id===activeId?live.get(name):null)||(item.shops||[]).find(s=>s.name===name)||{name,offers:[],suggestions:[],message:'Noch nicht geprüft.'};return {item,shop:filterConflictingEANs([shop],item.useEAN===false?'':item.ean)[0]};});
 }
 
 // Reuse known product URLs for direct EAN searches as well as wishlist refreshes.
@@ -101,7 +102,7 @@ function wishlistPriceRows(entries,item){
 function shopWishlistSummary(entries){
  let total=0,available=0;
  for(const {item,shop} of entries){
-  const prices=(shop.stale?[]:shop.offers||[]).filter(offer=>offer.priceKind==='exact'&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)&&deliverable(offer.stock)).map(offer=>offer.price);
+  const prices=(shop.stale?[]:filterConflictingEANs([shop],item.useEAN===false?'':item.ean)[0].offers||[]).filter(offer=>offer.priceKind==='exact'&&withinPriceRange(offer.price,item)&&variantMatches(offer,item.variant)&&deliverable(offer.stock)).map(offer=>offer.price);
   if(prices.length){total+=Math.min(...prices);available++;}
  }
  return {total:Math.round(total*100)/100,available,count:entries.length};

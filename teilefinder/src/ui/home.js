@@ -26,7 +26,7 @@ function syncWishlistActivity(){
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
 const saveList=()=>platform.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
-platform.storage.local.get(['wishlist','wishlistSort']).then(d=>{wishlist=Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[];wishlistSort=validWishlistSort(d.wishlistSort);document.querySelector('#wishlist-sort').value=wishlistSort;wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
+platform.storage.local.get(['wishlist','wishlistSort']).then(d=>{wishlist=verifiedWishlistItems(Array.isArray(d.wishlist)?cleanSavedUrls(d.wishlist).map(({cart,...item})=>item):[]);wishlistSort=validWishlistSort(d.wishlistSort);document.querySelector('#wishlist-sort').value=wishlistSort;wishlistDetails=wishlist.some(item=>item.shops?.length);renderWishlist();render();if(d.wishlist)void saveList();}).catch(()=>{document.querySelector('#status').textContent='Wunschliste konnte nicht geladen werden.';});
 document.querySelector('#wishlist-sort').addEventListener('change',async event=>{
  if(checkingList||searchRunning)return;
  wishlistSort=validWishlistSort(event.target.value);renderWishlist();
@@ -415,9 +415,9 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
   if(file.size>20_000_000)throw Error('Die Datei ist zu groß.');
   const incoming=parseWishlistFile(await file.text());if(checkingList||searchRunning)return;
   await priceHistoryDB.put(incoming.history||[]);
-  const updated=mergeWishlistFile(wishlist,incoming),added=updated.length-wishlist.length;
+  const updated=verifiedWishlistItems(mergeWishlistFile(wishlist,incoming)),added=updated.length-wishlist.length;
   await platform.storage.local.set({wishlist:cleanSavedUrls(updated),...(incoming.screen?{wishlistSort:incoming.screen.wishlistSort}:{})});wishlist=updated;
-  if(incoming.screen){const screen=incoming.screen;wishlistSort=validWishlistSort(screen.wishlistSort);document.querySelector('#wishlist-sort').value=wishlistSort;wishlistDetails=!!screen.wishlistDetails;void platform.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();screen.shops.forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
+  if(incoming.screen){const screen=incoming.screen;wishlistSort=validWishlistSort(screen.wishlistSort);document.querySelector('#wishlist-sort').value=wishlistSort;wishlistDetails=!!screen.wishlistDetails;void platform.runtime.sendMessage({type:'cancel'});id='';activeWishlistId='';query=screen.searchedQuery;searchedVariant=screen.searchedVariant;searchedEAN=validEAN(screen.ean);document.querySelector('#search-use-ean').checked=screen.useEAN!==false;document.querySelector('#query').value=screen.query;document.querySelector('#search-variant').value=screen.variant;document.querySelector('#search-ean').value=screen.ean;document.querySelector('#max').value=priceRangeText(screen);state.clear();filterConflictingEANs(screen.shops,screen.useEAN===false?'':screen.ean).forEach(s=>state.set(s.name,s));setSearchRunning(false);render();}
   renderWishlist();
   document.querySelector('#status').textContent=added+' Artikel importiert · Ergebnisse wiederhergestellt.';
  }catch(error){document.querySelector('#status').textContent='Import fehlgeschlagen: '+(error instanceof SyntaxError?'Ungültige JSON-Datei.':error.message);}

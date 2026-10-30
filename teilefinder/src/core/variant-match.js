@@ -89,9 +89,13 @@ function filterConflictingEANs(shops,ean){
  if(!validEAN(ean))return shops;
  const compatible=offer=>!validEAN(offer.ean)||equivalentEANs(offer.ean,ean);
  return shops.map(shop=>{
-  if(shop.matchMode==='name-fallback')return shop;
   const offers=(shop.offers||[]).filter(compatible);
-  return {...shop,offers,suggestions:(shop.suggestions||[]).filter(compatible),
+  if(shop.matchMode==='name-fallback'){
+   const conflicts=(shop.offers||[]).filter(offer=>!compatible(offer));
+   return {...shop,offers,suggestions:uniqueOffers([...(shop.suggestions||[]),...conflicts]),
+    ...(conflicts.length?{message:offers.length?'Andere Ausführungen haben eine abweichende EAN.':'Keine Angebote mit der gewünschten EAN. Andere Ausführungen nur als Vorschlag.'}:{})};
+  }
+  return {...shop,offers,suggestions:shop.suggestions||[],
    ...((shop.offers||[]).length&&!offers.length?{message:'Keine Angebote mit EAN '+ean+'. Abweichende EAN ausgeschlossen.'}:{})};
  });
 }

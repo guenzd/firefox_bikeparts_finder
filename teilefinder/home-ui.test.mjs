@@ -177,7 +177,7 @@ test('Displayed four-shop matches hide repeated EAN rows in totals and shop list
  item.shops.forEach((shop,i)=>{shop.done=false;if(i)shop.offers[0].ean='';});
  ctx.renderTotal();ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
  item.shops[1].offers[0].ean='4550170323134';ctx.renderTotal();assert.equal(eanRows,0);
- eanRows=0;ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
+ eanRows=0;ctx.renderWishlistDetails(make('div'));assert.ok(eanRows>0);
  item.shops[1].offers[0].ean='';eanRows=0;
  item.shops[0].stale=true;ctx.renderTotal();assert.equal(eanRows,0);
  ctx.renderWishlistDetails(make('div'));assert.equal(eanRows,0);
@@ -333,13 +333,13 @@ test('Wishlist highlights only the earliest unfinished item even when later item
  ctx.checkingList=false;assert.deepEqual(highlighted(),[]);
 });
 
-test('Ad hoc and batch UI retain name-fallback identity without replacing the input EAN or rejecting an actual different GTIN',()=>{
+test('Ad hoc rejects an explicitly different fallback GTIN without replacing the input EAN; batch data retains evidence until item validation',()=>{
  const nodes={};const node=selector=>nodes[selector]||(nodes[selector]={value:'',checked:true});node('#search-ean').value='1234567890128';
  let listener;const ctx=uiContext({URL,currentTab:1,id:'job',names:['BIKE24'],state:new Map(),query:'Generic gel 24er',searchedVariant:'Citrus',platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}},document:{querySelector:node,querySelectorAll:()=>[]},render(){},updateWishlistProgress(){},saveList:()=>Promise.resolve()});
  vm.runInContext(readSource('variant-match.js'),ctx);
  vm.runInContext(home.slice(home.indexOf('platform.runtime.onMessage.addListener(d=>'),home.indexOf("document.querySelector('#max').addEventListener")),ctx);
  const result={type:'result',target:1,id:'job',shop:'BIKE24',query:'Generic gel 24er',matchMode:'name-fallback',url:'https://www.bike24.de/suchergebnis',offers:[{name:'Generic gel 24x40ml',ean:'9876543210982',variant:'Citrus',price:15,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/generic-pack'}]};
- listener(result);assert.equal(ctx.state.get('BIKE24').matchMode,'name-fallback');assert.equal(ctx.state.get('BIKE24').offers[0].ean,'9876543210982');assert.equal(node('#search-ean').value,'1234567890128');
+ listener(result);assert.equal(ctx.state.get('BIKE24').matchMode,'name-fallback');assert.equal(ctx.state.get('BIKE24').offers.length,0);assert.equal(ctx.state.get('BIKE24').suggestions[0].ean,'9876543210982');assert.equal(node('#search-ean').value,'1234567890128');
  vm.runInContext(home.slice(home.indexOf('function batchShopResult('),home.indexOf('function updateWishlistBatchProgress(')),ctx);
  const batch=ctx.batchShopResult(result);assert.equal(batch.matchMode,'name-fallback');assert.equal(batch.offers[0].ean,'9876543210982');
 });

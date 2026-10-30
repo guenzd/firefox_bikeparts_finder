@@ -203,8 +203,9 @@ async function searchAll(job){
    await searchMessage(job,{...previous,type:'status',message:'Kein EAN-Treffer im Preisbereich · suche nach Name…'}).catch(()=>{});
    if(!jobActive(job))return;
    const hints=job.knownShops.map(known=>({...known,offers:(known.offers||[]).filter(offer=>typeof matches==='function'&&matches(offer.name||'',job.nameQuery))})).filter(known=>known.offers.length);
-   await run({...job,root:job.root||job,query:job.nameQuery,knownEAN:'',knownShops:hints,refreshKnown:false,useEAN:false,matchMode:'name-fallback'},shop,job.nameQuery);
-   if(!searchHasInRangeOffer(job.results.get(shop.id),job)&&previous.offers?.length)job.results.set(shop.id,previous);
+   await run({...job,root:job.root||job,query:job.nameQuery,knownEAN:'',expectedEAN:validEAN(job.query),knownShops:hints,refreshKnown:false,useEAN:false,matchMode:'name-fallback'},shop,job.nameQuery);
+   const next=job.results.get(shop.id);
+   if(!searchHasInRangeOffer(next,job)&&previous.offers?.length)job.results.set(shop.id,{...previous,suggestions:uniqueOffers([...(previous.suggestions||[]),...(next?.suggestions||[])]),message:next?.message||previous.message});
   }));
  }
  if(!jobActive(job))return;
@@ -267,7 +268,7 @@ async function runShop(job,shop,searchQuery=job.query,modelNavigation=''){
     }catch{}
    }
   }
- }if(!jobActive(job))return;const payload={...data,...(job.matchMode==='name-fallback'?{matchMode:'name-fallback'}:{}),target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(resolvedQuery)};if(data.type==='result'){job.results.set(shop.id,payload);void saveProductHints(job,shop,payload.offers||[]);await searchMessage(job,{...payload,type:'partial-result'}).catch(()=>{});return;}await searchMessage(job,payload).catch(()=>{});};
+ }if(!jobActive(job))return;const payload=filterConflictingEANs([{...data,...(job.matchMode==='name-fallback'?{matchMode:'name-fallback'}:{}),target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(resolvedQuery)}],job.expectedEAN)[0];if(data.type==='result'){job.results.set(shop.id,payload);void saveProductHints(job,shop,payload.offers||[]);await searchMessage(job,{...payload,type:'partial-result'}).catch(()=>{});return;}await searchMessage(job,payload).catch(()=>{});};
  try{
   const hints=modelNavigation?[]:trustedProductHints(job.knownShops.find(s=>s.name===shop.name)?.offers,shop).filter(o=>!validEAN(searchQuery)||!validEAN(o.ean)||equivalentEANs(o.ean,searchQuery));
   tab=await profileStep(job,shop,'navigation',()=>shopTab(job.source,shop,hints[0]?.url||shop.search(resolvedQuery)));job.pendingNavigation={tab:tab.id,url:hints[0]?.url||shop.search(resolvedQuery),samePath:sameProductPath(tab.previousUrl,hints[0]?.url||shop.search(resolvedQuery))};

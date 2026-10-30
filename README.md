@@ -7,7 +7,7 @@ Browser-Erweiterung für **Firefox und Chrome**: Preise, Varianten und Lagerstat
 - Einzelteilsuche und lokal gespeicherte Wunschliste mit Produktname, optionaler EAN, Variante und Preisgrenze. `60` bedeutet maximal 60 €, `30-60` einen Preisbereich.
 - Allgemeine Namenssuchen: je Shop das günstigste passende lieferbare Produkt, ohne eine einzelne Treffer-EAN als Suchvorgabe zu übernehmen.
 - Günstigstes lieferbares Angebot je Artikel, Gesamtpreis und Vergleich je Shop mit Summe und Abdeckung. Versandkosten sind nicht enthalten.
-- Gespeicherte Produktlinks und Variantenauswahlen direkt aktualisieren, statt bekannte Artikel erneut zu suchen. Ohne bestätigten EAN-Treffer im Preisbereich folgt je Shop eine Namensprüfung mit denselben Preis- und Variantenfiltern; passende bekannte URLs bleiben nutzbar.
+- Gespeicherte Produktlinks und Variantenauswahlen direkt aktualisieren, statt bekannte Artikel erneut zu suchen. Ohne bestätigten EAN-Treffer im Preisbereich folgt je Shop eine Namensprüfung mit denselben Preis- und Variantenfiltern; passende bekannte URLs bleiben nutzbar. Eine ausdrücklich abweichende EAN ist auch beim Namens-Fallback nur ein Vorschlag und zählt nicht zum Preisvergleich.
 - Wunschliste nach Hinzufügen, Name, günstigstem lieferbarem Preis oder günstigstem Shop sortieren; die ursprüngliche Reihenfolge bleibt erhalten.
 - Artikel bearbeiten, einzeln aktualisieren oder entfernen; Shopvergleich per Klick auf den Namen, Preisverlauf per Klick auf den Preis.
 - Lokaler Preisverlauf je bestätigter EAN sowie Datei-Export und -Import einschließlich Ergebnissen und Historie.
