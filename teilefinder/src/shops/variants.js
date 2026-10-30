@@ -5,7 +5,11 @@ function savedChoice(choices,saved,textKey='text'){
  const textMatches=choice=>!saved.text||String(choice[textKey]||'').trim().toLowerCase()===saved.text.trim().toLowerCase();
  return choices.find(choice=>choice.id&&choice.id===saved.id&&textMatches(choice))||choices.find(choice=>choice.value===saved.value&&textMatches(choice))||(saved.text?choices.find(textMatches):null);
 }
-async function bikeDiscountVariants(fallback,requested,savedSelection=[]){
+// Stop only on a freshly read exact variant identity, never on datasheet hints.
+function confirmedVariantEAN(offer,ean,requested){
+ return !!ean&&typeof equivalentEANs==='function'&&equivalentEANs(offer.ean,ean)&&offer.eanEvidence!=='datasheet'&&offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.price>0&&!!offer.stock&&!/nicht auslesbar|unbekannt/i.test(offer.stock)&&variantMatches(offer,requested);
+}
+async function bikeDiscountVariants(fallback,requested,savedSelection=[],requestedEAN=''){
  const picker=document.querySelector('#productDetailConfiguratorOptions');
  if(!picker)return [];
  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -16,7 +20,7 @@ async function bikeDiscountVariants(fallback,requested,savedSelection=[]){
  const color=typeof productColor==='function'?productColor():'';
  const rows=[];rows.inspectionComplete=variants.length>0;rows.readIssue=variants.length?'noMatchingOption':'optionsMissing';
  const matching=variants.filter(v=>!requested||variantMatches({...fallback,variant:[v.text,color].filter(Boolean).join(' · ')},requested)),saved=savedChoice(matching,savedSelection.find(s=>s.kind==='radio'));
- for(const variant of (saved?[saved]:matching).slice(0,8)){
+ for(const variant of (saved?(requestedEAN?[saved,...matching.filter(v=>v!==saved)]:[saved]):matching).slice(0,8)){
   if(variant.disabled)continue;
   const livePicker=document.querySelector('#productDetailConfiguratorOptions');
   if(!livePicker)continue;
@@ -51,6 +55,7 @@ async function bikeDiscountVariants(fallback,requested,savedSelection=[]){
    await pause(250);
   }
   if(current)rows.push({...fallback,ean:current.ean||'',name:document.querySelector('h1')?.innerText.trim()||fallback.name,variant:/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · '+variant.text:[variant.text,color].filter(Boolean).join(' · '),price:current.price,priceKind:'exact',stock:current.stock,url:location.href,source:'Firefox · ausgewählte Produktvariante',selection:[{kind:'radio',id:variant.id,value:variant.id,text:variant.text}]});
+  if(rows.some(row=>confirmedVariantEAN(row,requestedEAN,requested)))break;
  }
  if(rows.length)rows.readIssue='';return rows;
 }
@@ -85,20 +90,20 @@ function selectProductOption(select,choice,bike24){
  }
  select.value=choice.value;if(!bike24)select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));
 }
-async function dropdownVariants(fallback,requested='',savedSelection=[]){
+async function dropdownVariants(fallback,requested='',savedSelection=[],requestedEAN=''){
  const bike24=typeof location.hostname==='string'&&location.hostname.replace(/^www\./,'')==='bike24.de';
  const release=bike24?guardBike24Purchase():()=>{};
  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
  const rows=[];let attempted=0,savedApplied=false;
  const options=select=>[...select.options].filter(o=>!o.disabled&&o.value&&!/bitte|wählen|waehlen|choose|select|auswahl/i.test(o.textContent)).map(o=>({value:o.value,text:o.textContent.trim()}));
  async function visit(depth,labels,skuState={allowURLSKU:true,url:location.href},restore=false){
-  if(attempted>=24)return;
+  if(attempted>=24||rows.some(row=>confirmedVariantEAN(row,requestedEAN,requested)))return;
   const selects=productDropdowns();
   if(depth<selects.length){
    let choices=options(selects[depth]).filter(choice=>selects.length!==1||!requested||variantMatches({...fallback,variant:[fallback.baseVariant,choice.text].filter(Boolean).join(' · ')},requested));
    if(restore){const select=selects[depth],saved=savedSelection.find(s=>(!s.kind||s.kind==='select')&&((s.id&&s.id===select.id)||(s.name&&s.name===select.name)||(s.label&&s.label===(select.getAttribute?.('aria-label')||[...(select.labels||[])].map(l=>l.textContent.trim()).join(' '))))),choice=savedChoice(choices,saved);if(!choice)return;choices=[choice];}
    for(const choice of choices){
-    if(attempted>=24)break;
+    if(attempted>=24||rows.some(row=>confirmedVariantEAN(row,requestedEAN,requested)))break;
     const select=productDropdowns()[depth];
     if(!select||![...select.options].some(o=>o.value===choice.value&&!o.disabled))continue;
     const beforeURL=location.href,beforeSelection=JSON.stringify(productDropdowns().map(select=>[select.id,select.value]));
@@ -132,10 +137,10 @@ async function dropdownVariants(fallback,requested='',savedSelection=[]){
    await pause(250);
   }
  }
- try{if(savedSelection.length)await visit(0,[],undefined,true);if(!savedApplied)await visit(0,[]);return {offers:dedupe(rows),limited:attempted>=24,inspectionComplete:savedApplied};}finally{release();}
+ try{if(savedSelection.length)await visit(0,[],undefined,true);if(!savedApplied||(requestedEAN&&!rows.some(row=>confirmedVariantEAN(row,requestedEAN,requested))))await visit(0,[]);return {offers:dedupe(rows),limited:attempted>=24,inspectionComplete:savedApplied};}finally{release();}
 }
 
-async function bikeComponentsVariants(fallback,requested,savedSelection=[]){
+async function bikeComponentsVariants(fallback,requested,savedSelection=[],requestedEAN=''){
  const picker=document.querySelector('.pdp-variant-button[role="combobox"][aria-controls="options-list"]');
  if(!picker)return {offers:[],limited:false};
  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -145,7 +150,8 @@ async function bikeComponentsVariants(fallback,requested,savedSelection=[]){
  const selectedAmount=selectedPrice.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/);
  const savedOption=savedSelection.find(s=>s.kind==='option');
  if((requested||savedOption)&&(!savedOption||selectedLabel===savedOption.text)&&selectedLabel&&variantMatches({...fallback,variant:selectedLabel},requested)&&selectedAmount&&selectedStock&&!/^ab\s/i.test(selectedPrice)){
-  return {offers:[{...fallback,ean:typeof currentProductEAN==='function'?currentProductEAN():'',selection:[{kind:'option',id:picker.getAttribute('aria-activedescendant')||savedOption?.id||'',value:picker.getAttribute('aria-activedescendant')||savedOption?.value||'',text:selectedLabel}],variant:selectedLabel,price:euro(selectedAmount[1]),priceKind:'exact',stock:stockText(selectedStock),url:location.href,source:'Firefox · ausgewählte Produktvariante'}],limited:false};
+  const selectedOffer={...fallback,ean:typeof currentProductEAN==='function'?currentProductEAN():'',selection:[{kind:'option',id:picker.getAttribute('aria-activedescendant')||savedOption?.id||'',value:picker.getAttribute('aria-activedescendant')||savedOption?.value||'',text:selectedLabel}],variant:selectedLabel,price:euro(selectedAmount[1]),priceKind:'exact',stock:stockText(selectedStock),url:location.href,source:'Firefox · ausgewählte Produktvariante'};
+  if(!requestedEAN||confirmedVariantEAN(selectedOffer,requestedEAN,requested))return {offers:[selectedOffer],limited:false};
  }
  if(picker.getAttribute('aria-expanded')!=='true')picker.click();
  const deadline=Date.now()+3000;
@@ -153,7 +159,7 @@ async function bikeComponentsVariants(fallback,requested,savedSelection=[]){
  const choices=[...document.querySelectorAll('#options-list [role="option"]')].map(n=>({id:n.id,label:n.getAttribute('data-label')||n.innerText.trim(),disabled:n.getAttribute('aria-disabled')==='true'})).filter(v=>v.id&&v.label);
  const rows=[];
  const matching=choices.filter(v=>!requested||variantMatches({...fallback,variant:v.label},requested)),saved=savedChoice(matching,savedOption,'label');
- for(const choice of (saved?[saved]:matching).slice(0,24)){
+ for(const choice of (saved?(requestedEAN?[saved,...matching.filter(v=>v!==saved)]:[saved]):matching).slice(0,24)){
   if(choice.disabled)continue;
   if(picker.getAttribute('aria-expanded')!=='true')picker.click();
   const option=document.getElementById(choice.id);if(!option)continue;if(picker.getAttribute('aria-activedescendant')!==choice.id||option.getAttribute('aria-selected')!=='true')option.click();
@@ -163,15 +169,17 @@ async function bikeComponentsVariants(fallback,requested,savedSelection=[]){
    const price=document.querySelector('[data-test="auto-product-price"]')?.innerText.trim()||'';
    const stock=document.querySelector('.stock-status')?.innerText.trim()||'';
    const selected=picker.getAttribute('aria-activedescendant')===choice.id&&document.getElementById(choice.id)?.getAttribute('aria-selected')==='true';
-   const signature=JSON.stringify([price,stock]);stable=selected&&signature===previous?stable+1:0;previous=signature;
+   const ean=typeof currentProductEAN==='function'?currentProductEAN():'';
+   const signature=JSON.stringify([price,stock,ean,selected]);stable=selected&&signature===previous?stable+1:0;previous=signature;
    const match=price.match(/(\d{1,5}(?:\.\d{3})*,\d{2})\s*€/),amount=match?euro(match[1]):null;
    if(stable>=2&&amount!==null&&stock&&!/^ab\s/i.test(price)){
-    rows.push({...fallback,ean:typeof currentProductEAN==='function'?currentProductEAN():'',selection:[{kind:'option',id:choice.id,value:choice.id,text:choice.label}],name:document.querySelector('h1')?.innerText.trim()||fallback.name,variant:(/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · ':'')+choice.label,price:amount,priceKind:'exact',stock:stockText(stock),url:location.href,source:'Firefox · ausgewählte Produktvariante'});break;
+    rows.push({...fallback,ean,selection:[{kind:'option',id:choice.id,value:choice.id,text:choice.label}],name:document.querySelector('h1')?.innerText.trim()||fallback.name,variant:(/^EAN/.test(fallback.variant)?'EAN im Shop prüfen · ':'')+choice.label,price:amount,priceKind:'exact',stock:stockText(stock),url:location.href,source:'Firefox · ausgewählte Produktvariante'});break;
    }
    await pause(250);
   }
+  if(rows.some(row=>confirmedVariantEAN(row,requestedEAN,requested)))break;
  }
- return {offers:dedupe(rows),limited:choices.length>24};
+ return {offers:dedupe(rows),limited:choices.length>24&&!rows.some(row=>confirmedVariantEAN(row,requestedEAN,requested))};
 }
 
 // Keep purchase events separate from BIKE24 variant change events. Installed

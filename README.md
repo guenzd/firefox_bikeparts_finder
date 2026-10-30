@@ -13,7 +13,7 @@ Browser-Erweiterung für **Firefox und Chrome**: Preise, Varianten und Lagerstat
 - Lieferbare Artikel als nach Shop gruppierte Liste mit anklickbaren Links kopieren.
 - Browser-Farbschema mit Sonne/Mond-Schalter; Bilder in verwalteten Shop-Tabs optional laden.
 
-Pro Teilefinder-Tab wird höchstens ein Such-Tab je Shop wiederverwendet. Shops laufen parallel, Wunschlistenartikel nacheinander. Ein Klick auf den Fortschritt stoppt die Suche und erhält bereits gefundene Ergebnisse. Es gibt keine Warenkorb- oder Bestellaktionen.
+Pro Teilefinder-Tab wird höchstens ein Such-Tab je Shop wiederverwendet. Jeder Shop arbeitet die Wunschliste in einer eigenen seriellen Warteschlange ab. Schnellere Shops können bereits den nächsten Artikel prüfen; es bleiben maximal vier Shop-Tabs. Ein Klick auf den Fortschritt stoppt die Suche und erhält bereits gefundene Ergebnisse. Es gibt keine Warenkorb- oder Bestellaktionen.
 
 ## Installation und Benutzung
 

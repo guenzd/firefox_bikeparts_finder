@@ -4,6 +4,18 @@ let searchDeadline;
 let searchRunning=false;
 let wishlistProgress=null;
 let wishlistEditor=null;
+let wishlistBatch=null,resultRenderTimer;
+function queueResultRender(){if(resultRenderTimer===undefined)resultRenderTimer=setTimeout(()=>{resultRenderTimer=undefined;render();},50);}
+function isWishlistItemActive(itemId){return checkingList&&(wishlistBatch?[...wishlistBatch.active.values()].includes(itemId):activeWishlistId===itemId);}
+function syncWishlistActivity(){
+ for(const row of document.querySelectorAll('[data-wishlist-item]')){
+  const active=isWishlistItemActive(row.dataset.wishlistItem);row.classList.toggle('wishlist-item-refreshing',active);
+  if(active)row.setAttribute('aria-busy','true');else row.removeAttribute('aria-busy');
+  row.querySelector('.recheck-button')?.classList.toggle('is-refreshing',active);
+ }
+}
+
+
 const state=new Map();let id='',query='',searchedVariant='',searchedEAN='',wishlist=[],checkingList=false,finishSearch=null,stopRequested=false,activeWishlistId='',wishlistDetails=false;
 const money=n=>new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'}).format(n);
 const saveList=()=>platform.storage.local.set({wishlist:cleanSavedUrls(wishlist)});
@@ -43,11 +55,12 @@ function render(){
  }
 }
 function renderWishlistDetails(root){
- const displayedItems=wishlist.map(item=>({...item,shops:names.map(name=>({name,...((checkingList&&item.id===activeWishlistId?state.get(name):null)||(item.shops||[]).find(shop=>shop.name===name)||{})}))}));
+ const detailItems=wishlistBatch?wishlist.map(item=>({...item,shops:[...(wishlistBatch.states.get(item.id)?.values()||item.shops||[])]})):wishlist;
+ const displayedItems=detailItems.map(item=>({...item,shops:names.map(name=>({name,...((checkingList&&item.id===activeWishlistId?state.get(name):null)||(item.shops||[]).find(shop=>shop.name===name)||{})}))}));
  const hideEANs=new Map(displayedItems.map(item=>[item.id,allShopsHaveDisplayedOffers(item.shops,item)]));
  const bestOffers=new Map(cheapestWishlist(displayedItems).rows.map(row=>[row.item.id,row.best]));
  for(const name of names){
-  const entries=wishlistShopEntries(wishlist,name,checkingList?activeWishlistId:'',state);
+  const entries=wishlistShopEntries(detailItems,name,checkingList?activeWishlistId:'',state);
   if(!entries.length)continue;
   const article=el('article'),heading=el('div');article.className='shop-results';heading.className='shop-heading';const summary=shopWishlistSummary(entries),meta=el('span',money(summary.total)+' · '+summary.available+'/'+summary.count+' Produkte');meta.className='shop-summary';meta.title='Lieferbare Wunschlistenartikel im Preisbereich';heading.append(el('h3',name),meta,copyListButton(entries.flatMap(({item,shop})=>shop.stale?[]:displayedShopOffers(shop,item)),name));article.append(heading);
   const wrap=el('div');wrap.className='table-wrap';const table=el('table');table.className='wishlist-results';table.setAttribute('aria-label',name+' · Wunschliste');
@@ -86,6 +99,7 @@ function renderWishlistDetails(root){
  }
 }
 platform.runtime.onMessage.addListener(d=>{
+ if(d.batchId){return handleWishlistBatchMessage(d);}
  if(d.target!==currentTab||d.id!==id||!names.includes(d.shop))return;
  const previous=state.get(d.shop);if(d.type==='status')state.set(d.shop,{...previous,message:d.message});
  if(['result','partial-result'].includes(d.type)){
@@ -103,7 +117,7 @@ platform.runtime.onMessage.addListener(d=>{
   if(!activeItem)document.querySelector('#search-ean').value=!useEAN?(currentEAN||shared.ean):shared.ean;filterConflictingEANs(shared.shops,useEAN?shared.ean:'').forEach(s=>state.set(s.name,s));
   wishlist=wishlist.map(item=>item.query===query&&(item.variant||'')===searchedVariant?{...item,ean:item.useEAN===false?(item.ean||shared.ean||''):(shared.ean||item.ean||'')}:item);for(const input of document.querySelectorAll('[data-ean-item]')){const item=wishlist.find(row=>row.id===input.dataset.eanItem);if(item&&input!==document.activeElement)input.value=item.ean||'';}void saveList();
  }
- document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);render();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress([...state.values()].filter(s=>s.checked||s.done).length);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
+ document.querySelector('#export-wishlist').disabled=checkingList||(!wishlist.length&&!state.size);queueResultRender();const done=[...state.values()].filter(s=>s.done).length;updateWishlistProgress([...state.values()].filter(s=>s.checked||s.done).length);document.querySelector('#status').textContent=done===4?'Suche abgeschlossen.':done+' von 4 Shops fertig · Warte auf '+names.filter(name=>!state.get(name)?.done).join(', ');if(done===4){clearTimeout(searchDeadline);setSearchRunning(false);void recordPriceHistory();}if(done===4&&finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,s])=>({name,...s})));}
 });
 document.querySelector('#max').addEventListener('input',()=>{inputPriceRange(document.querySelector('#max'));render();});
 document.querySelector('#search-variant').addEventListener('input',render);
@@ -163,7 +177,7 @@ function wishlistEditButton(item){
 }
 function wishlistRowActions(item){
  const actions=el('div');actions.className='wishlist-row-actions';
- const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button'+(checkingList&&activeWishlistId===item.id?' is-refreshing':'');recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
+ const recheck=el('button');recheck.type='button';recheck.className='secondary recheck-button'+(isWishlistItemActive(item.id)?' is-refreshing':'');recheck.title='Artikel erneut prüfen';recheck.setAttribute('aria-label','Artikel erneut prüfen: '+item.query);recheck.disabled=checkingList||searchRunning;recheck.dataset.shopAction='';
  recheck.append(wishlistActionIcon('M20 7v5h-5 M20 12a8 8 0 1 0-2.3 5.7'));recheck.addEventListener('click',()=>{wishlistEditor=null;void recheckWishlistItem(item.id);});
  const remove=el('button');remove.type='button';remove.className='secondary remove-button';remove.title='Artikel entfernen';remove.setAttribute('aria-label','Artikel entfernen: '+item.query);remove.disabled=checkingList||searchRunning;remove.dataset.shopAction='';
  remove.append(wishlistActionIcon('m6 6 12 12 M18 6 6 18'));remove.addEventListener('click',()=>{wishlist=wishlist.filter(row=>row.id!==item.id);if(wishlistEditor?.id===item.id)wishlistEditor=null;void saveList();renderWishlist();});
@@ -236,7 +250,7 @@ function renderTotal(){
  const previous=[];
  for(const {item,best,availableShops,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));const nameLine=el('div');nameLine.className='wishlist-product-name';nameLine.append(productButton,wishlistEditButton(item));product.append(nameLine);
-  if(checkingList&&activeWishlistId===item.id){row.className='wishlist-item-refreshing';row.setAttribute('aria-busy','true');}
+  row.dataset.wishlistItem=item.id;if(isWishlistItemActive(item.id)){row.className='wishlist-item-refreshing';row.setAttribute('aria-busy','true');}
   const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)nameLine.append(el('small',variant));
 
 
@@ -284,23 +298,64 @@ function updateWishlistProgress(shopsDone=0){
  button.classList.toggle('is-checking',!!wishlistProgress);
  if(!wishlistProgress){button.style.removeProperty('--wishlist-progress');button.removeAttribute('aria-label');button.textContent='Wunschliste prüfen';return;}
  const {completed,total}=wishlistProgress;
- const fraction=(completed+Math.min(4,Math.max(0,shopsDone))/4)/total;
+ const fraction=wishlistProgress.checkedShops!==undefined?wishlistProgress.checkedShops/(total*4):(completed+Math.min(4,Math.max(0,shopsDone))/4)/total;
  wishlistProgress.percent=Math.max(wishlistProgress.percent,Math.min(100,Math.round(fraction*100)));
  button.style.setProperty('--wishlist-progress',wishlistProgress.percent+'%');
  button.textContent=wishlistProgress.single?Math.min(4,Math.max(0,shopsDone))+' / 4 Shops…':'Prüfe '+Math.min(completed+1,total)+' / '+total+'…';
  button.setAttribute('aria-label','Wunschliste prüfen: '+wishlistProgress.percent+' Prozent abgeschlossen. Klicken zum Stoppen.');
 }
-document.querySelector('#check-wishlist').addEventListener('click',async()=>{
- if(checkingList){stopCurrentSearch();return;}if(searchRunning||!wishlist.length)return;checkingList=true;stopRequested=false;wishlistProgress={completed:0,total:wishlist.length,percent:0};updateWishlistProgress();renderWishlist();
+function resetWishlistBatchDeadline(batch){
+ clearTimeout(searchDeadline);searchDeadline=setTimeout(()=>{if(wishlistBatch===batch){stopCurrentSearch();document.querySelector('#status').textContent='Zeitlimit überschritten · vorhandene Ergebnisse bleiben erhalten.';}},120000);
+}
+function batchShopResult(data,previous){
+ const safe=offer=>{try{return new URL(offer.url).protocol==='https:'&&new URL(offer.url).hostname.replace(/^www\./,'')===new URL(data.url).hostname.replace(/^www\./,'')&&typeof offer.name==='string';}catch{return false;}};
+ const offers=(data.offers||[]).filter(o=>safe(o)&&Number.isFinite(o.price)&&o.price>0),ean=validEAN(data.query),old=(previous?.offers||[]).filter(o=>!ean||equivalentEANs(o.ean,ean)),kept=!offers.length&&old.length;
+ return {name:data.shop,comparisonMode:data.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:ean,offers:uniqueOffers(kept?old:offers),stale:!!kept,suggestions:(data.suggestions||[]).filter(safe),variantAlternatives:!!data.variantAlternatives,url:data.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(data.message||''):data.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:data.type==='result'};
+}
+function updateWishlistBatchProgress(batch){
+ wishlistProgress.completed=batch.done.size;
+ wishlistProgress.checkedShops=[...batch.states.values()].reduce((count,states)=>count+[...states.values()].filter(s=>s.done).length,0);
+ updateWishlistProgress();
+ document.querySelector('#status').textContent=batch.done.size+' / '+batch.states.size+' Artikel geprüft';
+}
+function handleWishlistBatchMessage(data){
+ const batch=wishlistBatch;if(!batch||data.target!==currentTab||data.batchId!==batch.id||stopRequested)return;
+ resetWishlistBatchDeadline(batch);
+ if(data.type==='batch-complete'){batch.error=!!data.error;return batch.writes.finally(()=>batch.resolve());}
+ const states=batch.states.get(data.itemId);if(!states)return;
+ if(data.type==='batch-item-done'){
+  const shops=[...states.values()].map(s=>({...s}));
+  batch.writes=batch.writes.then(async()=>{
+   wishlist=applyWishlistSearch(wishlist,data.itemId,shops,new Date().toISOString());await saveList();
+   await recordPriceHistory(shops,data.id);batch.done.add(data.itemId);updateWishlistBatchProgress(batch);renderTotal();queueResultRender();
+  }).catch(()=>{document.querySelector('#status').textContent='Ergebnisse konnten nicht vollständig gespeichert werden.';});return batch.writes;
+ }
+ if(!names.includes(data.shop))return;
+ const previous=states.get(data.shop);
+ if(data.type==='batch-shop-active'){
+  if(data.active){batch.active.set(data.shop,data.itemId);states.set(data.shop,{...previous,done:false,checked:false,message:'Produktseite wird geprüft…'});}
+  else if(batch.active.get(data.shop)===data.itemId)batch.active.delete(data.shop);
+  syncWishlistActivity();
+ }else if(data.type==='status')states.set(data.shop,{...previous,message:data.message});
+ else if(['result','partial-result'].includes(data.type))states.set(data.shop,batchShopResult(data,previous));
+ updateWishlistBatchProgress(batch);queueResultRender();
+}
+async function checkWishlistBatch(){
+ if(checkingList||searchRunning||!wishlist.length)return;
+ checkingList=true;stopRequested=false;activeWishlistId='';wishlistDetails=true;wishlistEditor=null;
+ const batch={id:crypto.randomUUID(),states:new Map(wishlist.map(item=>[item.id,new Map(names.map(name=>[name,{name,...(item.shops||[]).find(shop=>shop.name===name),done:false,checked:false}]))])),active:new Map(),done:new Set(),writes:Promise.resolve()};
+ wishlistBatch=batch;id=batch.id;wishlistProgress={completed:0,total:wishlist.length,percent:0,checkedShops:0};
+ const finished=new Promise(resolve=>{batch.resolve=resolve;});setWishlistCollapsed(false);setSearchRunning(true);updateWishlistProgress();renderWishlist();resetWishlistBatchDeadline(batch);
  try{
-  for(let i=0;i<wishlist.length&&!stopRequested;i++){
-   const item=wishlist[i];activeWishlistId=item.id;
-   wishlistProgress.completed=i;updateWishlistProgress();renderTotal();
-   const pending=new Promise(resolve=>{finishSearch=resolve;});await startSearch(item.query,item.variant||'',item.shops);const found=await pending;if(!stopRequested){wishlistProgress.completed=i+1;updateWishlistProgress();}wishlist=applyWishlistSearch(wishlist,item.id,found,new Date().toISOString());await saveList();renderTotal();
-  }
+  const accepted=await platform.runtime.sendMessage({type:'wishlist-search',id:batch.id,items:wishlist.map(item=>({itemId:item.id,query:item.query,ean:item.ean,variant:item.variant||'',useEAN:item.useEAN!==false,minPrice:item.minPrice,maxPrice:item.maxPrice,knownShops:knownSearchShops(item.shops||[],wishlist,item.ean)}))});
+  if(!accepted?.accepted)throw Error('Prüfung konnte nicht gestartet werden.');await finished;await batch.writes;if(batch.error)throw Error('Prüfung fehlgeschlagen.');
   document.querySelector('#status').textContent=stopRequested?'Suche gestoppt.':'Wunschliste geprüft.';
- }catch{document.querySelector('#status').textContent='Wunschlistenprüfung konnte nicht abgeschlossen werden.';}finally{checkingList=false;finishSearch=null;wishlistProgress=null;updateWishlistProgress();renderWishlist();render();}
-});
+ }catch{void platform.runtime.sendMessage({type:'cancel'});document.querySelector('#status').textContent='Wunschlistenprüfung konnte nicht abgeschlossen werden.';}
+ finally{
+  if(stopRequested){await batch.writes;for(const [itemId,states] of batch.states){if(batch.done.has(itemId))continue;const confirmed=[...states.values()].filter(shop=>shop.done);if(confirmed.length){wishlist=applyWishlistSearch(wishlist,itemId,confirmed,new Date().toISOString());await saveList();await recordPriceHistory(confirmed,batch.id+':'+itemId);}}}
+  clearTimeout(searchDeadline);wishlistBatch=null;checkingList=false;wishlistProgress=null;setSearchRunning(false);updateWishlistProgress();renderWishlist();}
+}
+document.querySelector('#check-wishlist').addEventListener('click',()=>{if(checkingList){stopCurrentSearch();return;}return checkWishlistBatch();});
 
 function copyListButton(offers,shopName=''){
  const rows=[...new Map(offers.filter(o=>o.url&&deliverable(o.stock)).map(o=>{
@@ -358,7 +413,7 @@ document.querySelector('#wishlist-file').addEventListener('change',async e=>{
 
 
 function stopCurrentSearch(){
- clearTimeout(searchDeadline);stopRequested=true;void platform.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);
+ clearTimeout(searchDeadline);stopRequested=true;void platform.runtime.sendMessage({type:'cancel'});id='';setSearchRunning(false);wishlistBatch?.resolve();
  if(finishSearch){const finish=finishSearch;finishSearch=null;finish([...state.entries()].map(([name,shop])=>({name,...shop})));}
  document.querySelector('#status').textContent='Suche gestoppt.';
 }
@@ -373,8 +428,8 @@ document.querySelector('#close-shop-tabs').addEventListener('click',async()=>{
 });
 
 let historyWrites=Promise.resolve();
-function recordPriceHistory(){
- const rows=priceObservations([...state.entries()].map(([name,s])=>({name,...s})),id,new Date().toISOString());
+function recordPriceHistory(shops=[...state.entries()].map(([name,s])=>({name,...s})),searchId=id){
+ const rows=priceObservations(shops,searchId,new Date().toISOString());
  historyWrites=historyWrites.then(()=>priceHistoryDB.put(rows)).catch(()=>{document.querySelector('#status').textContent='Preishistorie konnte nicht gespeichert werden.';});return historyWrites;
 }
 function dialogCloseButton(dialog){

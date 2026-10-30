@@ -157,3 +157,72 @@ test('Known product URLs survive slow reused-tab navigation without consuming al
  let reads=0;c.searchPlatform.tabs={async sendMessage(_id,data){assert.equal(data.url,url);assert.equal(data.direct,true);assert.equal(data.fallback.price,null);reads++;return reads<10?{ready:false,pageMatchesRequested:false,offers:[]}:{ready:true,pageMatchesRequested:true,productName:'Fresh title',offers:[{name:'Fresh title',url,ean,variant:'Cola',price:44.99,priceKind:'exact',stock:'Auf Lager'}]};}};
  const offers=await c.readKnownProducts(job,shop,{id:1},ean);assert.equal(reads,10);assert.equal(offers.length,1);assert.equal(offers[0].price,44.99);assert.ok(job.checkedKnownUrls.has(url));
 });
+
+test('Product document readiness skips the fixed pause, wakes on navigation and always removes event listeners',async()=>{
+ const controller=readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8');
+ const source=controller.slice(controller.indexOf('async function waitForProductDocument('),controller.indexOf('function recordReadError('));
+ for(const initiallyReady of [true,false]){
+  const listeners=new Set();let ready=initiallyReady,calls=0;
+  const c=vm.createContext({setTimeout,clearTimeout,profileNow:()=>Date.now(),jobActive:()=>true,boundedOperation:p=>p,searchPlatform:{tabs:{onUpdated:{addListener:fn=>listeners.add(fn),removeListener:fn=>listeners.delete(fn)},async sendMessage(){calls++;return {ready};}}}});
+  vm.runInContext(source,c);const pending=c.waitForProductDocument({}, {host:'bike24.de'}, {tab:3,url:'https://www.bike24.de/p1.html'},500);
+  await new Promise(setImmediate);
+  if(!initiallyReady){ready=true;for(const fn of listeners)fn(3);}
+  await pending;assert.equal(listeners.size,0);assert.equal(calls,initiallyReady?1:2);
+ }
+});
+
+test('Wishlist shop lanes advance independently, serialize EAN reconciliation and reuse exactly one tab per shop',async()=>{
+ const {readSource}=await import('./test-sources.mjs');let listener,releaseSlow,finish;const complete=new Promise(resolve=>finish=resolve),slow=new Promise(resolve=>releaseSlow=resolve);
+ const messages=[],started=[],active=new Map(),max=new Map(),tabs=new Map();let created=0;
+ const api={runtime:{getURL:p=>'extension://unit/'+p,onMessage:{addListener(fn){listener=fn;}},async sendMessage(d){messages.push(d);if(d.type==='batch-complete')finish();}},tabs:{onRemoved:{addListener(){}},async create(o){const tab={id:++created,...o};tabs.set(tab.id,tab);return tab;},async get(id){return tabs.get(id);},async update(id,o){Object.assign(tabs.get(id),o);return tabs.get(id);}}};
+ const c=vm.createContext({platform:api,URL,setTimeout,clearTimeout});vm.runInContext(readSource('products.js')+readSource('variant-match.js')+readSource('wishlist.js')+readSource('background.js'),c);
+ c.runShop=async(job,shop,q)=>{
+  const tab=await c.shopTab(job.source,shop,'https://'+shop.host+'/product');assert.ok(tab.id);
+  const count=(active.get(shop.id)||0)+1;active.set(shop.id,count);max.set(shop.id,Math.max(max.get(shop.id)||0,count));started.push([job.itemId,shop.id,q]);
+  try{
+   if(job.itemId==='first'&&shop.id==='bike24'&&!/^\d+$/.test(q))await slow;
+   const ean=job.itemId==='first'?'1234567890128':'9999999999999';
+   const offer={name:job.productName,ean,variant:'black',price:25,priceKind:'exact',stock:'Auf Lager',url:'https://'+shop.host+'/product'};
+   job.counts.set(shop.id,job.itemId==='first'&&!/^\d+$/.test(q)?2:1);
+   job.results.set(shop.id,{type:'result',target:job.source,id:job.id,query:q,shop:shop.name,url:shop.search(q),offers:[offer]});
+  }finally{active.set(shop.id,count-1);}
+ };
+ await listener({type:'wishlist-search',id:'batch',items:[{itemId:'first',query:'First product',variant:'black'},{itemId:'second',query:'Second product',ean:'9999999999999',variant:'black'}]},{url:'extension://unit/ui/home.html',tab:{id:99}});
+ for(let i=0;i<20&&!started.some(([item,shop])=>item==='second'&&shop==='bike-discount');i++)await new Promise(setImmediate);
+ assert.ok(started.some(([item,shop])=>item==='second'&&shop==='bike-discount'));
+ assert.ok(!started.some(([item,shop])=>item==='second'&&shop==='bike24'),'Slow shop retains its first item without blocking other shops');
+ releaseSlow();await complete;
+ assert.equal(created,4);assert.ok([...max.values()].every(n=>n===1));
+ assert.equal(started.filter(([item,,q])=>item==='first'&&q==='1234567890128').length,4,'Cross-shop EAN refinement still runs in each shop lane');
+ const final=messages.filter(m=>m.type==='result');assert.equal(final.length,8);
+ for(const message of final){assert.equal(message.batchId,'batch');assert.equal(message.offers[0].ean,message.itemId==='first'?'1234567890128':'9999999999999');}
+ assert.equal(messages.filter(m=>m.type==='batch-item-done').length,2);
+});
+
+test('Readiness profiling avoids unused navigation wait without extra product reads or shop tabs',async()=>{
+ const ready=await profileSearch({cached:true,readySignals:true});assert.equal(ready.elapsedMs,0);assert.equal(ready.detailReads,4);assert.equal(ready.createdTabs,4);
+ const loading=await profileSearch({cached:true,readySignals:true,loadMs:100});assert.equal(loading.elapsedMs,100);assert.equal(loading.detailReads,4);assert.equal(loading.maxInFlightPerTab,1);
+});
+
+test('Cancelling a wishlist batch prevents queued shop work and discards late lane events',async()=>{
+ let release;const gate=new Promise(resolve=>release=resolve),events=[];
+ const c=vm.createContext({URL,setTimeout,clearTimeout,searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(data){events.push(data);}}}});
+ vm.runInContext(readFileSync(new URL('./src/core/search-controller.js',import.meta.url),'utf8'),c);
+ const root={source:99,id:'batch',batch:true,lanes:new Map()},shop={id:'bike24',name:'BIKE24'},started=[];
+ c.root=root;vm.runInContext('jobs.set(root.source,root)',c);
+ c.runInShopLane=async job=>{started.push(job.itemId);await gate;};
+ const one=c.run({root,source:99,batchId:'batch',itemId:'one'},shop),two=c.run({root,source:99,batchId:'batch',itemId:'two'},shop);
+ await new Promise(setImmediate);assert.deepEqual(started,['one']);
+ vm.runInContext('jobs.delete(root.source)',c);release();await Promise.all([one,two]);
+ assert.deepEqual(started,['one']);assert.equal(events.length,1);assert.equal(events[0].active,true);
+});
+
+test('Product readiness validates the target document and does not perform product extraction',async()=>{
+ const {readSource}=await import('./test-sources.mjs');let listener,loaded;
+ const document={readyState:'loading',addEventListener(type,fn){assert.equal(type,'DOMContentLoaded');loaded=fn;}};
+ const c=vm.createContext({URL,document,location:{hostname:'www.bike24.de',href:'https://www.bike24.de/p1.html'},platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}}});
+ vm.runInContext(readSource('shop.js'),c);c.readShopPage=()=>{throw Error('Readiness must not inspect products');};
+ assert.equal((await listener({type:'ready',host:'bike24.de',url:'https://www.bike24.de/p2.html'})).ready,false);
+ assert.equal((await listener({type:'ready',host:'r2-bike.com',url:'https://r2-bike.com/p1.html'})).ready,false);
+ const pending=listener({type:'ready',host:'bike24.de',url:'https://www.bike24.de/p1.html'});await new Promise(setImmediate);assert.ok(loaded);loaded();assert.equal((await pending).ready,true);
+});

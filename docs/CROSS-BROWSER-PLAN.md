@@ -5,7 +5,7 @@ Ziel: dieselbe UI, dieselben Suchregeln und Shop-Reader; getrennte Browser-Einst
 
 ## Aktueller Architekturstand
 
-Die Trennung ist umgesetzt: `teilefinder/src/ui`, `core`, `shops` und `data` sind gemeinsam; Browser-APIs liegen in `platform`, die beiden Manifeste in `teilefinder/manifests`. Der alte Ordner `firefox-r2` wird nicht mehr gebaut. Suchjobs laufen im UI-Tab, der Hintergrund verwaltet Toolbar, Tab-Besitz und Bildregeln. Pro UI-Tab gibt es höchstens einen wiederverwendeten Tab je Shop.
+Die Trennung ist umgesetzt: `teilefinder/src/ui`, `core`, `shops` und `data` sind gemeinsam; Browser-APIs liegen in `platform`, die beiden Manifeste in `teilefinder/manifests`. Der alte Ordner `firefox-r2` wird nicht mehr gebaut. Suchjobs laufen im UI-Tab, der Hintergrund verwaltet Toolbar, Tab-Besitz und Bildregeln. Pro UI-Tab gibt es höchstens einen wiederverwendeten Tab je Shop. Die Wunschliste läuft über vier serielle Shop-Warteschlangen; Initialprüfung und anschließender EAN-Abgleich nutzen dieselbe Warteschlange. Ergebnisse und Historie bleiben über eine Batch- und Artikel-ID getrennt.
 
 Produktlinks und konkrete ausgewählte Optionen werden dauerhaft lokal gespeichert. Ein Wunschlisten-Refresh prüft bekannte Seiten direkt, liest Preise und Bestand frisch und startet bei unbestätigten bekannten Seiten keine zusätzliche Suche. Firefox und Chrome behalten getrennte lokale Speicher; der JSON-Export überträgt Konfiguration, Ergebnisse und Historie.
 

@@ -2,13 +2,31 @@
 const searchProfiles=[];
 const profileNow=()=>typeof performance!=='undefined'?performance.now():Date.now();
 function getSearchProfiles(){return JSON.parse(JSON.stringify(searchProfiles));}
-function searchProfile(job){const root=job.root||job;return root.profile||(root.profile={started:profileNow(),shops:{}});}
+function searchProfile(job){const root=job.profileOwner||job.root||job;return root.profile||(root.profile={started:profileNow(),shops:{}});}
 async function profileStep(job,shop,phase,work){
  const profile=searchProfile(job),entry=profile.shops[shop.id]||(profile.shops[shop.id]={});
  const timer=profileNow();try{return await work();}finally{const row=entry[phase]||(entry[phase]={calls:0,ms:0});row.calls++;row.ms=Math.round((row.ms+profileNow()-timer)*100)/100;}
 }
 function finishSearchProfile(job){const profile=searchProfile(job);searchProfiles.push({productName:job.productName||job.nameQuery||job.query||'',ean:job.knownEAN||'',variant:job.variant||'',useEAN:job.useEAN!==false,elapsedMs:Math.round(profileNow()-profile.started),shops:JSON.parse(JSON.stringify(profile.shops))});if(searchProfiles.length>20)searchProfiles.shift();}
-const shopPause=(job,shop,ms)=>profileStep(job,shop,'wait',()=>pause(ms));
+const shopPause=(job,shop,ms)=>profileStep(job,shop,'wait',async()=>{
+ const next=job.pendingNavigation;job.pendingNavigation=null;
+ // Listings still need their normal stability interval for client-side search.
+ if(next&&!next.samePath&&ms<=1000&&searchPlatform.tabs?.onUpdated?.addListener)return waitForProductDocument(job,shop,next,ms);
+ return pause(ms);
+});
+async function waitForProductDocument(job,shop,{tab,url},ms){
+ const event=searchPlatform.tabs.onUpdated;let wake,timer;
+ const changed=id=>{if(id===tab)wake?.();};event.addListener(changed);
+ const deadline=profileNow()+ms;
+ try{
+  while(jobActive(job)&&profileNow()<deadline){
+   try{const ready=await boundedOperation(searchPlatform.tabs.sendMessage(tab,{type:'ready',host:shop.host,url}),Math.max(1,deadline-profileNow()));if(ready?.ready)return;}catch{}
+   if(profileNow()>=deadline)return;
+   await new Promise(resolve=>{wake=resolve;timer=setTimeout(resolve,Math.min(250,deadline-profileNow()));});clearTimeout(timer);wake=null;
+  }
+ }finally{clearTimeout(timer);event.removeListener(changed);}
+}
+
 function recordReadError(entry,error){
  const message=String(error?.message||'');
  const kind=error?.code==='REMOTE_SCRIPT_ERROR'?'readerError':/Zeitlimit|dauert zu lange|timed? ?out/i.test(message)?'timeout':/receiving end does not exist|could not establish connection|no matching message handler/i.test(message)?'noReceiver':/message (?:port|manager).*closed|disconnected|went out of scope/i.test(message)?'disconnected':'other';
@@ -24,7 +42,8 @@ const shopMessage=(job,shop,tab,data,ms)=>profileStep(job,shop,data.type==='extr
  try{const result=await boundedMessage(tab,data,ms);const status=!result?'noResponse':result.blocked?'blocked':result.ready?'ready':'notReady';outcomes[status]=(outcomes[status]||0)+1;if(['optionsMissing','noMatchingOption','selectionUnconfirmed','priceMissing','fromPrice','stockMissing','selectionUnsettled'].includes(result?.readIssue)){const issues=entry.readIssues||(entry.readIssues={});issues[result.readIssue]=(issues[result.readIssue]||0)+1;}if(result?.pageMatchesRequested===false)outcomes.pageMismatch=(outcomes.pageMismatch||0)+1;return result;}
  catch(error){outcomes.errors=(outcomes.errors||0)+1;recordReadError(entry,error);throw error;}
 });
-const navigateShop=(job,shop,tab,url)=>profileStep(job,shop,'navigation',()=>searchPlatform.tabs.update(tab,{url}));
+const sameProductPath=(before,after)=>{try{return new URL(before).pathname===new URL(after).pathname;}catch{return true;}};
+const navigateShop=(job,shop,tab,url)=>profileStep(job,shop,'navigation',async()=>{let previous;try{previous=(await searchPlatform.tabs.get(tab))?.url;}catch{}const result=await searchPlatform.tabs.update(tab,{url});job.pendingNavigation={tab,url,samePath:sameProductPath(previous,url)};return result;});
 const jobs=new Map(),shopTabs=new Map(),tabSessions=new Map();
 async function shopTab(source,shop,url,active=false){
  const session=tabSessions.get(source)||{};tabSessions.set(source,session);
@@ -34,7 +53,7 @@ async function shopTab(source,shop,url,active=false){
   try{
    const tab=await searchPlatform.tabs.get(existing);if(!current())throw Error('Shop-Tabs geschlossen');
    const host=new URL(tab.pendingUrl||tab.url).hostname.replace(/^www\./,"");
-   if(host===shop.host.replace(/^www\./,""))return await searchPlatform.tabs.update(existing,{url,active});
+   if(host===shop.host.replace(/^www\./,"")){const previousUrl=tab.url;return {...await searchPlatform.tabs.update(existing,{url,active}),previousUrl};}
   }catch{}
   if(!current())throw Error('Shop-Tabs geschlossen');shopTabs.delete(key);
  }
@@ -58,13 +77,46 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 function boundedMessage(tab,data,ms=15000){
  let timer;return Promise.race([searchPlatform.tabs.sendMessage(tab,data),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Antwort dauert zu lange')),ms);})]).finally(()=>clearTimeout(timer));
 }
+function searchMessage(job,data){
+ return searchPlatform.runtime.sendMessage(job.batchId?{...data,batchId:job.batchId,itemId:job.itemId}:data);
+}
+function validSearchRequest(data){return typeof data?.query==='string'&&!!data.query.trim()&&data.query.length<=160&&typeof data.id==='string'&&(data.variant===undefined||typeof data.variant==='string'&&data.variant.length<=100);}
+function makeSearchJob(data,source){
+ return {productName:data.query.trim(),refreshKnown:data.refreshKnown===true,nameQuery:productSearchQuery(data.query,data.variant||''),nameFallback:data.nameFallback===true,id:data.id,minPrice:Number.isFinite(data.minPrice)&&data.minPrice>=0?data.minPrice:null,maxPrice:Number.isFinite(data.maxPrice)&&data.maxPrice>=0?data.maxPrice:null,knownEAN:validEAN(data.ean),useEAN:data.useEAN!==false,query:(data.useEAN===false?'':validEAN(data.ean))||productSearchQuery(data.query,data.variant||''),variant:(data.variant||'').trim(),source,results:new Map(),counts:new Map(),knownShops:Array.isArray(data.knownShops)?data.knownShops.slice(0,4):[]};
+}
+// Each shop owns one serial lane. Different shops can move to the next product
+// independently; all EAN reconciliation runs must use the same lane too.
+async function withShopLane(job,shop,work){
+ const root=job.root||job;if(!root.batch)return work();
+ const previous=root.lanes.get(shop.id)||Promise.resolve();
+ const result=previous.catch(()=>{}).then(async()=>{
+  if(!jobActive(job))return;
+  await searchMessage(job,{type:'batch-shop-active',target:job.source,shop:shop.name,active:true});
+  try{return await work();}finally{if(jobActive(job))await searchMessage(job,{type:'batch-shop-active',target:job.source,shop:shop.name,active:false});}
+ });
+ root.lanes.set(shop.id,result.catch(()=>{}));return result;
+}
+async function searchWishlist(root,items){
+ await Promise.all(items.map(async item=>{
+  const job=makeSearchJob({...item,id:root.id+':'+item.itemId,refreshKnown:true},root.source);
+  Object.assign(job,{root,batchId:root.id,itemId:item.itemId});job.profileOwner=job;searchProfile(job);
+  try{await searchAll(job);}
+  catch{if(jobActive(job))for(const shop of shops)await searchMessage(job,{type:'result',target:job.source,id:job.id,query:job.query,shop:shop.name,url:shop.search(job.query),offers:[],message:'Shopprüfung fehlgeschlagen.'});}
+  finally{finishSearchProfile(job);if(jobActive(job))await searchMessage(job,{type:'batch-item-done',target:job.source,id:job.id});}
+ }));
+ if(jobActive(root))await searchPlatform.runtime.sendMessage({type:'batch-complete',target:root.source,batchId:root.id});
+}
 searchPlatform.runtime.onMessage.addListener((data,sender)=>{
  if(!sender.tab||sender.url!==searchPlatform.runtime.getURL('ui/home.html'))return;
  if(data?.type==='close-shop-tabs')return closeShopTabs(sender.tab.id);
  if(data?.type==='cancel'){jobs.delete(sender.tab.id);return Promise.resolve({cancelled:true});}
- if(data?.type!=='search'||typeof data.query!=='string'||!data.query.trim()||data.query.length>160||typeof data.id!=='string')return;
- if(data.variant!==undefined&&(typeof data.variant!=='string'||data.variant.length>100))return;
- const job={productName:data.query.trim(),refreshKnown:data.refreshKnown===true,nameQuery:productSearchQuery(data.query,data.variant||''),nameFallback:data.nameFallback===true,id:data.id,minPrice:Number.isFinite(data.minPrice)&&data.minPrice>=0?data.minPrice:null,maxPrice:Number.isFinite(data.maxPrice)&&data.maxPrice>=0?data.maxPrice:null,knownEAN:validEAN(data.ean),useEAN:data.useEAN!==false,query:(data.useEAN===false?'':validEAN(data.ean))||productSearchQuery(data.query,(data.variant||'')),variant:(data.variant||'').trim(),source:sender.tab.id,results:new Map(),counts:new Map(),knownShops:Array.isArray(data.knownShops)?data.knownShops.slice(0,4):[]};searchProfile(job);jobs.set(job.source,job);
+ if(data?.type==='wishlist-search'){
+  if(typeof data.id!=='string'||!Array.isArray(data.items)||!data.items.length||data.items.length>1000||new Set(data.items.map(i=>i?.itemId)).size!==data.items.length||data.items.some(item=>typeof item?.itemId!=='string'||!item.itemId||!validSearchRequest({...item,id:data.id})))return;
+  const root={id:data.id,source:sender.tab.id,batch:true,lanes:new Map()};jobs.set(root.source,root);
+  void searchWishlist(root,data.items).catch(async()=>{if(jobActive(root))await searchPlatform.runtime.sendMessage({type:'batch-complete',target:root.source,batchId:root.id,error:true});}).finally(()=>{if(jobActive(root))jobs.delete(root.source);});return Promise.resolve({accepted:true});
+ }
+ if(data?.type!=='search'||!validSearchRequest(data))return;
+ const job=makeSearchJob(data,sender.tab.id);searchProfile(job);jobs.set(job.source,job);
  void searchAll(job).catch(async()=>{if(!jobActive(job))return;for(const shop of shops){const result=job.results.get(shop.id)||{offers:[],suggestions:[],message:'Shopprüfung fehlgeschlagen.'};await searchPlatform.runtime.sendMessage({...result,type:'result',target:job.source,id:job.id,query:job.query,shop:shop.name,url:shop.search(job.query)}).catch(()=>{});}}).finally(()=>{finishSearchProfile(job);if(jobActive(job))jobs.delete(job.source);});
  return Promise.resolve({accepted:true});
 });
@@ -145,9 +197,9 @@ async function searchAll(job){
    const result=job.results.get(shop.id);return result&&!result.offers?.length&&!/Sicherheitsprüfung|Zeitlimit|Shopfehler|geschlossen|fehlgeschlagen|nicht abgeschlossen/i.test(result.message||'');
   }).map(async shop=>{
    const previous=job.results.get(shop.id);
-   await searchPlatform.runtime.sendMessage({...previous,type:'status',message:'Kein EAN-Treffer · suche nach Name…'}).catch(()=>{});
+   await searchMessage(job,{...previous,type:'status',message:'Kein EAN-Treffer · suche nach Name…'}).catch(()=>{});
    if(!jobActive(job))return;
-   await run({...job,root:job,knownEAN:'',knownShops:[]},shop,job.nameQuery);
+   await run({...job,root:job.root||job,knownEAN:'',knownShops:[]},shop,job.nameQuery);
   }));
  }
  if(!jobActive(job))return;
@@ -159,7 +211,7 @@ async function searchAll(job){
  if(job.useEAN&&shared.ean&&!equivalentEANs(shared.ean,job.query)){
   await Promise.all(shops.filter(shop=>(job.counts.get(shop.id)||0)>1).map(async shop=>{
    const previous=job.results.get(shop.id);
-   await searchPlatform.runtime.sendMessage({...previous,type:'status',message:'Mehrere Treffer: Suche wird mit EAN '+shared.ean+' eingegrenzt.'}).catch(()=>{});
+   await searchMessage(job,{...previous,type:'status',message:'Mehrere Treffer: Suche wird mit EAN '+shared.ean+' eingegrenzt.'}).catch(()=>{});
    await run(job,shop,shared.ean);
    const next=job.results.get(shop.id);
    if(!next?.offers?.length&&previous?.offers?.length)job.results.set(shop.id,{...previous,message:'EAN-Suche ohne bestätigten Treffer. Angebote der Namenssuche bleiben erhalten.'});
@@ -167,9 +219,10 @@ async function searchAll(job){
  }
  if(!jobActive(job))return;
  const final=shareVariantEAN([...job.results.values()],job.variant,shared.ean);
- for(const result of filterConflictingEANs(final.shops,job.useEAN?final.ean:''))await searchPlatform.runtime.sendMessage({...result,offers:job.useEAN&&final.ean?narrowEANResults(result.offers||[],job.nameQuery):result.offers}).catch(()=>{});
+ for(const result of filterConflictingEANs(final.shops,job.useEAN?final.ean:''))await searchMessage(job,{...result,offers:job.useEAN&&final.ean?narrowEANResults(result.offers||[],job.nameQuery):result.offers}).catch(()=>{});
 }
-async function run(job,shop,searchQuery=job.query){
+async function run(job,shop,searchQuery=job.query){return withShopLane(job,shop,()=>runInShopLane(job,shop,searchQuery));}
+async function runInShopLane(job,shop,searchQuery=job.query){
  const task={...job,root:job.root||job,cancelled:false};
  const timeout=searchQuery===job.query?60000:30000;
  try{await boundedOperation(runShop(task,shop,searchQuery),timeout);}
@@ -199,10 +252,10 @@ async function runShop(job,shop,searchQuery=job.query){
     }catch{}
    }
   }
- }if(!jobActive(job))return;const payload={...data,target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(resolvedQuery)};if(data.type==='result'){job.results.set(shop.id,payload);void saveProductHints(job,shop,payload.offers||[]);await searchPlatform.runtime.sendMessage({...payload,type:'partial-result'}).catch(()=>{});return;}await searchPlatform.runtime.sendMessage(payload).catch(()=>{});};
+ }if(!jobActive(job))return;const payload={...data,target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(resolvedQuery)};if(data.type==='result'){job.results.set(shop.id,payload);void saveProductHints(job,shop,payload.offers||[]);await searchMessage(job,{...payload,type:'partial-result'}).catch(()=>{});return;}await searchMessage(job,payload).catch(()=>{});};
  try{
   const hints=trustedProductHints(job.knownShops.find(s=>s.name===shop.name)?.offers,shop).filter(o=>!validEAN(searchQuery)||!validEAN(o.ean)||equivalentEANs(o.ean,searchQuery));
-  tab=await profileStep(job,shop,'navigation',()=>shopTab(job.source,shop,hints[0]?.url||shop.search(searchQuery)));
+  tab=await profileStep(job,shop,'navigation',()=>shopTab(job.source,shop,hints[0]?.url||shop.search(searchQuery)));job.pendingNavigation={tab:tab.id,url:hints[0]?.url||shop.search(searchQuery),samePath:sameProductPath(tab.previousUrl,hints[0]?.url||shop.search(searchQuery))};
   if(hints.length){await send({type:'status',message:'Bekannte Produktseiten werden direkt aktualisiert…'});const direct=await readKnownProducts(job,shop,tab,searchQuery);if(!jobActive(job))return;if(direct.length){await send({type:'result',offers:direct,message:''});return;}if(job.refreshKnown){await send({type:'result',offers:[],message:'Gespeicherte Produktseite aktuell nicht bestätigt. Bitte im Shop prüfen.'});return;}await navigateShop(job,shop,tab.id,shop.search(searchQuery));}
   let previous='',stable=0,last,broadened=false,emptyReads=0;
   for(let i=0;i<12&&jobActive(job);i++){

@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
-const uiContext=values=>{const ctx=vm.createContext({searchRunning:false,checkingList:false,activeWishlistId:'',wishlist:[],...values});vm.runInContext(readSource('identifiers.js'),ctx);return ctx;};
+const uiContext=values=>{const ctx=vm.createContext({searchRunning:false,checkingList:false,activeWishlistId:'',wishlistBatch:null,queueResultRender:()=>ctx.render(),isWishlistItemActive:id=>ctx.checkingList&&ctx.activeWishlistId===id,wishlist:[],...values});vm.runInContext(readSource('identifiers.js'),ctx);return ctx;};
 const home=readSource('home.js');
 const code=home.slice(home.indexOf('function suggestionRow('),home.indexOf('function eanRow('));
 test('Accepting a wishlist suggestion saves the name and immediately rechecks only that article, retaining EAN and filters',async()=>{
@@ -160,7 +160,7 @@ test('EAN button updates the search and wishlist and copies the same identifier,
 });
 
 test('Displayed four-shop matches hide repeated EAN rows in totals and shop lists, and variants have no prefix',()=>{
- const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},setAttribute(){},addEventListener(){}});
+ const make=(tag,text)=>({tag,text,dataset:{},children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(...nodes){this.children=nodes;},setAttribute(){},addEventListener(){}});
  const root=make('div'),names=['BIKE24','Bike-Discount','bike-components','r2-bike'],ean='4524667879565';let eanRows=0;
  const item={id:'one',query:'Different wishlist wording',variant:'30 mm',ean,shops:names.map(name=>({name,done:true,offers:[{name:'Example tyre',variant:'30 mm',price:40,priceKind:'exact',ean,stock:'Auf Lager',url:'https://example.org/product'}]}))};
  const ctx=uiContext({wishlistEditButton:()=>make('button'),wishlistRowActions:()=>make('div'),appendWishlistEditor(){},el:make,names,wishlist:[item],checkingList:false,state:new Map(),document:{querySelector:()=>root,createTextNode:text=>make('text',text)},money:String,eanRow(){eanRows++;return make('small','EAN');},copyButton:()=>make('button'),copyListButton:()=>make('button'),appendTableHead:(table,row)=>table.append(row),resultMessage:s=>s||''});
@@ -198,7 +198,7 @@ test('Wishlist button fill follows completed shops and items, never regresses, a
 });
 
 test('Shop prices show a muted best-price comparison only for unequal current exact prices and include per-shop totals and coverage',()=>{
- const make=(tag,text)=>({tag,text,children:[],append(...nodes){this.children.push(...nodes);},setAttribute(){}}),root=make('div');
+ const make=(tag,text)=>({tag,text,dataset:{},children:[],append(...nodes){this.children.push(...nodes);},setAttribute(){}}),root=make('div');
  const names=['BIKE24','Bike-Discount','bike-components','r2-bike'];
  const offer=(price,extra={})=>({name:'Tyre',variant:'30 mm',price,priceKind:'exact',stock:'Auf Lager',url:'https://example.org/product',...extra});
  const item={id:'one',query:'Wanted tyre',variant:'30 mm',minPrice:15,maxPrice:30,shops:[
@@ -294,19 +294,30 @@ test('Comparison results keep their display mode and never fill one product EAN 
  assert.equal(ctx.state.get('BIKE24').comparisonMode,'cheapest');assert.equal(node('#search-ean').value,'');assert.equal(ctx.state.get('BIKE24').offers.length,1);
 });
 
-test('Full wishlist refresh highlights each current item before its search starts, including the first',async()=>{
- let click;const renders=[],starts=[],items=[{id:'one',query:'First',shops:[]},{id:'two',query:'Second',shops:[]}];
- const ctx=uiContext({wishlist:items,wishlistProgress:null,finishSearch:null,stopRequested:false,
-  document:{querySelector:()=>({addEventListener(_event,fn){click=fn;},textContent:''})},
-  updateWishlistProgress(){},renderWishlist(){ctx.renderTotal();},render(){},
-  renderTotal(){renders.push(ctx.checkingList?ctx.activeWishlistId:'');},
-  async startSearch(){starts.push(ctx.activeWishlistId);assert.equal(renders.at(-1),ctx.activeWishlistId,'Current row is drawn before any shop can respond');},
-  applyWishlistSearch:list=>list,async saveList(){}});
- vm.runInContext(home.slice(home.indexOf("document.querySelector('#check-wishlist').addEventListener"),home.indexOf('function copyListButton(')),ctx);
- const pending=click();await new Promise(setImmediate);
- assert.deepEqual(starts,['one']);assert.equal(renders.at(-1),'one');
- ctx.finishSearch([]);await new Promise(setImmediate);
- assert.deepEqual(starts,['one','two']);assert.equal(renders.at(-1),'two');
- ctx.finishSearch([]);await pending;
- assert.equal(ctx.checkingList,false);assert.equal(renders.at(-1),'');
+test('Full wishlist refresh routes interleaved shops to their own article and preserves completed results on cancellation',async()=>{
+ const nodes={},messages=[],highlights=[];
+ const node=key=>nodes[key]||(nodes[key]={textContent:'',disabled:false});
+ const items=[{id:'one',query:'First',ean:'1234567890128',shops:[]},{id:'two',query:'Second',ean:'9999999999999',shops:[]}];
+ let saves=0;
+ const ctx=uiContext({wishlist:items,wishlistProgress:null,finishSearch:null,searchDeadline:undefined,stopRequested:false,crypto:{randomUUID:()=> 'batch'},currentTab:7,id:'',names:['BIKE24','Bike-Discount','bike-components','r2-bike'],setTimeout,clearTimeout,
+  document:{querySelector:node},URL,Date,
+  platform:{runtime:{async sendMessage(data){messages.push(data);return {accepted:true};}}},
+  setWishlistCollapsed(){},setSearchRunning(value){ctx.searchRunning=value;},updateWishlistProgress(){},queueResultRender(){},syncWishlistActivity(){ctx.renderTotal();},
+  renderWishlist(){ctx.renderTotal();},renderTotal(){highlights.push(ctx.wishlistBatch?[...ctx.wishlistBatch.active.values()]:[]);},
+  async saveList(){saves++;},async recordPriceHistory(){},knownSearchShops:s=>s});
+ for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
+ vm.runInContext(home.slice(home.indexOf('function resetWishlistBatchDeadline('),home.indexOf("document.querySelector('#check-wishlist').addEventListener")),ctx);
+ node('#query').value='manual draft';node('#search-ean').value='unchanged';
+ const pending=ctx.checkWishlistBatch();await new Promise(setImmediate);
+ assert.equal(messages[0].type,'wishlist-search');assert.equal(messages[0].items.length,2);
+ const send=(type,itemId,extra={})=>ctx.handleWishlistBatchMessage({type,itemId,batchId:'batch',target:7,...extra});
+ send('batch-shop-active','one',{shop:'BIKE24',active:true});assert.deepEqual(highlights.at(-1),['one']);
+ send('batch-shop-active','two',{shop:'Bike-Discount',active:true});assert.deepEqual(highlights.at(-1),['one','two']);
+ send('result','one',{shop:'BIKE24',query:items[0].ean,url:'https://www.bike24.de/search',offers:[{name:'First',ean:items[0].ean,price:10,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1.html'}]});
+ send('result','two',{shop:'Bike-Discount',query:items[1].ean,url:'https://www.bike-discount.de/search',offers:[{name:'Second',ean:items[1].ean,price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike-discount.de/second'}]});
+ await send('batch-item-done','one',{id:'batch:one'});assert.equal(saves,1);assert.equal(ctx.wishlist[0].shops[0].offers[0].price,10);assert.equal(ctx.wishlist[1].shops.length,0);
+ ctx.stopRequested=true;ctx.wishlistBatch.resolve();await pending;
+ assert.equal(ctx.checkingList,false);assert.equal(ctx.searchRunning,false);assert.equal(ctx.wishlistBatch,null);assert.equal(node('#query').value,'manual draft');assert.equal(node('#search-ean').value,'unchanged');assert.deepEqual(highlights.at(-1),[]);
+ assert.equal(ctx.wishlist[1].shops.find(s=>s.name==='Bike-Discount').offers[0].price,20);
+ send('result','two',{shop:'BIKE24',offers:[]});assert.equal(saves,2,'Late events from cancelled batch cannot overwrite saved results');
 });

@@ -786,3 +786,33 @@ test('Bike-Discount reads the selected labelled EAN when description also lists 
  description.querySelector=()=>null;
  assert.equal(c.currentProductEAN(),'');
 });
+
+test('EAN variant inspection stops at a fresh exact identity and continues past a stale saved choice',async()=>{
+ for(const [target,expected] of [['1234567890128',1],['9999999999999',2],['',2]]){
+  let now=0,selected='',clicks=0;
+  const choices=[{id:'internal',text:'160mm intern',ean:'1234567890128'},{id:'external',text:'160mm extern',ean:'9999999999999'}];
+  const inputs=choices.map(v=>{const input={id:v.id,checked:false};input.parentElement={querySelector:()=>({innerText:v.text,click(){clicks++;selected=v.id;inputs.forEach(i=>i.checked=i.id===v.id);}})};return input;});
+  const picker={get innerText(){return choices.find(v=>v.id===selected)?.text||'Bitte wählen';},getAttribute:()=> 'true'};
+  const document={querySelector:s=>({'#productDetailConfiguratorOptions':picker,'.product-detail-price':{innerText:'38,99 €'},'.nele-product-availability-info':{innerText:'Lagernd'},h1:{innerText:'Generic disc'}}[s]||null),querySelectorAll:()=>inputs,getElementById:id=>inputs.find(i=>i.id===id)};
+  const c=vm.createContext({document,location:{href:'https://www.bike-discount.de/de/disc'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);},stockText:t=>t,euro:t=>Number(t.replace(',','.')),currentProductEAN:()=>choices.find(v=>v.id===selected)?.ean||''});
+  vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),c);
+  const saved=target?[{kind:'radio',id:'internal',text:'160mm intern'}]:[];
+  const rows=await c.bikeDiscountVariants({name:'Generic disc'},'160 mm',saved,target);
+  assert.equal(clicks,expected);assert.equal(rows.length,expected);
+  if(target)assert.equal(rows.at(-1).ean,target);
+  assert.equal(c.confirmedVariantEAN({...rows[0],eanEvidence:'datasheet'},rows[0].ean,'160 mm'),false);
+  assert.equal(c.confirmedVariantEAN({...rows[0],stock:'Lagerstatus unbekannt'},rows[0].ean,'160 mm'),false);
+ }
+});
+
+test('bike-components waits for the EAN to settle together with an unchanged price before accepting an option',async()=>{
+ let now=0,selected=false;
+ const choice={id:'black',getAttribute:key=>key==='aria-selected'?String(selected):key==='data-label'?'black':'false',innerText:'black',click(){selected=true;}};
+ const picker={getAttribute:key=>key==='aria-expanded'?'true':key==='aria-activedescendant'&&selected?'black':'',click(){}};
+ const document={querySelector:s=>s.includes('combobox')?picker:s==='#options-list [role="option"]'?choice:s==='[data-test="auto-product-price"]'?{innerText:'25,00 €'}:s==='.stock-status'?{innerText:'Auf Lager'}:s==='h1'?{innerText:'Generic product'}:null,
+  querySelectorAll:s=>s==='#options-list [role="option"]'?[choice]:[],getElementById:()=>choice};
+ const c=vm.createContext({document,location:{href:'https://www.bike-components.de/product'},Date:{now:()=>now},setTimeout(fn,ms){now+=ms;setImmediate(fn);},euro:text=>Number(text.replace(',','.')),stockText:text=>text,dedupe:rows=>rows,currentProductEAN:()=>now<950?'1234567890128':'9999999999999'});
+ vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),c);
+ const result=await c.bikeComponentsVariants({name:'Generic product'},'black',[],'9999999999999');
+ assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,'9999999999999');assert.ok(now>=1450);
+});
