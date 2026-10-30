@@ -76,7 +76,7 @@ test('Individual search collapses the wishlist while retaining its saved results
  assert.equal(node('#wishlist-content').hidden,true);assert.equal(node('#wishlist-toggle').attrs['aria-expanded'],'false');assert.equal(ctx.wishlistDetails,false);assert.equal(JSON.stringify(wishlist),before);
  node('#wishlist-toggle').click();assert.equal(node('#wishlist-content').hidden,false);assert.equal(JSON.stringify(wishlist),before);
  ctx.setWishlistCollapsed(true);ctx.checkingList=true;ctx.activeWishlistId='saved';ctx.setSearchRunning(false);await ctx.startSearch('Saved item','',wishlist[0].shops);
- assert.equal(sent.at(-1).useEAN,true);assert.equal(sent.at(-1).nameFallback,false);
+ assert.equal(sent.at(-1).useEAN,true);assert.equal(sent.at(-1).nameFallback,true);
  assert.equal(node('#wishlist-content').hidden,false);assert.equal(node('#wishlist-toggle').attrs['aria-expanded'],'true');assert.equal(ctx.wishlistDetails,true);assert.equal(JSON.stringify(wishlist),before);
 });
 
@@ -331,4 +331,15 @@ test('Wishlist highlights only the earliest unfinished item even when later item
  ctx.wishlistBatch.done.add('last');assert.deepEqual(highlighted(),[]);
  ctx.wishlistBatch=null;ctx.activeWishlistId='fast';assert.deepEqual(highlighted(),['fast']);
  ctx.checkingList=false;assert.deepEqual(highlighted(),[]);
+});
+
+test('Ad hoc and batch UI retain name-fallback identity without replacing the input EAN or rejecting an actual different GTIN',()=>{
+ const nodes={};const node=selector=>nodes[selector]||(nodes[selector]={value:'',checked:true});node('#search-ean').value='1234567890128';
+ let listener;const ctx=uiContext({URL,currentTab:1,id:'job',names:['BIKE24'],state:new Map(),query:'Generic gel 24er',searchedVariant:'Citrus',platform:{runtime:{onMessage:{addListener(fn){listener=fn;}}}},document:{querySelector:node,querySelectorAll:()=>[]},render(){},updateWishlistProgress(){},saveList:()=>Promise.resolve()});
+ vm.runInContext(readSource('variant-match.js'),ctx);
+ vm.runInContext(home.slice(home.indexOf('platform.runtime.onMessage.addListener(d=>'),home.indexOf("document.querySelector('#max').addEventListener")),ctx);
+ const result={type:'result',target:1,id:'job',shop:'BIKE24',query:'Generic gel 24er',matchMode:'name-fallback',url:'https://www.bike24.de/suchergebnis',offers:[{name:'Generic gel 24x40ml',ean:'9876543210982',variant:'Citrus',price:15,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/generic-pack'}]};
+ listener(result);assert.equal(ctx.state.get('BIKE24').matchMode,'name-fallback');assert.equal(ctx.state.get('BIKE24').offers[0].ean,'9876543210982');assert.equal(node('#search-ean').value,'1234567890128');
+ vm.runInContext(home.slice(home.indexOf('function batchShopResult('),home.indexOf('function updateWishlistBatchProgress(')),ctx);
+ const batch=ctx.batchShopResult(result);assert.equal(batch.matchMode,'name-fallback');assert.equal(batch.offers[0].ean,'9876543210982');
 });

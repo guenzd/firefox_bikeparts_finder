@@ -149,7 +149,7 @@ test('Delayed Aero 111 product details are retried beyond the old two attempts',
 test('BIKE24 inspects listing variants before opening details and retries ambiguous results with a discovered EAN',async()=>{
  let listener;const home='moz-extension://unit/home.html',messages=[],opened=[],reads=[];
  const ean='4019238283907';
- const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){opened.push(o.url);return {id:new URL(o.url).hostname};},async update(tab,o){opened.push(o.url);return {id:tab};},async get(){return {};},async sendMessage(tab,data){reads.push(data);if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'29 mm schwarz',priceKind:'exact',stock:'Auf Lager',ean}]};const base={name:'Continental Aero 111',variant:'29 mm schwarz',price:71.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/p1.html'};if(data.query===ean)return {offers:[{...base,ean}]};if(data.shopId==='bike24')return {offers:[base,{...base,url:'https://'+data.host+'/p2.html',variant:'26 mm schwarz'}]};return {offers:[{...base,variant:'Ausführung im Shop prüfen'}]};}}};
+ const platform={browserAction:{onClicked:{addListener(){}}},runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);}},tabs:{async create(o){opened.push(o.url);return {id:new URL(o.url).hostname};},async update(tab,o){opened.push(o.url);return {id:tab};},async get(){return {};},async sendMessage(tab,data){reads.push(data);if(data.type==='detail')return {ready:true,offers:[{...data.fallback,variant:'29 mm schwarz',priceKind:'exact',stock:'Auf Lager',ean}]};const base={name:'Continental Aero 111',variant:'29 mm schwarz',price:71.99,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/p1.html'};if(data.query===ean)return {offers:[{...base,ean}]};if(data.shopId==='bike24')return {offers:[base,{...base,url:'https://'+data.host+'/p2.html',variant:'26-622 schwarz'}]};return {offers:[{...base,variant:'Ausführung im Shop prüfen'}]};}}};
  vm.runInNewContext(source,{platform,URL,console,clearTimeout,setTimeout:fastTimeout});
  await listener({type:'search',id:'ean-narrow',query:'Continental Aero 111',variant:'29 mm'},{url:home,tab:{id:99}});
  for(let i=0;i<100;i++)await new Promise(setImmediate);
@@ -175,6 +175,9 @@ test('Listing filter skips clearly wrong widths but inspects missing color or un
  assert.equal(c.listingVariantConflict({name:'CONTINENTAL 700 x 30C BlackChili',variant:'700 x 30C'},'30 mm schwarz'),false);
  assert.equal(c.listingOfferComplete({name:'CONTINENTAL 700 x 30C BlackChili',variant:'700 x 30C',price:54,priceKind:'exact',stock:'Auf Lager'},'30 mm schwarz'),false);
  assert.equal(c.listingVariantConflict({name:'Aero 111',variant:'Ausführung im Shop prüfen'},'29 mm'),false);
+ assert.equal(c.listingVariantConflict({name:'Generic component 31,7mm',variant:'Generic component 31,7mm'},'70 mm'),false);
+ assert.equal(c.listingVariantConflict({name:'Generic component',variant:'Breite: 28 mm'},'Länge 70 mm'),false);
+ assert.equal(c.listingVariantConflict({name:'Generic component',variant:'Breite: 28 mm'},'Breite 30 mm'),true);
 });
 
 test('Bike-Discount Cola caffeine dropdown confirms variant-specific bottom-page EAN',async()=>{
@@ -815,4 +818,16 @@ test('bike-components waits for the EAN to settle together with an unchanged pri
  vm.runInContext(readSource('variant-match.js')+readSource('variants.js'),c);
  const result=await c.bikeComponentsVariants({name:'Generic product'},'black',[],'9999999999999');
  assert.equal(result.offers.length,1);assert.equal(result.offers[0].ean,'9999999999999');assert.ok(now>=1450);
+});
+
+test('An EAN listing with a clamp diameter still inspects its length dropdown before rejecting a requested length',async()=>{
+ let listener,finish;const messages=[],details=[];const completed=new Promise(resolve=>finish=resolve),home='moz-extension://unit/ui/home.html',ean='1234567890128';
+ const platform={runtime:{getURL:()=>home,onMessage:{addListener(fn){listener=fn;}},async sendMessage(data){messages.push(data);if(messages.filter(row=>row.type==='result').length===4)finish();}},tabs:{async create(data){return {id:new URL(data.url).hostname};},async update(id){return {id};},async get(id){return {id};},async sendMessage(_id,data){
+  const offer={name:'Generic component 31,7mm',variant:'31,7mm',ean,price:90,priceKind:'from',stock:'Ausführung im Shop prüfen',url:'https://'+data.host+'/generic-component'};
+  if(data.type==='detail'){details.push(data);return {ready:true,offers:[{...offer,variant:'Länge: 70 mm',priceKind:'exact',stock:'Auf Lager'}]};}
+  return {ready:true,offers:[offer]};
+ }}};
+ vm.runInNewContext(source,{platform,URL,setTimeout:fastTimeout,clearTimeout});
+ await listener({type:'search',id:'length',query:'Generic component',ean,variant:'70 mm',maxPrice:100},{url:home,tab:{id:99}});await completed;
+ assert.equal(details.length,4);assert.ok(messages.filter(row=>row.type==='result').every(row=>row.offers.length===1&&row.offers[0].variant==='Länge: 70 mm'));
 });

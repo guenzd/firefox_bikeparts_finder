@@ -107,7 +107,7 @@ platform.runtime.onMessage.addListener(d=>{
   const suggestions=(d.suggestions||[]).filter(o=>{try{return new URL(o.url).protocol==='https:'&&new URL(o.url).hostname.replace(/^www\./,'')===new URL(d.url).hostname.replace(/^www\./,'')&&typeof o.name==='string';}catch{return false;}});
   const requestedEAN=validEAN(d.query);const previousOffers=(previous?.offers||[]).filter(o=>!requestedEAN||equivalentEANs(o.ean,requestedEAN));
   const kept=!offers.length&&previousOffers.length;
-  state.set(d.shop,{comparisonMode:d.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
+  state.set(d.shop,{...((kept?previous?.matchMode:d.matchMode)==='name-fallback'?{matchMode:'name-fallback'}:{}),comparisonMode:d.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:validEAN(d.query),offers:uniqueOffers(kept?previousOffers:offers),stale:!!kept,suggestions,variantAlternatives:!!d.variantAlternatives,url:d.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(d.message||''):d.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:d.type==='result'});
  }
  if(d.type==='result'){
   const activeItem=wishlist.find(item=>item.id===activeWishlistId);
@@ -146,7 +146,7 @@ async function startSearch(q,requested=document.querySelector('#search-variant')
  const range=item?{minPrice:item.minPrice,maxPrice:item.maxPrice}:inputPriceRange(document.querySelector('#max'));
  searchedEAN=ean;
  const useEAN=item?item.useEAN!==false:document.querySelector('#search-use-ean').checked!==false;
- try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:!checkingList&&useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,comparisonMode:s.comparisonMode,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
+ try{await platform.runtime.sendMessage({type:'search',query,useEAN,refreshKnown:checkingList,nameFallback:useEAN,...range,ean,variant:searchedVariant,id,knownShops:knownSearchShops([...state.entries()].map(([name,s])=>({name,comparisonMode:s.comparisonMode,offers:s.offers||[]})),wishlist,ean||validEAN(query))});}catch{setSearchRunning(false);document.querySelector('#status').textContent='Erweiterung wurde beendet. Bitte neu laden.';if(finishSearch){finishSearch([]);finishSearch=null;}}
 }
 document.querySelector('#query').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
 document.querySelector('#search-variant').addEventListener('input',()=>{document.querySelector('#search-ean').value='';});
@@ -310,7 +310,7 @@ function resetWishlistBatchDeadline(batch){
 function batchShopResult(data,previous){
  const safe=offer=>{try{return new URL(offer.url).protocol==='https:'&&new URL(offer.url).hostname.replace(/^www\./,'')===new URL(data.url).hostname.replace(/^www\./,'')&&typeof offer.name==='string';}catch{return false;}};
  const offers=(data.offers||[]).filter(o=>safe(o)&&Number.isFinite(o.price)&&o.price>0),ean=validEAN(data.query),old=(previous?.offers||[]).filter(o=>!ean||equivalentEANs(o.ean,ean)),kept=!offers.length&&old.length;
- return {name:data.shop,comparisonMode:data.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:ean,offers:uniqueOffers(kept?old:offers),stale:!!kept,suggestions:(data.suggestions||[]).filter(safe),variantAlternatives:!!data.variantAlternatives,url:data.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(data.message||''):data.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:data.type==='result'};
+ return {name:data.shop,...((kept?previous?.matchMode:data.matchMode)==='name-fallback'?{matchMode:'name-fallback'}:{}),comparisonMode:data.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:ean,offers:uniqueOffers(kept?old:offers),stale:!!kept,suggestions:(data.suggestions||[]).filter(safe),variantAlternatives:!!data.variantAlternatives,url:data.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(data.message||''):data.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:data.type==='result'};
 }
 function updateWishlistBatchProgress(batch){
  wishlistProgress.completed=batch.done.size;

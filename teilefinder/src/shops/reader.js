@@ -101,15 +101,20 @@ async function bike24Details(fallback,followLinked,requested,savedSelection=[],r
  const linkedVariants=followLinked?bike24LinkedCandidates(props,requested,clean):[];
  const pageBase=clean((props.productVariantList?.variantList||[]).find(v=>String(v.id)===String(props.productVariantList.currentVariantId))?.variant||'');
  const base=pageBase||fallback.baseVariant||'';
- let variants={offers:[],limited:false},readIssue='';
- if(productDropdowns().length)variants=await dropdownVariants({...fallback,baseVariant:base},requested,savedSelection,requestedEAN);
- // Chromium can defer the shop's animation-frame widget mount in hidden tabs.
- // Only fresh page data plus an exact availability mapping may replace it.
- // An already mounted widget retains its existing DOM/dropdown path.
- if(platform.browserFamily==='chromium'&&Array.isArray(props.productOptionList)&&!cart.querySelector('.price__value')){
+ let variants={offers:[],limited:false},readIssue='',pageAttempted=false;
+ const canReadPage=['chromium','firefox'].includes(platform.browserFamily)&&Array.isArray(props.productOptionList);
+ const pageResult=async()=>{
+  if(!canReadPage||pageAttempted)return null;pageAttempted=true;
   const page=await bike24PageProducts(props,pageBase,requested);
-  if(page)return {ready:true,...page,eanCandidates:bike24DataSheetEANs(),linkedVariants};
+  return page?{ready:true,...page,eanCandidates:bike24DataSheetEANs(),linkedVariants}:null;
+ };
+ // Both browsers can defer widget initialization in background tabs. Read only
+ // fresh mapped shop data when controls are absent; keep working DOM readers.
+ const selectors=productDropdowns(),renderedPrice=canReadPage?cart.querySelector('.price__value'):null;
+ if(canReadPage&&(!(renderedPrice?.textContent||renderedPrice?.innerText||'').trim()||props.productOptionList.length&&!selectors.length)){
+  const page=await pageResult();if(page)return page;
  }
+ if(selectors.length)variants=await dropdownVariants({...fallback,baseVariant:base},requested,savedSelection,requestedEAN);
  const offers=variants.offers.map(o=>({...o,name:document.querySelector('h1')?.innerText.trim()||o.name,variant:[base,o.variant].filter(Boolean).join(' · ')}));
  if(!offers.length&&!productDropdowns().length){
   const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -122,6 +127,7 @@ async function bike24Details(fallback,followLinked,requested,savedSelection=[],r
    await pause(250);
   }
  }
+ if(!offers.length){const page=await pageResult();if(page)return page;}
  return {ready:offers.length>0||!!variants.inspectionComplete,offers,readIssue,eanCandidates:bike24DataSheetEANs(),linkedVariants,limited:variants.limited,stock:offers[0]?.stock||'Lagerstatus nicht auslesbar'};
 }
 

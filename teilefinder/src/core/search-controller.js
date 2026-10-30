@@ -98,7 +98,7 @@ async function withShopLane(job,shop,work){
 }
 async function searchWishlist(root,items){
  await Promise.all(items.map(async item=>{
-  const job=makeSearchJob({...item,id:root.id+':'+item.itemId,refreshKnown:true},root.source);
+  const job=makeSearchJob({...item,id:root.id+':'+item.itemId,refreshKnown:true,nameFallback:item.useEAN!==false},root.source);
   Object.assign(job,{root,batchId:root.id,itemId:item.itemId});job.profileOwner=job;searchProfile(job);
   try{await searchAll(job);}
   catch{if(jobActive(job))for(const shop of shops)await searchMessage(job,{type:'result',target:job.source,id:job.id,query:job.query,shop:shop.name,url:shop.search(job.query),offers:[],message:'Shopprüfung fehlgeschlagen.'});}
@@ -138,7 +138,9 @@ function listingVariantConflict(offer,requested){
  const width=requested.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*mm\b/i);
  // A missing width or color needs detail inspection. Reject only evidence
  // of an actual different execution, never an unconfirmed listing.
- if(width&&/\d+(?:[.,]\d+)?\s*mm\b|\d+\s*-\s*(?:622|584)\b|\d+\s*x\s*\d+[cCbB]\b/.test(text)&&!variantMatches(offer,width[1]+' mm'))return true;
+ // Unlabelled millimetres can be a clamp diameter, not the requested length.
+ const widthEvidence=/\d+\s*-\s*(?:622|584)\b|\d+\s*x\s*\d+[cCbB]\b/i.test(text)||/\b(?:breite|width)\b/i.test(requested)&&/\b(?:breite|width)\s*:?\s*\d+(?:[.,]\d+)?\s*mm\b/i.test(text);
+ if(width&&widthEvidence&&!variantMatches(offer,width[1]+' mm'))return true;
  if(/\bschwarz\b/i.test(requested)&&/schwarz\s*[\/|\-]\s*transparent|transparent.edition/i.test(text)&&!/transparent/i.test(requested))return true;
  return false;
 }
@@ -183,6 +185,7 @@ async function readKnownProducts(job,shop,tab,searchQuery){
  }
  return uniqueOffers(offers);
 }
+function searchHasInRangeOffer(result,job){return (result?.offers||[]).some(offer=>offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.price>0&&offer.price>=(job.minPrice??0)&&offer.price<=(job.maxPrice??Infinity)&&variantMatches(offer,job.variant));}
 function matchesKnownProduct(title,query,offer,knownEAN){
  if(knownEAN&&equivalentEANs(offer.ean,knownEAN))return true;
  // Reuse the same generic name matcher as the shop extractors.
@@ -194,12 +197,14 @@ async function searchAll(job){
  if(!jobActive(job))return;
  if(job.nameFallback&&job.useEAN&&validEAN(job.query)&&!validEAN(job.nameQuery)){
   await Promise.all(shops.filter(shop=>{
-   const result=job.results.get(shop.id);return result&&!result.offers?.length&&!/Sicherheitsprüfung|Zeitlimit|Shopfehler|geschlossen|fehlgeschlagen|nicht abgeschlossen/i.test(result.message||'');
+   const result=job.results.get(shop.id);return result&&!searchHasInRangeOffer(result,job)&&!/Sicherheitsprüfung|Zeitlimit|Shopfehler|geschlossen|fehlgeschlagen|nicht abgeschlossen/i.test(result.message||'');
   }).map(async shop=>{
    const previous=job.results.get(shop.id);
-   await searchMessage(job,{...previous,type:'status',message:'Kein EAN-Treffer · suche nach Name…'}).catch(()=>{});
+   await searchMessage(job,{...previous,type:'status',message:'Kein EAN-Treffer im Preisbereich · suche nach Name…'}).catch(()=>{});
    if(!jobActive(job))return;
-   await run({...job,root:job.root||job,knownEAN:'',knownShops:[]},shop,job.nameQuery);
+   const hints=job.knownShops.map(known=>({...known,offers:(known.offers||[]).filter(offer=>typeof matches==='function'&&matches(offer.name||'',job.nameQuery))})).filter(known=>known.offers.length);
+   await run({...job,root:job.root||job,query:job.nameQuery,knownEAN:'',knownShops:hints,refreshKnown:false,useEAN:false,matchMode:'name-fallback'},shop,job.nameQuery);
+   if(!searchHasInRangeOffer(job.results.get(shop.id),job)&&previous.offers?.length)job.results.set(shop.id,previous);
   }));
  }
  if(!jobActive(job))return;
@@ -219,7 +224,7 @@ async function searchAll(job){
  }
  if(!jobActive(job))return;
  const final=shareVariantEAN([...job.results.values()],job.variant,shared.ean);
- for(const result of filterConflictingEANs(final.shops,job.useEAN?final.ean:''))await searchMessage(job,{...result,offers:job.useEAN&&final.ean?narrowEANResults(result.offers||[],job.nameQuery):result.offers}).catch(()=>{});
+ for(const result of filterConflictingEANs(final.shops,job.useEAN?final.ean:''))await searchMessage(job,{...result,offers:result.matchMode!=='name-fallback'&&job.useEAN&&final.ean?narrowEANResults(result.offers||[],job.nameQuery):result.offers}).catch(()=>{});
 }
 async function run(job,shop,searchQuery=job.query){return withShopLane(job,shop,()=>runInShopLane(job,shop,searchQuery));}
 async function runInShopLane(job,shop,searchQuery=job.query){
@@ -252,7 +257,7 @@ async function runShop(job,shop,searchQuery=job.query){
     }catch{}
    }
   }
- }if(!jobActive(job))return;const payload={...data,target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(resolvedQuery)};if(data.type==='result'){job.results.set(shop.id,payload);void saveProductHints(job,shop,payload.offers||[]);await searchMessage(job,{...payload,type:'partial-result'}).catch(()=>{});return;}await searchMessage(job,payload).catch(()=>{});};
+ }if(!jobActive(job))return;const payload={...data,...(job.matchMode==='name-fallback'?{matchMode:'name-fallback'}:{}),target:job.source,id:job.id,query:searchQuery,shop:shop.name,url:shop.search(resolvedQuery)};if(data.type==='result'){job.results.set(shop.id,payload);void saveProductHints(job,shop,payload.offers||[]);await searchMessage(job,{...payload,type:'partial-result'}).catch(()=>{});return;}await searchMessage(job,payload).catch(()=>{});};
  try{
   const hints=trustedProductHints(job.knownShops.find(s=>s.name===shop.name)?.offers,shop).filter(o=>!validEAN(searchQuery)||!validEAN(o.ean)||equivalentEANs(o.ean,searchQuery));
   tab=await profileStep(job,shop,'navigation',()=>shopTab(job.source,shop,hints[0]?.url||shop.search(searchQuery)));job.pendingNavigation={tab:tab.id,url:hints[0]?.url||shop.search(searchQuery),samePath:sameProductPath(tab.previousUrl,hints[0]?.url||shop.search(searchQuery))};

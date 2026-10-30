@@ -178,3 +178,13 @@ test('Product comparisons show the lowest deliverable exact offer per shop under
  const rows=ctx.wishlistPriceRows([{shop}],{variant:'400 ml',maxPrice:10});assert.equal(rows.length,1);assert.equal(rows[0].offer.price,6);
  const updated=ctx.applyWishlistSearch([{id:'general',query:'Spray',variant:'',ean:''}],'general',[shop],'2026-10-29T12:00:00Z');assert.equal(updated[0].ean,'');assert.equal(updated[0].shops[0].offers.length,5);
 });
+
+test('Applying a wishlist name fallback preserves the requested EAN and independent confirmed EAN results',()=>{
+ const ctx=vm.createContext({URL});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),ctx);
+ ctx.item={id:'one',query:'Generic gel 24er',variant:'Citrus',ean:'1234567890128',useEAN:true,minPrice:10,maxPrice:20,shops:[]};
+ const offer=(ean,url)=>({name:'Generic gel 24x40ml',ean,variant:'Citrus',price:15,priceKind:'exact',stock:'Auf Lager',url});
+ for(const actual of ['', '9876543210982']){
+  ctx.shops=[{name:'BIKE24',matchMode:'name-fallback',offers:[offer(actual,'https://www.bike24.de/generic-pack')]},{name:'Bike-Discount',offers:[offer('1234567890128','https://www.bike-discount.de/generic-pack')]}];
+  const row=vm.runInContext("applyWishlistSearch([item],'one',shops,'2026-10-30T16:00:00Z')[0]",ctx);assert.equal(row.ean,'1234567890128');assert.equal(row.useEAN,true);assert.equal(row.shops[0].matchMode,'name-fallback');assert.equal(row.shops[0].offers[0].ean,actual);assert.equal(row.shops[1].offers[0].ean,'1234567890128');assert.equal(row.minPrice,10);assert.equal(row.maxPrice,20);
+ }
+});

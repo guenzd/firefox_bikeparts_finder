@@ -76,3 +76,8 @@ test('Snapshot roundtrip preserves cheapest-product comparison mode and its cand
  ctx.items=[{query:'Spray',variant:'',maxPrice:null,shops:[shop]}];const loaded=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(loaded[0].shops[0].comparisonMode,'cheapest');assert.equal(loaded[0].shops[0].offers.length,2);
  assert.equal(ctx.snapshotShops([{...shop,comparisonMode:'unknown'}])[0].comparisonMode,undefined);
 });
+
+test('Name fallback results survive export/import without changing the requested EAN or inventing a missing offer EAN',()=>{
+ ctx.items=[{query:'Generic gel 24er',variant:'Citrus',ean:'1234567890128',useEAN:true,minPrice:10,maxPrice:20,shops:[{name:'BIKE24',matchMode:'name-fallback',offers:[{name:'Generic gel 24x40ml',variant:'Citrus',price:15,priceKind:'exact',stock:'Auf Lager',ean:'',url:'https://www.bike24.de/generic-pack'}]}]}];
+ const rows=vm.runInContext('parseWishlistFile(wishlistFile(items))',ctx);assert.equal(rows[0].ean,'1234567890128');assert.equal(rows[0].useEAN,true);assert.equal(rows[0].shops[0].matchMode,'name-fallback');assert.equal(rows[0].shops[0].offers[0].ean,'');assert.equal(rows[0].minPrice,10);assert.equal(rows[0].maxPrice,20);
+});

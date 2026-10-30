@@ -6,7 +6,7 @@ import {readSource} from './test-sources.mjs';
 function fixture({rendered=false,hidden=true}={}){
  const props={productId:123,deliveryLocationCountry:4,productName:'Generic fixed product',ean:'1234567890128',productOptionList:[],productDetailPrice:{grossPrice:54.9899,currencyCode:'EUR',hasStartingPrice:false},productVariantList:{currentVariantId:123,variantList:[{id:123,variant:'30 mm',url:'https://www.bike24.de/p1000123.html'}]}};
  let payload={availabilityMapping:{123:123},availabilityVariantsList:{123:{id:123,availability:{message:'Aktuell 10+ auf Lager'},shipping:{isShippable:true}}}};
- const requests=[],cart={getAttribute:()=>JSON.stringify(props),querySelector:()=>rendered?{}:null};
+ const requests=[],cart={getAttribute:()=>JSON.stringify(props),querySelector:()=>rendered?{textContent:'27,99 €',innerText:'27,99 €'}:null};
  const document={hidden,readyState:'complete',body:{innerText:''},querySelectorAll:()=>[],querySelector(selector){
   if(selector==='#add-to-cart')return cart;
   if(selector==='h1')return {innerText:props.productName};
@@ -29,8 +29,8 @@ test('BIKE24 fixed products in unrendered background tabs use fresh page prices 
 });
 
 test('Already rendered BIKE24 widgets keep the DOM path in foreground and background without extra HTTP requests',async()=>{
- for(const hidden of [false,true]){
-  const {ctx,requests}=fixture({rendered:true,hidden});
+ for(const browserFamily of ['firefox','chromium'])for(const hidden of [false,true]){
+  const {ctx,requests}=fixture({rendered:true,hidden});ctx.platform.browserFamily=browserFamily;
   const result=await ctx.bike24Details({price:999},false,'30 mm');
   assert.equal(result.ready,true);assert.equal(result.offers[0].price,27.99);assert.equal(requests.length,0);
  }
@@ -82,9 +82,9 @@ test('Unknown, duplicate, incomplete or unpriced option combinations never inher
 });
 
 
-test('Firefox keeps waiting for its DOM widget and does not use the Chromium fallback',async()=>{
- const {ctx,requests}=fixture();ctx.platform.browserFamily='firefox';ctx.setTimeout=fn=>queueMicrotask(fn);
- const result=await ctx.bike24Details({price:999},false,'30 mm');assert.equal(result.ready,false);assert.equal(result.offers.length,0);assert.equal(result.readIssue,'priceMissing');assert.equal(requests.length,0);
+test('Firefox also verifies an unrendered widget from fresh mapped page data without using cached prices',async()=>{
+ const {ctx,requests}=fixture();ctx.platform.browserFamily='firefox';
+ const result=await ctx.bike24Details({price:999},false,'30 mm');assert.equal(result.ready,true);assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,54.99);assert.equal(requests.length,1);
 });
 
 test('Mapped option prices include only explicit surcharges and the current page tax rate; exact EAN and SKU stay with that option',async()=>{
@@ -124,4 +124,15 @@ test('Pack counts match across generic shop notation without relaxing different 
  assert.equal(ctx.matches('Generic Gel 24ml','Generic Gel 24er'),false);
  assert.equal(ctx.matches('Generic Model 24','Generic Model 24er'),false);
  assert.equal(ctx.matches('Generic M-240 24x50g','Generic M-241 24er'),false);
+});
+
+
+test('A partially initialized widget can fall back after DOM inspection fails, but successful DOM reads never fetch',async()=>{
+ for(const browserFamily of ['firefox','chromium']){
+  const {ctx,props,requests}=fixture({rendered:true});ctx.platform.browserFamily=browserFamily;
+  props.productOptionList=[{id:10,label:'Size',optionValueList:[{id:11,name:'30 mm',surcharge:0,ean:'1234567890128'}]}];
+  ctx.productDropdowns=()=>[{}];ctx.dropdownVariants=async()=>({offers:[],inspectionComplete:false});
+  const key='123:opt_10=11';ctx.fetch=async()=>{requests.push({});return {ok:true,json:async()=>({availabilityMapping:{[key]:key},availabilityVariantsList:{[key]:{id:key,availability:{message:'Auf Lager'},shipping:{isShippable:true}}}})};};
+  const result=await ctx.bike24Details({},false,'30 mm');assert.equal(result.ready,true);assert.equal(result.offers[0].price,54.99);assert.equal(requests.length,1);
+ }
 });
