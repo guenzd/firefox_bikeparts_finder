@@ -303,21 +303,32 @@ test('Full wishlist refresh routes interleaved shops to their own article and pr
   document:{querySelector:node},URL,Date,
   platform:{runtime:{async sendMessage(data){messages.push(data);return {accepted:true};}}},
   setWishlistCollapsed(){},setSearchRunning(value){ctx.searchRunning=value;},updateWishlistProgress(){},queueResultRender(){},syncWishlistActivity(){ctx.renderTotal();},
-  renderWishlist(){ctx.renderTotal();},renderTotal(){highlights.push(ctx.wishlistBatch?[...ctx.wishlistBatch.active.values()]:[]);},
+  renderWishlist(){ctx.renderTotal();},renderTotal(){highlights.push(ctx.wishlist.filter(item=>ctx.isWishlistItemActive(item.id)).map(item=>item.id));},
   async saveList(){saves++;},async recordPriceHistory(){},knownSearchShops:s=>s});
  for(const file of ['variant-match.js','wishlist.js'])vm.runInContext(readSource(file),ctx);
+ vm.runInContext(home.slice(home.indexOf('function isWishlistItemActive('),home.indexOf('function syncWishlistActivity(')),ctx);
  vm.runInContext(home.slice(home.indexOf('function resetWishlistBatchDeadline('),home.indexOf("document.querySelector('#check-wishlist').addEventListener")),ctx);
  node('#query').value='manual draft';node('#search-ean').value='unchanged';
  const pending=ctx.checkWishlistBatch();await new Promise(setImmediate);
  assert.equal(messages[0].type,'wishlist-search');assert.equal(messages[0].items.length,2);
  const send=(type,itemId,extra={})=>ctx.handleWishlistBatchMessage({type,itemId,batchId:'batch',target:7,...extra});
  send('batch-shop-active','one',{shop:'BIKE24',active:true});assert.deepEqual(highlights.at(-1),['one']);
- send('batch-shop-active','two',{shop:'Bike-Discount',active:true});assert.deepEqual(highlights.at(-1),['one','two']);
+ send('batch-shop-active','two',{shop:'Bike-Discount',active:true});assert.deepEqual(highlights.at(-1),['one']);
  send('result','one',{shop:'BIKE24',query:items[0].ean,url:'https://www.bike24.de/search',offers:[{name:'First',ean:items[0].ean,price:10,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1.html'}]});
  send('result','two',{shop:'Bike-Discount',query:items[1].ean,url:'https://www.bike-discount.de/search',offers:[{name:'Second',ean:items[1].ean,price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike-discount.de/second'}]});
- await send('batch-item-done','one',{id:'batch:one'});assert.equal(saves,1);assert.equal(ctx.wishlist[0].shops[0].offers[0].price,10);assert.equal(ctx.wishlist[1].shops.length,0);
+ await send('batch-item-done','one',{id:'batch:one'});assert.deepEqual(highlights.at(-1),['two']);assert.equal(saves,1);assert.equal(ctx.wishlist[0].shops[0].offers[0].price,10);assert.equal(ctx.wishlist[1].shops.length,0);
  ctx.stopRequested=true;ctx.wishlistBatch.resolve();await pending;
  assert.equal(ctx.checkingList,false);assert.equal(ctx.searchRunning,false);assert.equal(ctx.wishlistBatch,null);assert.equal(node('#query').value,'manual draft');assert.equal(node('#search-ean').value,'unchanged');assert.deepEqual(highlights.at(-1),[]);
  assert.equal(ctx.wishlist[1].shops.find(s=>s.name==='Bike-Discount').offers[0].price,20);
  send('result','two',{shop:'BIKE24',offers:[]});assert.equal(saves,2,'Late events from cancelled batch cannot overwrite saved results');
+});
+
+test('Wishlist highlights only the earliest unfinished item even when later items finish first',()=>{
+ const ctx=uiContext({checkingList:true,wishlist:[{id:'slow'},{id:'fast'},{id:'last'}],wishlistBatch:{done:new Set(['fast'])}});
+ vm.runInContext(home.slice(home.indexOf('function isWishlistItemActive('),home.indexOf('function syncWishlistActivity(')),ctx);
+ const highlighted=()=>ctx.wishlist.filter(item=>ctx.isWishlistItemActive(item.id)).map(item=>item.id);
+ assert.deepEqual(highlighted(),['slow']);ctx.wishlistBatch.done.add('slow');assert.deepEqual(highlighted(),['last']);
+ ctx.wishlistBatch.done.add('last');assert.deepEqual(highlighted(),[]);
+ ctx.wishlistBatch=null;ctx.activeWishlistId='fast';assert.deepEqual(highlighted(),['fast']);
+ ctx.checkingList=false;assert.deepEqual(highlighted(),[]);
 });

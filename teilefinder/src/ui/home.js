@@ -6,7 +6,7 @@ let wishlistProgress=null;
 let wishlistEditor=null;
 let wishlistBatch=null,resultRenderTimer;
 function queueResultRender(){if(resultRenderTimer===undefined)resultRenderTimer=setTimeout(()=>{resultRenderTimer=undefined;render();},50);}
-function isWishlistItemActive(itemId){return checkingList&&(wishlistBatch?[...wishlistBatch.active.values()].includes(itemId):activeWishlistId===itemId);}
+function isWishlistItemActive(itemId){return checkingList&&(wishlistBatch?wishlist.find(item=>!wishlistBatch.done.has(item.id))?.id===itemId:activeWishlistId===itemId);}
 function syncWishlistActivity(){
  for(const row of document.querySelectorAll('[data-wishlist-item]')){
   const active=isWishlistItemActive(row.dataset.wishlistItem);row.classList.toggle('wishlist-item-refreshing',active);
