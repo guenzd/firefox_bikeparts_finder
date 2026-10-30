@@ -214,3 +214,39 @@ for(const kind of ['firefox','chrome'])test(`${kind} adds only an image CSP to o
  assert.match(headers[0].value,/^img-src /);assert.doesNotMatch(headers[0].value,/default-src|script-src|style-src|connect-src|data:|blob:|bike24\.com/);assert.ok(headers[0].value.includes('https://challenges.cloudflare.com'));
  await api.images.setTabIds([]);assert.deepEqual(Array.from(change.removeRuleIds),[840001,840002]);assert.equal(change.addRules.length,0);
 });
+
+for(const kind of ['firefox','chrome'])test(`${kind} shop jump fragments preserve tab ownership, image settings and cleanup`,async()=>{
+ const e=environment(kind),registry=e.ctx.createTabRegistry(e.api);
+ e.native.runtime.sendMessage=data=>registry.lookup(data,e.sender)??registry.register(data,e.sender);
+ vm.runInContext(source('page.js').split('var pagePlatforms=')[0],e.ctx);const page=e.ctx.createPagePlatforms(e.api);
+ const hosts=['www.bike24.de','www.bike-discount.de','www.bike-components.de','r2-bike.com'],ids=[];
+ for(const [index,host] of hosts.entries()){
+  e.tabs.get(1).url=e.home+'#wishlist-shop-'+index;e.sender.url=e.tabs.get(1).url;
+  const tab=await page.search.tabs.create({url:'https://'+host+'/product'});ids.push(tab.id);
+  assert.equal((await page.search.tabs.create({url:'https://'+host+'/updated'})).id,tab.id);
+ }
+ assert.equal(new Set(ids).size,4);assert.equal(e.tabs.size,6);
+ assert.equal((await page.ui.runtime.sendMessage({type:'shop-image-settings'})).loadImages,false);
+ assert.equal((await page.ui.runtime.sendMessage({type:'close-shop-tabs'})).closed,4);
+ assert.ok(ids.every(id=>!e.tabs.has(id)));
+ for(const url of [e.home+'?other=1#section',e.home.replace('home.html','privacy.html')+'#section','https://example.org/ui/home.html#wishlist-shop-1']){
+  assert.equal(registry.lookup({type:'find-shop-tab',owner:1,host:hosts[0]},{...e.sender,url}),undefined);
+ }
+});
+
+for(const kind of ['firefox','chrome'])test(`${kind} full wishlist batch starts and completes from a shop jump fragment`,async()=>{
+ const e=environment(kind),registry=e.ctx.createTabRegistry(e.api);let finish;
+ e.tabs.get(1).url=e.home+'#wishlist-shop-3';e.sender.url=e.tabs.get(1).url;
+ e.native.runtime.sendMessage=data=>registry.lookup(data,e.sender)??registry.register(data,e.sender);
+ e.native.tabs.sendMessage=async(_tab,data)=>({ready:true,productName:data.nameQuery,offers:[{name:data.nameQuery,ean:data.query,variant:'black',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://'+data.host+'/product'}]});
+ vm.runInContext(source('page.js').split('var pagePlatforms=')[0],e.ctx);const page=e.ctx.createPagePlatforms(e.api);
+ const results=[],complete=new Promise(resolve=>finish=resolve),fast=(fn,ms)=>ms>=10000?setTimeout(fn,ms):setImmediate(fn);
+ const ctx=vm.createContext({searchPlatform:page.search,URL,setTimeout:fast,clearTimeout});
+ for(const file of ['identifiers.js','products.js','variant-match.js','catalog.js','search-controller.js','wishlist.js'])vm.runInContext(readFileSync(new URL('./src/core/'+file,import.meta.url),'utf8'),ctx);
+ page.ui.runtime.onMessage.addListener(data=>{if(data.type==='result')results.push(data);if(data.type==='batch-complete')finish();});
+ const accepted=await page.ui.runtime.sendMessage({type:'wishlist-search',id:'batch',items:[{itemId:'one',query:'First product',ean:'1234567890128',variant:'black'},{itemId:'two',query:'Second product',ean:'9999999999999',variant:'black'}]});
+ assert.equal(accepted.accepted,true);await complete;assert.equal(results.length,8);
+ assert.ok(results.every(row=>row.offers.length===1&&row.target===1));
+ assert.equal(e.session.ownedShopTabs['1'].length,4);assert.equal(e.tabs.size,6);
+ await registry.removed(1);
+});

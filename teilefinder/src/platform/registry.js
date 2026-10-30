@@ -12,7 +12,9 @@ function createTabRegistry(api){
  const shopURL=url=>{try{const parsed=new URL(url);return parsed.protocol==='https:'&&hosts.has(parsed.hostname.replace(/^www\./,''));}catch{return false;}};
  // URL may be omitted for about:blank without the broad tabs permission.
  const ownedURL=url=>!url||url==='about:blank'||shopURL(url);
- const trusted=sender=>sender?.id===api.runtime.id&&sender.url===home;
+ // Fragment links identify sections of the same UI document, not a new owner.
+ const homeDocument=url=>{try{const parsed=new URL(url);parsed.hash='';return parsed.href===home;}catch{return false;}};
+ const trusted=sender=>sender?.id===api.runtime.id&&homeDocument(sender.url);
  return {
   restore(){return serial(async()=>syncImages(await read()));},
   lookup(data,sender){
@@ -20,7 +22,7 @@ function createTabRegistry(api){
    if(data.type==='find-shop-tab'&&!hosts.has(data.host?.replace(/^www\./,'')))return undefined;
    if(data.type==='shop-image-settings'&&data.loadImages!==undefined&&typeof data.loadImages!=='boolean')return undefined;
    return serial(async()=>{
-    const owner=await api.tabs.get(data.owner).catch(()=>null);if(owner?.url!==home)return {closed:0};
+    const owner=await api.tabs.get(data.owner).catch(()=>null);if(!homeDocument(owner?.url))return {closed:0};
     const registry=await read(),ids=Array.isArray(registry[data.owner])?registry[data.owner]:[];
     if(data.type==='shop-image-settings'){if(typeof data.loadImages==='boolean'){const previous=await imageSetting();await syncImages(registry,data.loadImages);try{await api.storage.local.set({loadShopImages:data.loadImages});}catch(error){await syncImages(registry,previous);throw error;}}return {loadImages:await imageSetting()};}
     if(data.type==='find-shop-tab'){
@@ -37,13 +39,13 @@ function createTabRegistry(api){
    return serial(async()=>{
     const [owner,child]=await Promise.all([api.tabs.get(data.owner),api.tabs.get(data.tabId)]);
     const blankChild=(!child.url||child.url==='about:blank')&&!child.pendingUrl&&child.openerTabId===data.owner&&shopURL(data.url);
-    if(owner.url!==home||!(shopURL(child.pendingUrl||child.url)||blankChild))return {registered:false};
+    if(!homeDocument(owner.url)||!(shopURL(child.pendingUrl||child.url)||blankChild))return {registered:false};
     const registry=await read();
     if(Object.entries(registry).some(([id,children])=>Number(id)!==data.owner&&Array.isArray(children)&&children.includes(data.tabId)))return {registered:false};
     registry[data.owner]=[...new Set([...(registry[data.owner]||[]),data.tabId])];await write(registry);
     // Close the race between parent validation and the storage write.
     const live=await api.tabs.get(data.owner).catch(()=>null);
-    if(!live||live.url!==home){const orphaned=registry[data.owner];delete registry[data.owner];await write(registry);await Promise.allSettled(orphaned.map(async id=>{const child=await api.tabs.get(id).catch(()=>null);if(child&&ownedURL(child.pendingUrl||child.url))await api.tabs.remove(id);}));return {registered:false};}
+    if(!live||!homeDocument(live.url)){const orphaned=registry[data.owner];delete registry[data.owner];await write(registry);await Promise.allSettled(orphaned.map(async id=>{const child=await api.tabs.get(id).catch(()=>null);if(child&&ownedURL(child.pendingUrl||child.url))await api.tabs.remove(id);}));return {registered:false};}
     return {registered:true};
    });
   },
