@@ -317,3 +317,9 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .total-results .wishlist-shop-jump:hover{color:var(--link);text-decoration-color:currentColor}
 .wishlist-shop-jump:focus-visible{outline:2px solid var(--focus);outline-offset:3px;border-radius:2px}
 .shop-results[id^="wishlist-shop-"]{scroll-margin-block-start:12px}
+
+/* One native control, beside the heading; original insertion order remains intact. */
+.wishlist-titlebar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-right:auto;min-width:0}
+.wishlist>.shop-heading .wishlist-titlebar h2{margin:0}
+#wishlist-sort{width:auto;max-width:100%;height:30px;min-height:30px;padding:4px 8px;font:inherit;font-size:12px;cursor:pointer}
+#wishlist-sort:disabled{opacity:.55;cursor:default}

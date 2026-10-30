@@ -8,6 +8,7 @@ Browser-Erweiterung für **Firefox und Chrome**: Preise, Varianten und Lagerstat
 - Allgemeine Namenssuchen: je Shop das günstigste passende lieferbare Produkt, ohne eine einzelne Treffer-EAN als Suchvorgabe zu übernehmen.
 - Günstigstes lieferbares Angebot je Artikel, Gesamtpreis und Vergleich je Shop mit Summe und Abdeckung. Versandkosten sind nicht enthalten.
 - Gespeicherte Produktlinks und Variantenauswahlen direkt aktualisieren, statt bekannte Artikel erneut zu suchen. Ohne bestätigten EAN-Treffer im Preisbereich folgt je Shop eine Namensprüfung mit denselben Preis- und Variantenfiltern; passende bekannte URLs bleiben nutzbar.
+- Wunschliste nach Hinzufügen, Name, günstigstem lieferbarem Preis oder günstigstem Shop sortieren; die ursprüngliche Reihenfolge bleibt erhalten.
 - Artikel bearbeiten, einzeln aktualisieren oder entfernen; Shopvergleich per Klick auf den Namen, Preisverlauf per Klick auf den Preis.
 - Lokaler Preisverlauf je bestätigter EAN sowie Datei-Export und -Import einschließlich Ergebnissen und Historie.
 - Lieferbare Artikel als nach Shop gruppierte Liste mit anklickbaren Links kopieren.

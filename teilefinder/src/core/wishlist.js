@@ -43,6 +43,22 @@ function cheapestWishlist(items){
  return {rows,total,complete:rows.length>0&&rows.every(row=>!!row.best),missing:rows.filter(row=>!row.best).length};
 }
 
+function validWishlistSort(value){return ['added','name','price','shop'].includes(value)?value:'added';}
+function sortWishlistItems(items,mode='added'){
+ mode=validWishlistSort(mode);if(mode==='added')return items.slice();
+ const compare=new Intl.Collator('de',{sensitivity:'base',numeric:true,ignorePunctuation:true}).compare;
+ const rows=cheapestWishlist(items).rows.map((row,index)=>({...row,index}));
+ return rows.sort((a,b)=>{
+  // Unmatched/unavailable articles and their suggestions form a stable tail.
+  if(!a.best||!b.best)return a.best?-1:b.best?1:a.index-b.index;
+  if(mode==='price'&&a.best?.price!==b.best?.price)return (a.best?.price??Infinity)-(b.best?.price??Infinity);
+  if(mode==='shop'){
+   const shop=compare(a.best?.shop||'',b.best?.shop||'');if(shop)return shop;
+  }
+  return compare(a.item.query,b.item.query)||a.index-b.index;
+ }).map(row=>row.item);
+}
+
 function renameWishlistItem(items,id,query){
  const name=query.trim();
  if(!name||name.length>160)throw Error('Ungültiger Produktname');

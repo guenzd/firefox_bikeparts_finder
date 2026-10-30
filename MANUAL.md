@@ -137,3 +137,9 @@ Datenspeicherung und Berechtigungen: [Datenschutzerklärung](DATENSCHUTZ.md).
 ## Modellnummern bei der Suche
 
 Wenn eine Namenssuche kein passendes Angebot im Preis- und Variantenfilter liefert, wird bei genau einer eindeutig erkannten Modellnummer einmal zusätzlich nach dieser gesucht. Treffer müssen weiterhin zum ursprünglichen Namen passen; Marke, Modell und Produktbeschreibung werden geprüft. Sicherheitsprüfungen und technische Fehler lösen diesen Zusatzversuch nicht aus. Erfolgreiche Suchen bleiben unverändert, je Shop wird derselbe Tab wiederverwendet.
+
+## Wunschliste sortieren
+
+Das Menü neben „Wunschliste“ bietet „Hinzugefügt“, „Name A–Z“, „Preis aufsteigend“ und „Shop A–Z“. Die Auswahl gilt für die obere Übersicht und die Listen der vier Shops. „Preis“ verwendet das günstigste lieferbare Angebot im jeweiligen Preis-/Variantenfilter. „Shop“ ordnet nach dem Shop dieses Angebots und innerhalb des Shops nach Produktname. Artikel ohne lieferbares Angebot stehen bei Name/Preis/Shop samt „Ähnliche Produkte“ am Ende, untereinander in ihrer ursprünglichen Reihenfolge. Die Vorschläge selbst werden nicht umsortiert. Gleiche Namen behalten ihre ursprüngliche Reihenfolge.
+
+„Hinzugefügt“ stellt jederzeit die ursprüngliche Reihenfolge wieder her; Sortieren verändert weder Artikel noch Suchergebnisse. Während einer Suche ist das Menü gesperrt und die sichtbare Reihenfolge bleibt fest. Nach Abschluss wird die Sortierung mit den neuen Preisen aktualisiert. Die Auswahl bleibt beim Neuladen und im Datei-Export erhalten.
