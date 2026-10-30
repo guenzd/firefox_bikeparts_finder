@@ -237,7 +237,7 @@ function renderTotal(){
  for(const {item,best,availableShops,missingMessage} of summary.rows){
   const row=el('tr'),product=el('td'),shop=el('td'),price=el('td'),stock=el('td'),links=el('td');price.className='price';links.className='result-links';const productButton=el('button',item.query);productButton.type='button';productButton.className='wish-product-button';productButton.title='Preise und Lieferstatus je Shop anzeigen';productButton.addEventListener('click',()=>showWishlistPrices(item.id,productButton));const nameLine=el('div');nameLine.className='wishlist-product-name';nameLine.append(productButton,wishlistEditButton(item));product.append(nameLine);
   if(checkingList&&activeWishlistId===item.id){row.className='wishlist-item-refreshing';row.setAttribute('aria-busy','true');}
-  const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)product.append(el('small',variant));
+  const variant=item.variant||best?.variant||'';if(variant&&variant!==best?.name)nameLine.append(el('small',variant));
 
 
   if(best){shop.textContent=best.shop;price.textContent=money(best.price);const badge=el('span','Lieferbar '+availableShops+'/4');badge.className='stock-available';stock.append(badge);links.append(resultLinkActions('Öffnen',best.url));}

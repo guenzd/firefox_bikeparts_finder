@@ -269,7 +269,7 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 /* One wishlist row combines the offer and its actions; inputs appear on demand. */
 .total-results .wishlist-actions-cell{width:1%;white-space:nowrap;vertical-align:middle}
 .wishlist-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px}
-.wishlist-row-actions button,.wishlist-editor-actions button{height:32px;min-height:32px;padding:0 10px;font-size:12px;font-weight:500;line-height:1;white-space:nowrap}
+.wishlist-row-actions button,.wishlist-editor-actions button{margin:0;height:32px;min-height:32px;padding:0 10px;font-size:12px;font-weight:500;line-height:1;white-space:nowrap}
 .wishlist-row-actions .recheck-button,.wishlist-row-actions .remove-button{display:inline-flex;align-items:center;justify-content:center;width:32px;padding:0;flex-shrink:0}
 .wishlist-row-actions svg{display:block;width:18px;height:18px}
 .wishlist-row-actions .remove-button:hover{background:var(--danger-bg);color:var(--danger);border-color:var(--danger-line)}
@@ -302,7 +302,11 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 @keyframes wishlist-refresh-turn{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.recheck-button.is-refreshing svg{animation:none}}
 
-.wishlist-product-name{display:flex;align-items:center;gap:8px}
+.total-results td{vertical-align:middle}
+.wishlist-product-name{display:grid;grid-template-columns:minmax(0,1fr) 32px;column-gap:12px;row-gap:3px;align-items:center}
+.wishlist-product-name>.wish-product-button{grid-column:1;grid-row:1}
+.wishlist-product-name>small{grid-column:1;grid-row:2}
+.wishlist-product-name>.wishlist-edit-button{grid-column:2;grid-row:1 / 3;align-self:center}
 .wishlist-product-name>.wish-product-button{min-width:0}
 .wishlist-product-name>.wishlist-edit-button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;width:32px;height:32px;min-height:32px;margin:0;padding:0;color:var(--muted);border:1px solid var(--field-line)}
 .wishlist-edit-button svg{display:block;width:18px;height:18px}
