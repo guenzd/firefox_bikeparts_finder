@@ -182,7 +182,7 @@ test('Product comparisons show the lowest deliverable exact offer per shop under
 test('Applying a wishlist name fallback preserves the requested EAN and independent confirmed EAN results',()=>{
  const ctx=vm.createContext({URL});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),ctx);
  ctx.item={id:'one',query:'Generic gel 24er',variant:'Citrus',ean:'1234567890128',useEAN:true,minPrice:10,maxPrice:20,shops:[]};
- const offer=(ean,url)=>({name:'Generic gel 24x40ml',ean,variant:'Citrus',price:15,priceKind:'exact',stock:'Auf Lager',url});
+ const offer=(ean,url)=>({name:'Generic gel 24x40ml',ean,identityStatus:ean?'confirmed':'checked-missing',variant:'Citrus',price:15,priceKind:'exact',stock:'Auf Lager',url});
  for(const actual of ['', '9876543210982']){
   ctx.shops=[{name:'BIKE24',matchMode:'name-fallback',offers:[offer(actual,'https://www.bike24.de/generic-pack')]},{name:'Bike-Discount',offers:[offer('1234567890128','https://www.bike-discount.de/generic-pack')]}];
   const row=vm.runInContext("applyWishlistSearch([item],'one',shops,'2026-10-30T16:00:00Z')[0]",ctx);assert.equal(row.ean,'1234567890128');assert.equal(row.useEAN,true);assert.equal(row.shops[0].matchMode,'name-fallback');if(actual){assert.equal(row.shops[0].offers.length,0);assert.equal(row.shops[0].suggestions[0].ean,actual);}else assert.equal(row.shops[0].offers[0].ean,'');assert.equal(row.shops[1].offers[0].ean,'1234567890128');assert.equal(row.minPrice,10);assert.equal(row.maxPrice,20);
@@ -191,7 +191,7 @@ test('Applying a wishlist name fallback preserves the requested EAN and independ
 
 test('Saved conflicting name-fallback offers are suggestions immediately, excluded from every wishlist comparison and retained when EAN is disabled',()=>{
  const c=vm.createContext({URL});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
- const wanted='1234567890128',wrong='9876543210982',make=(ean,price)=>({name:'Generic chain 12-speed',ean,price,priceKind:'exact',variant:'',stock:'Auf Lager',url:'https://example.org/'+ean});
+ const wanted='1234567890128',wrong='9876543210982',make=(ean,price)=>({name:'Generic chain 12-speed',ean,identityStatus:ean?'confirmed':'checked-missing',price,priceKind:'exact',variant:'',stock:'Auf Lager',url:'https://example.org/'+ean});
  const item={id:'one',query:'Generic chain',ean:wanted,useEAN:true,maxPrice:50,shops:[{name:'BIKE24',offers:[make(wanted,30)]},{name:'Bike-Discount',matchMode:'name-fallback',offers:[make(wrong,10)]},{name:'r2-bike',matchMode:'name-fallback',offers:[make('',35)]}]},before=JSON.stringify(item);
  assert.equal(c.cheapestWishlist([item]).total,30);assert.equal(c.cheapestWishlist([item]).rows[0].availableShops,2);assert.equal(c.displayedShopOffers(item.shops[1],item).length,0);
  const entries=c.wishlistShopEntries([item],'Bike-Discount');assert.equal(entries[0].shop.offers.length,0);assert.equal(entries[0].shop.suggestions[0].ean,wrong);assert.equal(c.shopWishlistSummary(entries).total,0);assert.equal(c.wishlistPriceRows(entries,item).length,0);
@@ -203,4 +203,18 @@ test('Equivalent UPC and zero-prefixed EAN remain accepted in a name fallback',(
  const c=vm.createContext({URL});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
  const shops=[{name:'BIKE24',matchMode:'name-fallback',offers:[{name:'Generic tool',ean:'763477000385',price:20,priceKind:'exact',stock:'Auf Lager'}]}];
  const result=c.filterConflictingEANs(shops,'0763477000385');assert.equal(result[0].offers.length,1);assert.equal(result[0].offers[0].ean,'763477000385');
+});
+
+test('Verified EAN wins over a cheaper checked missing-EAN fallback only inside the requested price and variant filters',()=>{
+ const c=vm.createContext({URL});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);const ean='1234567890128';
+ const unknown={name:'Generic disc',variant:'160 mm',ean:'',identityStatus:'checked-missing',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://r2-bike.com/unknown'},known={...unknown,ean,identityStatus:'confirmed',price:30,url:'https://r2-bike.com/known'};
+ const shop={name:'r2-bike',matchMode:'name-fallback',offers:[unknown,known]};assert.deepEqual(Array.from(c.filterConflictingEANs([shop],ean,{variant:'160 mm',maxPrice:50})[0].offers,o=>o.url),[known.url]);
+ assert.equal(c.filterConflictingEANs([shop],ean,{variant:'160 mm',maxPrice:25})[0].offers.length,2);
+ known.variant='180 mm';assert.equal(c.filterConflictingEANs([shop],ean,{variant:'160 mm',maxPrice:50})[0].offers.length,2);
+});
+
+test('Legacy missing-EAN fallback candidates are inspectable suggestions and remain URL hints for rechecking',()=>{
+ const c=vm.createContext({URL});vm.runInContext(readSource('variant-match.js')+readSource('wishlist.js'),c);
+ const row={name:'Generic pack',ean:'',variant:'1 L',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1000123.html'};const item={id:'legacy',query:'Generic pack',ean:'1234567890128',useEAN:true,variant:'1 L',maxPrice:50,shops:[{name:'BIKE24',matchMode:'name-fallback',offers:[row]}]};
+ const normalized=c.verifiedWishlistItems([item]);assert.equal(normalized[0].shops[0].offers.length,0);assert.equal(normalized[0].shops[0].suggestions[0].identityStatus,'unverified');const hints=c.knownSearchShops(normalized[0].shops,normalized,item.ean);assert.equal(hints[0].offers[0].url,row.url);assert.equal(c.cheapestWishlist(normalized).total,0);assert.equal(item.shops[0].offers.length,1);
 });

@@ -87,3 +87,9 @@ test('File export retains the selected display sort without rewriting insertion 
  const parsed=ctx.parseWishlistFile(ctx.wishlistFile(items,screen));assert.equal(parsed.screen.wishlistSort,'price');assert.deepEqual(Array.from(parsed,i=>i.query),['Zug','Ärmel']);
  screen.wishlistSort='invalid';assert.equal(ctx.parseWishlistFile(ctx.wishlistFile(items,screen)).screen.wishlistSort,'added');
 });
+
+test('Portable results preserve identity checks for offers and unresolved suggestions',()=>{
+ const row={name:'Generic pack',variant:'1 L',ean:'',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1000123.html'};
+ const items=[{query:'Generic pack',ean:'1234567890128',useEAN:true,variant:'1 L',maxPrice:50,shops:[{name:'BIKE24',matchMode:'name-fallback',offers:[{...row,identityStatus:'checked-missing'}],suggestions:[{...row,identityStatus:'unverified'}]}]}];
+ const parsed=ctx.parseWishlistFile(ctx.wishlistFile(items));assert.equal(parsed[0].shops[0].offers[0].identityStatus,'checked-missing');assert.equal(parsed[0].shops[0].suggestions[0].identityStatus,'unverified');
+});

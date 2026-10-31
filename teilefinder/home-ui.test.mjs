@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
-const uiContext=values=>{const ctx=vm.createContext({searchRunning:false,checkingList:false,activeWishlistId:'',wishlistBatch:null,queueResultRender:()=>ctx.render(),isWishlistItemActive:id=>ctx.checkingList&&ctx.activeWishlistId===id,wishlist:[],wishlistDisplayItems:()=>ctx.wishlist,...values});vm.runInContext(readSource('identifiers.js'),ctx);return ctx;};
+const uiContext=values=>{const ctx=vm.createContext({searchRunning:false,checkingList:false,activeWishlistId:'',wishlistBatch:null,queueResultRender:()=>ctx.render(),isWishlistItemActive:id=>ctx.checkingList&&ctx.activeWishlistId===id,wishlist:[],wishlistDisplayItems:()=>ctx.wishlist,...values});vm.runInContext(readSource('identifiers.js')+readSource('wishlist.js').split('function priceRangeText')[0],ctx);return ctx;};
 const home=readSource('home.js');
 const code=home.slice(home.indexOf('function suggestionRow('),home.indexOf('function eanRow('));
 test('Accepting a wishlist suggestion saves the name and immediately rechecks only that article, retaining EAN and filters',async()=>{

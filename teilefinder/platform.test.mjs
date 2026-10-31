@@ -16,6 +16,7 @@ function environment(kind='chrome'){
 }
 for(const kind of ['firefox','chrome'])test(`${kind} adapter preserves native methods, async replies, errors and unhandled-message channels`,async()=>{
  const e=environment(kind);await e.api.storage.local.set({wishlist:[{name:'one'}]});assert.equal((await e.api.storage.local.get('wishlist')).wishlist[0].name,'one');assert.equal((await e.api.tabs.getCurrent()).id,1);
+ let reloaded;e.native.tabs.reload=async id=>{reloaded=id;};await e.api.tabs.reload(1);assert.equal(reloaded,1);
  assert.equal(e.api.action,e.native[kind==='chrome'?'action':'browserAction']);assert.equal(e.api.browserFamily,kind==='firefox'?'firefox':'chromium');
  e.api.runtime.onMessage.addListener(data=>data.type==='handled'?Promise.resolve({value:42}):undefined);
  const listener=[...e.native.runtime.onMessage.listeners][0];let response;

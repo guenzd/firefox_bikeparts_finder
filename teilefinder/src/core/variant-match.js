@@ -85,15 +85,19 @@ function shareVariantEAN(shops,requested,known=''){
 
 // Once an enabled EAN is established, an explicitly different identifier can
 // never be restored as a matching offer. Unread identifiers stay unconfirmed.
-function filterConflictingEANs(shops,ean){
+function filterConflictingEANs(shops,ean,filter={}){
  if(!validEAN(ean))return shops;
  const compatible=offer=>!validEAN(offer.ean)||equivalentEANs(offer.ean,ean);
  return shops.map(shop=>{
-  const offers=(shop.offers||[]).filter(compatible);
+  let offers=(shop.offers||[]).filter(compatible);
   if(shop.matchMode==='name-fallback'){
-   const conflicts=(shop.offers||[]).filter(offer=>!compatible(offer));
-   return {...shop,offers,suggestions:uniqueOffers([...(shop.suggestions||[]),...conflicts]),
-    ...(conflicts.length?{message:offers.length?'Andere Ausführungen haben eine abweichende EAN.':'Keine Angebote mit der gewünschten EAN. Andere Ausführungen nur als Vorschlag.'}:{})};
+   const confirmed=offers.some(offer=>equivalentEANs(offer.ean,ean)&&offer.priceKind==='exact'&&Number.isFinite(offer.price)&&offer.price>=(filter.minPrice??0)&&offer.price<=(filter.maxPrice??Infinity)&&variantMatches(offer,filter.variant));
+   const accepted=offer=>validEAN(offer.ean)?compatible(offer):offer.identityStatus==='checked-missing'&&!confirmed;
+   const conflicts=(shop.offers||[]).filter(offer=>!accepted(offer));
+   offers=offers.filter(accepted);
+   const suggestions=conflicts.map(offer=>!validEAN(offer.ean)&&offer.identityStatus!=='checked-missing'?{...offer,identityStatus:'unverified'}:offer);
+   return {...shop,offers,suggestions:uniqueOffers([...(shop.suggestions||[]),...suggestions]),
+    ...(conflicts.length?{message:offers.length?'Weitere Ausführungen nur als Vorschlag.':'Keine bestätigte Ausführung. Ähnliche Produkte bitte prüfen.'}:{})};
   }
   return {...shop,offers,suggestions:shop.suggestions||[],
    ...((shop.offers||[]).length&&!offers.length?{message:'Keine Angebote mit EAN '+ean+'. Abweichende EAN ausgeschlossen.'}:{})};

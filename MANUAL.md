@@ -147,3 +147,11 @@ Das Menü neben „Wunschliste“ bietet „Hinzugefügt“, „Name A–Z“, �
 ## Abweichende EAN beim Namens-Fallback
 
 Bei aktivierter EAN-Suche ist eine ausdrücklich andere gelesene EAN kein passendes Angebot – auch dann nicht, wenn Name und Preis passen. Solche Namens-Fallback-Treffer erscheinen nur als „Ähnliche Produkte“ und zählen nicht zu Bestpreis, Shopanzahl oder Summen. Das gilt nach Neuladen oder Import auch für bereits gespeicherte Ergebnisse, ohne neue Suche. Die gesuchte EAN bleibt erhalten. Ein Namensangebot ohne auslesbare EAN kann weiterhin verwendet werden, erhält aber keine erfundene EAN. Gleichwertige UPC/EAN-Schreibweisen zählen als dieselbe Kennung. Wenn die gespeicherte EAN bewusst nicht als Filter dienen soll, kann „EAN verwenden“ am Artikel ausgeschaltet werden.
+
+## Identitätsprüfung vor dem Preisvergleich
+
+Bei aktiver EAN-Suche prüft die Erweiterung relevante Kandidaten ohne ausgelesene Kennung auf ihren Detailseiten, bevor sie Preise vergleicht. Eine günstigere, noch ungeprüfte Ausführung darf diese Prüfung nicht überspringen. Gibt es im Preis- und Variantenfilter einen passenden EAN-bestätigten Treffer, haben Angebote ohne bestätigte Kennung in diesem Shop keinen Vorrang vor ihm.
+
+Ein Namensangebot ohne auslesbare EAN bleibt nur nach erfolgreicher Detailprüfung nutzbar, wenn der Shop keinen passenden EAN-bestätigten Treffer liefert. Fehlgeschlagene oder noch offene Prüfungen bleiben Vorschläge. Das funktioniert weiterhin mit einem wiederverwendeten Tab je Shop. Alte Namens-Fallback-Ergebnisse ohne Prüfstatus müssen einmal neu geprüft werden; ihre URLs bleiben für diese Aktualisierung erhalten. Die Sortierung, gespeicherte EAN und Preisgrenzen ändern sich dadurch nicht.
+
+Frisch bestätigte EAN-Treffer bleiben als Teilergebnisse erhalten, wenn das Prüfen weiterer Ausführungen später ins Shop-Zeitlimit läuft. Der Hinweis auf die unvollständige Prüfung kann trotzdem erscheinen.
