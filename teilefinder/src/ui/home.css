@@ -323,3 +323,8 @@ input.ean-toggle:disabled{opacity:.5;cursor:default}
 .wishlist>.shop-heading .wishlist-titlebar h2{margin:0}
 #wishlist-sort{width:auto;max-width:100%;height:30px;min-height:30px;padding:4px 8px;font:inherit;font-size:12px;cursor:pointer}
 #wishlist-sort:disabled{opacity:.55;cursor:default}
+
+/* Suggestions belong to the item above; separate the next item after the group. */
+.total-results .has-suggestions>td{padding-bottom:0;border-bottom:0}
+.total-results .wishlist-suggestions>td{padding:0 8px 8px 20px}
+.total-results .wishlist-suggestions details{margin:0}
