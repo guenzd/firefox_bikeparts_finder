@@ -2,7 +2,7 @@
 
 .secondary{background:#e5edf2;margin-top:14px}.wishlist{margin-top:32px;padding-top:20px;border-top:1px solid #d7e0e6}.wish-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:14px 0;border-bottom:1px solid #d7e0e6}.wish-row>strong{flex:1;min-width:180px}.wish-row label{display:flex;gap:8px;align-items:center}.wish-row input{width:130px;padding:8px}.wish-row .variant-input{width:190px}.wish-row button{padding:8px 12px;font-size:14px}.total{background:white;border:1px solid #bacbd5;padding:20px;border-radius:10px;margin-top:18px}.total strong{font-size:24px}button:disabled{opacity:.6;cursor:wait}
 
-.suggestion-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #d7e0e6}.suggestion-row strong{flex:1;min-width:220px}.suggestion-row button{padding:8px 12px;font-size:14px}
+.suggestion-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid #d7e0e6}.suggestion-row strong{flex:1;min-width:220px;font-size:13px;font-weight:550;line-height:1.4}.suggestion-row button{padding:8px 12px;font-size:14px}
 
 
 #search-variant{width:min(360px,100%)}
