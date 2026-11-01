@@ -155,3 +155,5 @@ Bei aktiver EAN-Suche prüft die Erweiterung relevante Kandidaten ohne ausgelese
 Ein Namensangebot ohne auslesbare EAN bleibt nur nach erfolgreicher Detailprüfung nutzbar, wenn der Shop keinen passenden EAN-bestätigten Treffer liefert. Fehlgeschlagene oder noch offene Prüfungen bleiben Vorschläge. Das funktioniert weiterhin mit einem wiederverwendeten Tab je Shop. Alte Namens-Fallback-Ergebnisse ohne Prüfstatus müssen einmal neu geprüft werden; ihre URLs bleiben für diese Aktualisierung erhalten. Die Sortierung, gespeicherte EAN und Preisgrenzen ändern sich dadurch nicht.
 
 Frisch bestätigte EAN-Treffer bleiben als Teilergebnisse erhalten, wenn das Prüfen weiterer Ausführungen später ins Shop-Zeitlimit läuft. Der Hinweis auf die unvollständige Prüfung kann trotzdem erscheinen.
+
+In der oberen Wunschlistenübersicht erscheinen „Ähnliche Produkte“ nur, wenn kein aktuell bestätigtes Angebot im Preis- und Variantenfilter vorliegt. Ist der Artikel gefunden, aber nicht lieferbar oder sein Lagerstatus unbekannt, entfallen dort die Vorschläge. Preise und Shop-Stati bleiben über den Artikelnamen erreichbar; gespeicherte Vorschläge werden nicht gelöscht.

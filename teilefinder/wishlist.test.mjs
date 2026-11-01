@@ -218,3 +218,13 @@ test('Legacy missing-EAN fallback candidates are inspectable suggestions and rem
  const row={name:'Generic pack',ean:'',variant:'1 L',price:20,priceKind:'exact',stock:'Auf Lager',url:'https://www.bike24.de/p1000123.html'};const item={id:'legacy',query:'Generic pack',ean:'1234567890128',useEAN:true,variant:'1 L',maxPrice:50,shops:[{name:'BIKE24',matchMode:'name-fallback',offers:[row]}]};
  const normalized=c.verifiedWishlistItems([item]);assert.equal(normalized[0].shops[0].offers.length,0);assert.equal(normalized[0].shops[0].suggestions[0].identityStatus,'unverified');const hints=c.knownSearchShops(normalized[0].shops,normalized,item.ean);assert.equal(hints[0].offers[0].url,row.url);assert.equal(c.cheapestWishlist(normalized).total,0);assert.equal(item.shops[0].offers.length,1);
 });
+
+test('Suggestion eligibility distinguishes matching unavailable products from missing, stale or filtered matches',()=>{
+ const found={query:'Generic component',variant:'black',maxPrice:30,ean:'1234567890128',shops:[{name:'A',offers:[{...offer(20,'Nicht lieferbar','black'),ean:'1234567890128'}]}]};
+ const cases=[found,{...found,shops:[{name:'A',offers:[{...found.shops[0].offers[0],stock:'Lagerstatus unbekannt'}]}]},
+  {...found,shops:[{...found.shops[0],stale:true}]},{...found,variant:'white'},{...found,maxPrice:10},
+  {...found,shops:[{name:'A',offers:[{...found.shops[0].offers[0],ean:'9876543210982'}]}]},
+  {...found,shops:[{name:'A',offers:[{...found.shops[0].offers[0],priceKind:'from'}]}]}, {...found,shops:[]}];
+ assert.deepEqual(Array.from(sum(cases).rows,row=>row.hasMatchingOffer),[true,true,false,false,false,false,false,false]);
+ assert.ok(sum(cases).rows.every(row=>row.best===null));
+});
