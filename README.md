@@ -80,16 +80,16 @@ teilefinder/src/
   platform/   Browser-APIs, Nachrichten, Hintergrund und Shop-Tab-Verwaltung
   assets/     Fahrrad-Icons und lokale Inter-Schrift
 teilefinder/manifests/   Firefox MV2 und Chrome MV3
-teilefinder/*.test.mjs   Regressionstests; zusätzliche Parsertests in local-browser/
+teilefinder/*.test.mjs   Regressionstests gegen die aktuellen Erweiterungsquellen
 scripts/                Paketbau und Profiling
 ```
 
 UI und fachliche Logik sind gemeinsam; native Browserzugriffe liegen in `platform/`. Bei fehlenden oder nicht erfolgreich auslesbaren BIKE24-Widgets verwenden Firefox und Chromium frische Produktmetadaten und die schreibgeschützte Verfügbarkeitsabfrage desselben Shops. Varianten erfordern eine eindeutige Optionszuordnung und einen vollständig berechenbaren Preis. Verknüpfte Ausführungen werden auch dann geprüft, wenn etwa die Packungsgröße im Link und der Geschmack erst im Dropdown stehen; die endgültige Varianten- und EAN-Prüfung bleibt erforderlich. Erfolgreich ausgelesene Widgets behalten ihren DOM-/Dropdown-Pfad. Packungsangaben wie „24er“, „24 Stück“ und „24x50g“ werden über die Stückzahl verglichen, ohne andere Mengen oder Modellnummern gleichzusetzen. Shop-spezifische DOM-Reader sind nötig, Produktnamen-Sonderregeln oder Suchbegriff-Wörterbücher sind nicht vorgesehen. Tests verwenden Fixtures und API-Mocks; sie ersetzen keine Prüfung der aktuellen Shopseiten in beiden Browsern.
 
-Die übrigen Website- und Chromium-Prototypdateien unter `teilefinder/` sind historischer Bestand. Deren verschachteltes `npm run build` baut die frühere Website, **nicht** die Erweiterung. Siehe [Quellordner](teilefinder/README.md) und [lokaler Prototyp](teilefinder/LOKAL.md).
+Der frühere Website-/Chromium-Prototyp wurde aus dem aktuellen Quellbaum entfernt. Er bleibt über die Git-Historie bis [v0.8.48](https://github.com/guenzd/firefox_bikeparts_finder/tree/v0.8.48) abrufbar; siehe [Prototyp-Historie](docs/PROTOTYPE-HISTORY.md). Es gibt nur ein Build-Paket im Repository-Hauptverzeichnis. Die Parsertests prüfen direkt die heute ausgelieferten Erweiterungsfunktionen.
 
 ## Repository und Releases
 
-Repository: [guenzd/firefox_bikeparts_finder](https://github.com/guenzd/firefox_bikeparts_finder), konfigurierter Remote `git`. Die Cross-Browser-Entwicklung liegt auf `feature/chrome-cross-browser`. Veröffentlichungen werden geprüft, committed, mit `v<Version>` annotiert und samt Tag gepusht; die Regeln stehen in [AGENTS.md](AGENTS.md). Git-Tags bestätigen keine Store-Freigabe oder Mozilla-Signierung.
+Repository: [guenzd/firefox_bikeparts_finder](https://github.com/guenzd/firefox_bikeparts_finder), konfigurierter Remote `git`. Die aktuelle Entwicklung liegt auf `main`; der frühere Cross-Browser-Branch ist bereits zusammengeführt. Veröffentlichungen werden geprüft, committed, mit `v<Version>` annotiert und samt Tag gepusht; die Regeln stehen in [AGENTS.md](AGENTS.md). Git-Tags bestätigen keine Store-Freigabe oder Mozilla-Signierung.
 
 Generierte Pakete, Browserprofile, Zugangsdaten und lokale Datenexporte gehören nicht in Git. Mitgelieferte Schrift- und Bibliothekslizenzen bleiben bei den jeweiligen Dateien erhalten.

@@ -108,7 +108,7 @@ def main():
         raise RuntimeError('Node.js fehlt.')
     for path in sorted(SOURCE.rglob('*.js')):
         subprocess.run(['node', '--check', str(path)], check=True)
-    tests = sorted(PROJECT.glob('*.test.mjs')) + [PROJECT / 'local-browser/extract.test.mjs']
+    tests = sorted(PROJECT.glob('*.test.mjs'))
     subprocess.run(['node', '--test', *map(str, tests)], cwd=PROJECT, check=True)
     if not args.test_only:
         for target, manifest in manifests.items():

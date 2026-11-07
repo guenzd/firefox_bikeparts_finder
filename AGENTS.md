@@ -9,5 +9,5 @@
 ## Documentation and matching
 
 - Keep the root README, manual, architecture and publishing instructions consistent with the current shared Firefox/Chrome sources. Preserve historical release facts as historical and leave third-party license text unchanged.
-- Run extension builds from the repository root. The nested website package is a historical prototype, not the extension build.
+- Run extension builds from the repository root. `teilefinder/` contains extension sources and tests, not a separate npm project.
 - Keep product matching generic; do not add special cases for individual product names or search terms. Shop-specific DOM adapters are allowed.

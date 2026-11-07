@@ -23,8 +23,6 @@ npm run build
 
 Die Ausgabe liegt in `../outputs/`. Es gibt keinen notwendigen lokalen Web- oder Datenbankserver.
 
-## Historischer Website-Prototyp
+## Frühere Prototypen
 
-`app/`, `components/`, `lib/`, die Website-Konfiguration und das hiesige `package.json` stammen vom ursprünglichen Sites-/vinext-Prototyp. Dessen `npm run dev` und `npm run build` betreffen die Website und nicht das Browser-Add-on. Die Website-Abhängigkeiten sind für den Erweiterungsbau nicht erforderlich und werden nicht mit ausgeliefert.
-
-`local-browser/` und `scripts/start-local.mjs` gehören zum früheren lokalen Chromium-Ansatz; siehe [LOKAL.md](LOKAL.md). Seine Parsertests werden weiterhin vom zentralen Testlauf berücksichtigt. Der Prototyp ist kein zweiter notwendiger Bestandteil der Erweiterung.
+Die alten Website-, Framework- und lokalen Playwright-Dateien wurden entfernt. Ihre Historie und der letzte vollständige Quellstand stehen in der [Prototyp-Historie](../docs/PROTOTYPE-HISTORY.md). Die frühere zweite Paketinstallation ist nicht mehr erforderlich. Alle `*.test.mjs` einschließlich `extract.test.mjs` prüfen die aktuellen Erweiterungsquellen.
