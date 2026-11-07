@@ -13,7 +13,7 @@ function wishlistDisplayItems(){
  return wishlist.slice().sort((a,b)=>(rank.get(a.id)??Infinity)-(rank.get(b.id)??Infinity));
 }
 function queueResultRender(){if(resultRenderTimer===undefined)resultRenderTimer=setTimeout(()=>{resultRenderTimer=undefined;render();},50);}
-function isWishlistItemActive(itemId){return checkingList&&(wishlistBatch?wishlist.find(item=>!wishlistBatch.done.has(item.id))?.id===itemId:activeWishlistId===itemId);}
+function isWishlistItemActive(itemId){return checkingList&&(wishlistBatch?wishlist.find(item=>!wishlistBatch.finished.has(item.id))?.id===itemId:activeWishlistId===itemId);}
 function syncWishlistActivity(){
  for(const row of document.querySelectorAll('[data-wishlist-item]')){
   const active=isWishlistItemActive(row.dataset.wishlistItem);row.classList.toggle('wishlist-item-refreshing',active);
@@ -325,10 +325,10 @@ function batchShopResult(data,previous){
  return {name:data.shop,...((kept?previous?.matchMode:data.matchMode)==='name-fallback'?{matchMode:'name-fallback'}:{}),comparisonMode:data.comparisonMode==='cheapest'||kept&&previous?.comparisonMode==='cheapest'?'cheapest':'',queriedEAN:ean,offers:uniqueOffers(kept?old:offers),stale:!!kept,suggestions:(data.suggestions||[]).filter(safe),variantAlternatives:!!data.variantAlternatives,url:data.url,message:kept?'Vorherige Ergebnisse · aktuell nicht bestätigt. '+(data.message||''):data.message,checkedAt:kept?previous.checkedAt:new Date().toISOString(),checked:true,done:data.type==='result'};
 }
 function updateWishlistBatchProgress(batch){
- wishlistProgress.completed=batch.done.size;
+ wishlistProgress.completed=batch.finished.size;
  wishlistProgress.checkedShops=[...batch.states.values()].reduce((count,states)=>count+[...states.values()].filter(s=>s.done).length,0);
  updateWishlistProgress();
- document.querySelector('#status').textContent=batch.done.size+' / '+batch.states.size+' Artikel geprüft';
+ document.querySelector('#status').textContent=batch.finished.size+' / '+batch.states.size+' Artikel geprüft';
 }
 function handleWishlistBatchMessage(data){
  const batch=wishlistBatch;if(!batch||data.target!==currentTab||data.batchId!==batch.id||stopRequested)return;
@@ -336,6 +336,9 @@ function handleWishlistBatchMessage(data){
  if(data.type==='batch-complete'){batch.error=!!data.error;return batch.writes.finally(()=>batch.resolve());}
  const states=batch.states.get(data.itemId);if(!states)return;
  if(data.type==='batch-item-done'){
+  if(batch.finished.has(data.itemId))return;
+  // Search activity must not wait for the serial storage/history queue.
+  batch.finished.add(data.itemId);syncWishlistActivity();updateWishlistBatchProgress(batch);queueResultRender();
   const shops=[...states.values()].map(s=>({...s}));
   batch.writes=batch.writes.then(async()=>{
    wishlist=applyWishlistSearch(wishlist,data.itemId,shops,new Date().toISOString());await saveList();
@@ -355,7 +358,7 @@ function handleWishlistBatchMessage(data){
 async function checkWishlistBatch(){
  if(checkingList||searchRunning||!wishlist.length)return;
  checkingList=true;stopRequested=false;activeWishlistId='';wishlistDetails=true;wishlistEditor=null;
- const batch={id:crypto.randomUUID(),states:new Map(wishlist.map(item=>[item.id,new Map(names.map(name=>[name,{name,...(item.shops||[]).find(shop=>shop.name===name),done:false,checked:false}]))])),active:new Map(),done:new Set(),writes:Promise.resolve()};
+ const batch={id:crypto.randomUUID(),states:new Map(wishlist.map(item=>[item.id,new Map(names.map(name=>[name,{name,...(item.shops||[]).find(shop=>shop.name===name),done:false,checked:false}]))])),active:new Map(),finished:new Set(),done:new Set(),writes:Promise.resolve()};
  wishlistBatch=batch;id=batch.id;wishlistProgress={completed:0,total:wishlist.length,percent:0,checkedShops:0};
  const finished=new Promise(resolve=>{batch.resolve=resolve;});setWishlistCollapsed(false);setSearchRunning(true);updateWishlistProgress();renderWishlist();resetWishlistBatchDeadline(batch);
  try{

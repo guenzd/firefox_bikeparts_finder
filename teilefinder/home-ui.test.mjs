@@ -324,11 +324,11 @@ test('Full wishlist refresh routes interleaved shops to their own article and pr
 });
 
 test('Wishlist highlights only the earliest unfinished item even when later items finish first',()=>{
- const ctx=uiContext({checkingList:true,wishlist:[{id:'slow'},{id:'fast'},{id:'last'}],wishlistBatch:{done:new Set(['fast'])}});
+ const ctx=uiContext({checkingList:true,wishlist:[{id:'slow'},{id:'fast'},{id:'last'}],wishlistBatch:{finished:new Set(['fast'])}});
  vm.runInContext(home.slice(home.indexOf('function isWishlistItemActive('),home.indexOf('function syncWishlistActivity(')),ctx);
  const highlighted=()=>ctx.wishlist.filter(item=>ctx.isWishlistItemActive(item.id)).map(item=>item.id);
- assert.deepEqual(highlighted(),['slow']);ctx.wishlistBatch.done.add('slow');assert.deepEqual(highlighted(),['last']);
- ctx.wishlistBatch.done.add('last');assert.deepEqual(highlighted(),[]);
+ assert.deepEqual(highlighted(),['slow']);ctx.wishlistBatch.finished.add('slow');assert.deepEqual(highlighted(),['last']);
+ ctx.wishlistBatch.finished.add('last');assert.deepEqual(highlighted(),[]);
  ctx.wishlistBatch=null;ctx.activeWishlistId='fast';assert.deepEqual(highlighted(),['fast']);
  ctx.checkingList=false;assert.deepEqual(highlighted(),[]);
 });
@@ -342,4 +342,28 @@ test('Ad hoc rejects an explicitly different fallback GTIN without replacing the
  listener(result);assert.equal(ctx.state.get('BIKE24').matchMode,'name-fallback');assert.equal(ctx.state.get('BIKE24').offers.length,0);assert.equal(ctx.state.get('BIKE24').suggestions[0].ean,'9876543210982');assert.equal(node('#search-ean').value,'1234567890128');
  vm.runInContext(home.slice(home.indexOf('function batchShopResult('),home.indexOf('function updateWishlistBatchProgress(')),ctx);
  const batch=ctx.batchShopResult(result);assert.equal(batch.matchMode,'name-fallback');assert.equal(batch.offers[0].ean,'9876543210982');
+});
+
+test('Batch activity advances before slow wishlist and history writes, including duplicate completion events',async()=>{
+ const nodes={},node=s=>nodes[s]||(nodes[s]={textContent:''}),highlights=[];
+ let releaseSave,releaseHistory,saves=0,histories=0;
+ const saving=new Promise(resolve=>{releaseSave=resolve;}),history=new Promise(resolve=>{releaseHistory=resolve;});
+ const batch={id:'batch',states:new Map(['one','two'].map(id=>[id,new Map()])),active:new Map([['BIKE24','one']]),finished:new Set(),done:new Set(),writes:Promise.resolve()};
+ const ctx=uiContext({checkingList:true,currentTab:7,names:['BIKE24','Bike-Discount','bike-components','r2-bike'],wishlist:[{id:'one',query:'First',shops:[]},{id:'two',query:'Second',shops:[]}],wishlistBatch:batch,wishlistProgress:{completed:0,total:2},stopRequested:false,searchDeadline:undefined,setTimeout:(fn,ms)=>setTimeout(fn,ms).unref(),clearTimeout,Date,
+  document:{querySelector:node},updateWishlistProgress(){},queueResultRender(){},renderTotal(){},applyWishlistSearch:items=>items,
+  syncWishlistActivity(){highlights.push(ctx.wishlist.filter(i=>ctx.isWishlistItemActive(i.id)).map(i=>i.id));},
+  async saveList(){saves++;await saving;},async recordPriceHistory(){histories++;await history;}});
+ vm.runInContext(home.slice(home.indexOf('function isWishlistItemActive('),home.indexOf('function syncWishlistActivity(')),ctx);
+ vm.runInContext(home.slice(home.indexOf('function resetWishlistBatchDeadline('),home.indexOf("document.querySelector('#check-wishlist').addEventListener")),ctx);
+ const send=(type,itemId,extra={})=>ctx.handleWishlistBatchMessage({type,itemId,target:7,batchId:'batch',...extra});
+ const pending=send('batch-item-done','one',{id:'batch:one'});
+ await new Promise(setImmediate);
+ assert.equal(saves,1);assert.equal(histories,0);assert.equal(batch.done.size,0);
+ assert.equal(ctx.isWishlistItemActive('one'),false,'Search completion must not wait for storage');assert.equal(ctx.isWishlistItemActive('two'),true);
+ assert.deepEqual(highlights.at(-1),['two']);assert.equal(ctx.wishlistProgress.completed,1);
+ send('batch-shop-active','two',{shop:'BIKE24',active:true});send('batch-item-done','one',{id:'batch:one'});
+ releaseSave();await new Promise(setImmediate);assert.equal(histories,1);assert.equal(batch.done.size,0);assert.equal(ctx.isWishlistItemActive('two'),true);
+ releaseHistory();await pending;await batch.writes;assert.equal(saves,1);assert.equal(histories,1);assert.ok(batch.done.has('one'));
+ await send('batch-item-done','two',{id:'batch:two'});assert.equal(ctx.isWishlistItemActive('two'),false);assert.deepEqual(highlights.at(-1),[]);
+ clearTimeout(ctx.searchDeadline);
 });
