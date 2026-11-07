@@ -2,6 +2,8 @@
 function safeUrl(value,host){try{const u=new URL(value,'https://'+host);return u.protocol==='https:' && u.hostname.replace(/^www\./,'')===host.replace(/^www\./,'') ? u.href : null;}catch{return null;}}
 function euro(value){if(typeof value==='number')return Number.isFinite(value)&&value>0?Math.round(value*100)/100:null;const text=String(value??'').replace(/\s/g,'');const n=Number(text.includes(',')?text.replace(/\./g,'').replace(',','.'):text);return Number.isFinite(n)&&n>0?Math.round(n*100)/100:null;}
 function productNameText(value){return String(value||'').toLowerCase().replace(/['’‘`´ʼ]/g,'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[‐‑–—-]/g,' ').replace(/\s+/g,' ').trim();}
+// Fold display case for identity words while preserving existing lexical bundle guards.
+function productIdentityText(value){return productNameText(value).replace(/ß/g,'ss');}
 // Strong model identifiers survive shop-specific series and marketing names.
 // No brand/product dictionary: require an exact model, matching brand prefix and
 // shared descriptive words; accessory/compatibility references are not products.
@@ -26,7 +28,7 @@ function modelRetryQuery(query){
 function modelNameMatches(name,query){
  const models=productModelCodes(query);if(!models.length)return false;
  if(!models.every(code=>hasModelCode(name,code)))return false;
- const title=productNameText(name).split(/[^a-z0-9]+/).filter(Boolean),wanted=productNameText(query).split(/[^a-z0-9]+/).filter(Boolean);
+ const title=productIdentityText(name).split(/[^a-z0-9]+/).filter(Boolean),wanted=productIdentityText(query).split(/[^a-z0-9]+/).filter(Boolean);
  const brand=wanted[0];if(!brand||title[0]!==brand&&title.slice(0,2).join('')!==brand)return false;
  if(/\b(?:fur|for|kompatibel|compatible|passend|bundle|set)\b/.test(productNameText(name)))return false;
  const modelWords=new Set(models.flatMap(code=>productNameText(code).split(/[^a-z0-9]+/)));
@@ -34,8 +36,8 @@ function modelNameMatches(name,query){
  return !descriptions.length||descriptions.some(word=>title.includes(word));
 }
 function matches(name,q){
- const text=productNameText(name),query=productNameText(q),words=text.split(/[^a-z0-9]+/).filter(Boolean);
- if(/\b(?:bundle|set|\d+er\s+set)\b/.test(text)&&!/\b(?:bundle|set|\d+er\s+set)\b/.test(query))return false;
+ const text=productIdentityText(name),query=productIdentityText(q),words=text.split(/[^a-z0-9]+/).filter(Boolean);
+ if(/\b(?:bundle|set|\d+er\s+set)\b/.test(productNameText(name))&&!/\b(?:bundle|set|\d+er\s+set)\b/.test(productNameText(q)))return false;
  // Tokenize both sides equally: punctuation in a brand/title is a separator,
  // not a required word. Model identifiers are still checked separately below.
  const requested=query.split(/[^a-z0-9]+/).filter(Boolean);

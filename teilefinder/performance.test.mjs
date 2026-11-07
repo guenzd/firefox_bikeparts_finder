@@ -243,3 +243,17 @@ test('Linked names keep an explicitly requested pack count instead of choosing a
  const result=await ctx.bike24Linked({id:1},{id:'bike24',host:'www.bike24.de'},{query:'Generic Gel 8er',nameQuery:'Generic Gel 8er',variant:'Citrus'},rows[0],{offers:[rows[0]],linkedVariants:rows.map(row=>({url:row.url}))});
  assert.equal(result.offers.length,1);assert.equal(result.offers[0].price,18);assert.equal(result.offers[0].name,'Generic Gel 8x40ml');
 });
+
+test('Saved product refresh accepts uppercase sharp-s headings twice without losing fresh prices or navigating to search',async()=>{
+ const c=vm.createContext({searchPlatform:{runtime:{onMessage:{addListener(){}},async sendMessage(){}}},URL,setTimeout,clearTimeout});
+ for(const name of ['identifiers','products','variant-match','catalog','search-controller'])vm.runInContext(readFileSync(new URL('./src/core/'+name+'.js',import.meta.url),'utf8'),c);
+ const shop={id:'bike-components',name:'bike-components',host:'bike-components.de',search:q=>'https://www.bike-components.de/search?q='+encodeURIComponent(q)};
+ const url='https://www.bike-components.de/de/Example/generic-adapter-p123/',name='Example Außenführung Adapter';
+ const job={id:'casefold',source:99,refreshKnown:true,query:name,nameQuery:name,variant:'',knownShops:[{name:shop.name,offers:[{name,url,price:999,priceKind:'exact'}]}],results:new Map(),counts:new Map()};
+ c.job=job;vm.runInContext('jobs.set(job.source,job)',c);c.shopTab=async()=>({id:1});c.shopPause=async()=>{};
+ let reads=0,heading='EXAMPLE AUSSENFÜHRUNG ADAPTER';
+ c.searchPlatform.tabs={async sendMessage(_id,data){assert.equal(data.type,'detail');assert.equal(data.url,url);assert.equal(data.fallback.price,null);reads++;return {ready:true,pageMatchesRequested:true,productName:heading,offers:[{name,url,price:3+reads,priceKind:'exact',stock:'Auf Lager'}]};}};
+ for(let run=1;run<=2;run++){await c.runShop(job,shop);assert.equal(job.results.get(shop.id).offers.length,1);assert.equal(job.results.get(shop.id).offers[0].price,3+run);}
+ assert.equal(reads,2);
+ heading='EXAMPLE INNENFÜHRUNG ADAPTER';await c.runShop(job,shop);assert.equal(job.results.get(shop.id).offers.length,0,'A genuinely different current product heading still fails validation');
+});

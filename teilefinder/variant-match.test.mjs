@@ -139,3 +139,10 @@ test('EAN discovery intersects shop identifiers without choosing an arbitrary ex
  const filtered=ctx.filterConflictingEANs(shops,good);assert.equal(filtered[1].offers.length,1);assert.equal(filtered[1].offers[0].ean,good);assert.equal(shops[1].offers.length,2);
  assert.equal(ctx.filterConflictingEANs(shops,'')[1].offers.length,2);
 });
+
+test('Product identity is stable across sharp-s, capital sharp-s and uppercase SS without accepting other parts or model numbers',()=>{
+ const c=vm.createContext({});vm.runInContext(readSource('products.js'),c);
+ const query='Beispiel Außenführung AD-120';
+ for(const title of ['BEISPIEL AUSSENFÜHRUNG AD-120','Beispiel Aussenführung AD-120','Beispiel Auẞenführung AD-120']){assert.equal(c.matches(title,query),true);assert.equal(c.matches(query,title),true);}
+ for(const title of ['BEISPIEL INNENFÜHRUNG AD-120','BEISPIEL AUSSENFÜHRUNG AD-121','ANDERE AUSSENFÜHRUNG AD-120'])assert.equal(c.matches(title,query),false,title);
+});
